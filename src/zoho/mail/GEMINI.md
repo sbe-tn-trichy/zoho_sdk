@@ -2,18 +2,23 @@
 
 Zoho Mail API client integration.
 
+## Client Class: [ZohoMailAPI](file:///d:/workplace/zoho_sdk/src/zoho/mail/client.py#L27)
+
+- `__init__(self, access_token: str, domain: str = "com")`
+- `account(self, account_id: str) -> AccountScope`
+- `request(self, method: str, endpoint: str, json: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None, files: Optional[Dict[str, Any]] = None, stream: bool = False) -> Any`
+
 ## Files
 
 | File | Description |
 | :--- | :--- |
-| [__init__.py](__init__.py) | Python source module. |
-| [__pycache__](__pycache__) | File ( format). |
-| [base.py](base.py) | Classes: BaseResource | Functions: list, get, create, update... |
-| [client.py](client.py) | Classes: ZohoMailAPI, AccountScope | Functions: account, request |
-| [exceptions.py](exceptions.py) | Classes: ZohoMailError |
+| [__init__.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/__init__.py) | Package initialization. |
+| [base.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/base.py) | [BaseResource](file:///d:/workplace/zoho_sdk/src/zoho/mail/base.py#L4): list, get, create, update, delete, _action |
+| [client.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/client.py) | Main [ZohoMailAPI](file:///d:/workplace/zoho_sdk/src/zoho/mail/client.py#L27) client implementation. |
+| [exceptions.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/exceptions.py) | [ZohoMailError](file:///d:/workplace/zoho_sdk/src/zoho/mail/exceptions.py#L1) exception. |
 
 ## Subfolders
 
 | Folder | Description |
 | :--- | :--- |
-| [resources/](resources/GEMINI.md) | Zoho resources Client. |
+| [resources/](file:///d:/workplace/zoho_sdk/src/zoho/mail/resources/GEMINI.md) | Zoho Mail resource modules (Accounts, Folders, Messages). |

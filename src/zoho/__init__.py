@@ -3,6 +3,7 @@ from .cliq import ZohoCliqAPI
 from .mail import ZohoMailAPI, ZohoMailError
 from .sheet import ZohoSheetAPI
 from .wd import ZohoWorkdriveAPI
+from .inventory import ZohoInventoryAPI, ZohoInventoryError
 
 __all__ = [
     'ZohoBooksAPI',
@@ -11,7 +12,10 @@ __all__ = [
     'ZohoMailAPI',
     'ZohoMailError',
     'ZohoSheetAPI',
-    'ZohoWorkdriveAPI'
+    'ZohoWorkdriveAPI',
+    'ZohoInventoryAPI',
+    'ZohoInventoryError'
 ]
+
 
 

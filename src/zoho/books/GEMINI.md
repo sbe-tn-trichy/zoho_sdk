@@ -2,19 +2,23 @@
 
 Zoho Books API client integration.
 
+## Client Class: [ZohoBooksAPI](file:///d:/workplace/zoho_sdk/src/zoho/books/client.py#L33)
+
+- `__init__(self, access_token: str, organization_id: str, domain: str = "com", on_request_completed: Optional[Any] = None, token_refresh_callback: Optional[Any] = None)`
+- `request(self, method: str, endpoint: str, json: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None, files: Optional[Dict[str, Any]] = None) -> Dict[str, Any]`
+
 ## Files
 
 | File | Description |
 | :--- | :--- |
-| [__init__.py](__init__.py) | Python source module. |
-| [__pycache__](__pycache__) | File ( format). |
-| [base.py](base.py) | Classes: BaseResource | Functions: list, list_all, get, create... |
-| [client.py](client.py) | Classes: ZohoBooksAPI | Functions: request |
-| [exceptions.py](exceptions.py) | Classes: ZohoBooksError |
-| [mixins.py](mixins.py) | Classes: ActiveInactiveMixin, StatusMixin, ApprovalMixin... | Functions: mark_as_active, mark_as_inactive, mark_as_void, mark_as_open... |
+| [__init__.py](file:///d:/workplace/zoho_sdk/src/zoho/books/__init__.py) | Package initialization. |
+| [base.py](file:///d:/workplace/zoho_sdk/src/zoho/books/base.py) | [BaseResource](file:///d:/workplace/zoho_sdk/src/zoho/books/base.py#L4): list, list_all, get, create, update, delete |
+| [client.py](file:///d:/workplace/zoho_sdk/src/zoho/books/client.py) | Main [ZohoBooksAPI](file:///d:/workplace/zoho_sdk/src/zoho/books/client.py#L33) client class. |
+| [exceptions.py](file:///d:/workplace/zoho_sdk/src/zoho/books/exceptions.py) | [ZohoBooksError](file:///d:/workplace/zoho_sdk/src/zoho/books/exceptions.py#L1) exception. |
+| [mixins.py](file:///d:/workplace/zoho_sdk/src/zoho/books/mixins.py) | Common operations mixins: ActiveInactiveMixin, StatusMixin, ApprovalMixin, EmailMixin, CreditsMixin |
 
 ## Subfolders
 
 | Folder | Description |
 | :--- | :--- |
-| [resources/](resources/GEMINI.md) | Zoho resources Client. |
+| [resources/](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/GEMINI.md) | Zoho Books resource modules (Invoices, Estimates, Contacts, items, etc.). |
