@@ -4,6 +4,7 @@ from .mail import ZohoMailAPI, ZohoMailError
 from .sheet import ZohoSheetAPI
 from .wd import ZohoWorkdriveAPI
 from .inventory import ZohoInventoryAPI, ZohoInventoryError
+from .auth import ZohoOAuth2Manager
 
 __all__ = [
     'ZohoBooksAPI',
@@ -14,7 +15,8 @@ __all__ = [
     'ZohoSheetAPI',
     'ZohoWorkdriveAPI',
     'ZohoInventoryAPI',
-    'ZohoInventoryError'
+    'ZohoInventoryError',
+    'ZohoOAuth2Manager'
 ]
 
 
