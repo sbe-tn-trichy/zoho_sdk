@@ -1,3 +1,4 @@
+import os
 import re
 import logging
 import calendar
@@ -303,3 +304,53 @@ class GST(BaseResource):
             "credit_notes": finalize_summary(cn_agg),
             "consolidated": finalize_summary(net_agg)
         }
+
+    def get_gstr_outward_supplies(self, params: Optional[Dict[str, Any]] = None) -> bytes:
+        """
+        Retrieve GSTR-1 Outward Supplies report content (e.g. XLSX, XLS or PDF).
+        """
+        return self.client.request('GET', 'reports/gstroutwardsupplies', params=params)
+
+    def download_gstr_outward_supplies(self, save_path: str, params: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Download GSTR-1 Outward Supplies report and save it to the specified path.
+        """
+        if not params:
+            params = {}
+        if 'accept' not in params:
+            params['accept'] = 'xlsx'
+
+        if not os.path.isabs(save_path):
+            save_path = os.path.join("output", save_path)
+            save_path = os.path.abspath(save_path)
+
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        content = self.get_gstr_outward_supplies(params=params)
+        with open(save_path, "wb") as f:
+            f.write(content)
+        return save_path
+
+    def get_gstr_inward_supplies(self, params: Optional[Dict[str, Any]] = None) -> bytes:
+        """
+        Retrieve GSTR-2 Inward Supplies report content (e.g. XLSX, XLS or PDF).
+        """
+        return self.client.request('GET', 'reports/gstrinwardsupplies', params=params)
+
+    def download_gstr_inward_supplies(self, save_path: str, params: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Download GSTR-2 Inward Supplies report and save it to the specified path.
+        """
+        if not params:
+            params = {}
+        if 'accept' not in params:
+            params['accept'] = 'xlsx'
+
+        if not os.path.isabs(save_path):
+            save_path = os.path.join("output", save_path)
+            save_path = os.path.abspath(save_path)
+
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        content = self.get_gstr_inward_supplies(params=params)
+        with open(save_path, "wb") as f:
+            f.write(content)
+        return save_path

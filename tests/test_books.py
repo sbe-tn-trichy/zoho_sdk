@@ -201,6 +201,40 @@ class TestGST(unittest.TestCase):
         with self.assertRaises(ValueError):
             gst.get_month_date_range("invalid-date")
 
+    def test_get_gstr_outward_supplies(self):
+        client = MagicMock()
+        gst = GST(client)
+        gst.get_gstr_outward_supplies(params={"accept": "xlsx"})
+        client.request.assert_called_with('GET', 'reports/gstroutwardsupplies', params={"accept": "xlsx"})
+
+    def test_get_gstr_inward_supplies(self):
+        client = MagicMock()
+        gst = GST(client)
+        gst.get_gstr_inward_supplies(params={"accept": "xlsx"})
+        client.request.assert_called_with('GET', 'reports/gstrinwardsupplies', params={"accept": "xlsx"})
+
+    @patch("builtins.open", new_callable=unittest.mock.mock_open)
+    @patch("os.makedirs")
+    def test_download_gstr_outward_supplies(self, mock_makedirs, mock_open):
+        client = MagicMock()
+        gst = GST(client)
+        gst.get_gstr_outward_supplies = MagicMock(return_value=b"outward_report_content")
+        gst.download_gstr_outward_supplies("gstr1_report.xlsx", params={"accept": "xlsx"})
+        gst.get_gstr_outward_supplies.assert_called_once_with(params={"accept": "xlsx"})
+        mock_open.assert_called_once()
+        mock_open().write.assert_called_once_with(b"outward_report_content")
+
+    @patch("builtins.open", new_callable=unittest.mock.mock_open)
+    @patch("os.makedirs")
+    def test_download_gstr_inward_supplies(self, mock_makedirs, mock_open):
+        client = MagicMock()
+        gst = GST(client)
+        gst.get_gstr_inward_supplies = MagicMock(return_value=b"inward_report_content")
+        gst.download_gstr_inward_supplies("gstr2_report.xlsx", params={"accept": "xlsx"})
+        gst.get_gstr_inward_supplies.assert_called_once_with(params={"accept": "xlsx"})
+        mock_open.assert_called_once()
+        mock_open().write.assert_called_once_with(b"inward_report_content")
+
 
 class TestSalesOrders(unittest.TestCase):
     @patch("requests.request")
