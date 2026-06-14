@@ -1,15 +1,18 @@
-# Folder Index: `zoho/cliq`
+# Directory Index: cliq
+- **Absolute Path:** `/Users/vak/Documents/workspace/zoho_sdk/src/zoho/cliq`
+- **Relative Path:** `src/zoho/cliq`
 
-Zoho Cliq API client integration.
+## Functions Index
+### `client.py`
+- `fn: __init__`
+- `fn: send_notification`
 
-## Client Class: [ZohoCliqAPI](file:///d:/workplace/zoho_sdk/src/zoho/cliq/client.py#L5)
+## Subdirectories
+*No subdirectories.*
 
-- `__init__(self, access_token: str, bot_name: str = "messengerbot", domain: str = "in")`
-- `send_notification(self, message: str, channel: str = None) -> Optional[Dict[str, Any]]`
-
-## Files
-
-| File | Description |
-| :--- | :--- |
-| [__init__.py](file:///d:/workplace/zoho_sdk/src/zoho/cliq/__init__.py) | Package initialization. |
-| [client.py](file:///d:/workplace/zoho_sdk/src/zoho/cliq/client.py) | Main [ZohoCliqAPI](file:///d:/workplace/zoho_sdk/src/zoho/cliq/client.py#L5) client implementation. |
+## File Inventory
+| File Name | Extension | Size | Date Last Modified |
+| --- | --- | --- | --- |
+| __init__.py | .py | 0.06 KB | 2026-05-09 17:30:13 |
+| client.py | .py | 1.50 KB | 2026-06-11 20:42:44 |
+| GEMINI.md | .md | 0.64 KB | 2026-06-12 10:59:58 |

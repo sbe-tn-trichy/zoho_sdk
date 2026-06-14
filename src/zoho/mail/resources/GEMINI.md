@@ -1,31 +1,41 @@
-# Folder Index: `zoho/mail/resources`
+# Directory Index: resources
+- **Absolute Path:** `/Users/vak/Documents/workspace/zoho_sdk/src/zoho/mail/resources`
+- **Relative Path:** `src/zoho/mail/resources`
 
-Zoho Mail Resource modules mapping to specific API endpoints.
+## Functions Index
+### `accounts.py`
+- `fn: __init__`
 
-## Files and Available Classes/Methods
+### `folders.py`
+- `fn: __init__`
+- `fn: create`
+- `fn: rename`
 
-### [accounts.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/resources/accounts.py)
-- **[Accounts](file:///d:/workplace/zoho_sdk/src/zoho/mail/resources/accounts.py#L3)** (inherits `BaseResource` from `mail/base.py`)
-  - Standard CRUD: `list()`, `get()`, `create()`, `update()`, `delete()`
+### `messages.py`
+- `fn: __init__`
+- `fn: download_attachment`
+- `fn: download_folder_attachments`
+- `fn: extract_attachments`
+- `fn: get_attachment_content`
+- `fn: get_attachments_info`
+- `fn: get_content`
+- `fn: list`
+- `fn: list_iter`
+- `fn: mark_as_read`
+- `fn: mark_as_unread`
+- `fn: message_has_attachment`
+- `fn: resolve_download_path`
+- `fn: save_draft`
+- `fn: send`
 
-### [folders.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/resources/folders.py)
-- **[Folders](file:///d:/workplace/zoho_sdk/src/zoho/mail/resources/folders.py#L4)** (inherits `BaseResource` from `mail/base.py`)
-  - `create(self, folder_name: str, parent_folder_id: Optional[str] = None) -> Dict[str, Any]`
-  - `rename(self, folder_id: str, new_name: str) -> Dict[str, Any]`
+## Subdirectories
+*No subdirectories.*
 
-### [messages.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/resources/messages.py)
-- **[Messages](file:///d:/workplace/zoho_sdk/src/zoho/mail/resources/messages.py#L5)** (inherits `BaseResource` from `mail/base.py`)
-  - `list(self, folder_id: Optional[str] = None, page: int = 1, limit: int = 50, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]`
-  - `get_content(self, message_id: str) -> Dict[str, Any]`
-  - `send(self, from_address: str, to_address: str, subject: str, content: str, **kwargs) -> Dict[str, Any]`
-  - `save_draft(self, from_address: str, to_address: str, subject: str, content: str, **kwargs) -> Dict[str, Any]`
-  - `mark_as_read(self, message_id: str) -> Dict[str, Any]`
-  - `mark_as_unread(self, message_id: str) -> Dict[str, Any]`
-  - `get_attachments_info(self, folder_id: str, message_id: str) -> Dict[str, Any]`
-  - `get_attachment_content(self, folder_id: str, message_id: str, attachment_id: str) -> bytes`
-  - `download_attachment(self, folder_id: str, message_id: str, attachment_id: str, download_path: str) -> str`
-  - `list_iter(self, folder_id: Optional[str] = None, start: int = 1, limit: int = 50)`
-  - `message_has_attachment(self, message: Dict[str, Any]) -> bool`
-  - `extract_attachments(self, response: Dict[str, Any]) -> List[Dict[str, Any]]`
-  - `resolve_download_path(self, download_dir: str, attachment_name: str, sequence_index: Optional[int] = None) -> str`
-  - `download_folder_attachments(self, folder_id: str, download_dir: str, filename: Optional[str] = None) -> List[str]`
+## File Inventory
+| File Name | Extension | Size | Date Last Modified |
+| --- | --- | --- | --- |
+| __init__.py | .py | 0.00 KB | 2026-05-09 17:30:13 |
+| accounts.py | .py | 0.14 KB | 2026-05-09 17:30:13 |
+| folders.py | .py | 0.66 KB | 2026-05-09 17:30:13 |
+| GEMINI.md | .md | 2.29 KB | 2026-06-12 10:59:58 |
+| messages.py | .py | 7.33 KB | 2026-05-10 13:40:49 |

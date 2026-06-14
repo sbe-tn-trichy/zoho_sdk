@@ -248,5 +248,61 @@ class TestProjectsAndTimeEntries(unittest.TestCase):
         te.stop_timer()
         client.request.assert_called_with('POST', 'projects/timeentries/timer/stop', json=None, params=None)
 
+
+class TestBooksCatalystAuth(unittest.TestCase):
+    @patch("requests.request")
+    @patch("requests.post")
+    def test_catalyst_auth_put_and_delete(self, mock_post, mock_request):
+        mock_response_catalyst = MagicMock()
+        mock_response_catalyst.status_code = 200
+        mock_response_catalyst.json.return_value = {
+            "status": "success",
+            "tokens": {"books": "catalyst_books_token"}
+        }
+        mock_post.return_value = mock_response_catalyst
+
+        mock_response_zoho = MagicMock()
+        mock_response_zoho.status_code = 200
+        mock_response_zoho.json.return_value = {"status": "ok"}
+        mock_response_zoho.text = '{"status": "ok"}'
+        mock_request.return_value = mock_response_zoho
+
+        from zoho.auth import CatalystAuth
+        auth = CatalystAuth(
+            direct_token="direct_token",
+            catalyst_token_url="http://localhost:3000/server/new/tokens",
+            service_key="books"
+        )
+        client = ZohoBooksAPI(
+            access_token=auth,
+            organization_id="org123"
+        )
+
+        client.request("GET", "invoices")
+        mock_post.assert_not_called()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
+
+        mock_request.reset_mock()
+        client.request("POST", "invoices", json={})
+        mock_post.assert_not_called()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
+
+        mock_request.reset_mock()
+        client.request("PUT", "invoices/inv123", json={})
+        mock_post.assert_called_once_with(
+            "http://localhost:3000/server/new/tokens",
+            headers={"Content-Type": "application/json"},
+            json={},
+            timeout=10
+        )
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_books_token")
+
+        mock_request.reset_mock()
+        mock_post.reset_mock()
+        client.request("DELETE", "invoices/inv123")
+        mock_post.assert_called_once()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_books_token")
+
+
 if __name__ == "__main__":
     unittest.main()

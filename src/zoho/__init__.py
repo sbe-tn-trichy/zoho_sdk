@@ -4,7 +4,8 @@ from .mail import ZohoMailAPI, ZohoMailError
 from .sheet import ZohoSheetAPI
 from .wd import ZohoWorkdriveAPI
 from .inventory import ZohoInventoryAPI, ZohoInventoryError
-from .auth import ZohoOAuth2Manager
+from .creator import ZohoCreatorAPI, ZohoCreatorError
+from .auth import ZohoOAuth2Manager, CatalystAuth
 
 __all__ = [
     'ZohoBooksAPI',
@@ -16,7 +17,10 @@ __all__ = [
     'ZohoWorkdriveAPI',
     'ZohoInventoryAPI',
     'ZohoInventoryError',
-    'ZohoOAuth2Manager'
+    'ZohoCreatorAPI',
+    'ZohoCreatorError',
+    'ZohoOAuth2Manager',
+    'CatalystAuth'
 ]
 
 

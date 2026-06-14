@@ -1,29 +1,31 @@
-# Folder Index: `zoho`
+# Directory Index: zoho
+- **Absolute Path:** `/Users/vak/Documents/workspace/zoho_sdk/src/zoho`
+- **Relative Path:** `src/zoho`
 
-SDK clients for Zoho Books, WorkDrive, Cliq, Sheet, Mail, and Inventory.
+## Functions Index
+### `auth.py`
+- `fn: __init__`
+- `fn: __new__`
+- `fn: __str__`
+- `fn: fetch_token_from_catalyst`
+- `fn: get_access_token`
+- `fn: get_token_url`
+- `fn: refresh_access_token`
+- `fn: refresh_token`
 
-## Available API Clients
+## Subdirectories
+- `books`
+- `cliq`
+- `creator`
+- `inventory`
+- `mail`
+- `sheet`
+- `wd`
 
-- [ZohoBooksAPI](file:///d:/workplace/zoho_sdk/src/zoho/books/client.py#L33): Zoho Books API Client
-- [ZohoCliqAPI](file:///d:/workplace/zoho_sdk/src/zoho/cliq/client.py#L5): Zoho Cliq API Client
-- [ZohoMailAPI](file:///d:/workplace/zoho_sdk/src/zoho/mail/client.py#L27): Zoho Mail API Client
-- [ZohoSheetAPI](file:///d:/workplace/zoho_sdk/src/zoho/sheet/client.py#L9): Zoho Sheet API Client
-- [ZohoWorkdriveAPI](file:///d:/workplace/zoho_sdk/src/zoho/wd/client.py#L39): Zoho Workdrive API Client
-- [ZohoInventoryAPI](file:///d:/workplace/zoho_sdk/src/zoho/inventory/client.py#L33): Zoho Inventory API Client
-
-## Files
-
-| File | Description |
-| :--- | :--- |
-| [__init__.py](file:///d:/workplace/zoho_sdk/src/zoho/__init__.py) | Imports and exports all client classes. |
-
-## Subfolders
-
-| Folder | Description |
-| :--- | :--- |
-| [books/](file:///d:/workplace/zoho_sdk/src/zoho/books/GEMINI.md) | Zoho Books API Client & sub-resources. |
-| [cliq/](file:///d:/workplace/zoho_sdk/src/zoho/cliq/GEMINI.md) | Zoho Cliq API integration. |
-| [inventory/](file:///d:/workplace/zoho_sdk/src/zoho/inventory/GEMINI.md) | Zoho Inventory API Client & sub-resources. |
-| [mail/](file:///d:/workplace/zoho_sdk/src/zoho/mail/GEMINI.md) | Zoho Mail API Client & sub-resources. |
-| [sheet/](file:///d:/workplace/zoho_sdk/src/zoho/sheet/GEMINI.md) | Zoho Sheet API integration. |
-| [wd/](file:///d:/workplace/zoho_sdk/src/zoho/wd/GEMINI.md) | Zoho Workdrive API Client & sub-resources. |
+## File Inventory
+| File Name | Extension | Size | Date Last Modified |
+| --- | --- | --- | --- |
+| .DS_Store | (none) | 6.00 KB | 2026-05-23 11:32:47 |
+| __init__.py | .py | 0.64 KB | 2026-06-13 10:06:52 |
+| auth.py | .py | 7.06 KB | 2026-06-13 10:06:55 |
+| GEMINI.md | .md | 1.56 KB | 2026-06-12 10:59:58 |

@@ -1,24 +1,25 @@
-# Folder Index: `zoho/wd`
+# Directory Index: wd
+- **Absolute Path:** `/Users/vak/Documents/workspace/zoho_sdk/src/zoho/wd`
+- **Relative Path:** `src/zoho/wd`
 
-Zoho Workdrive API client integration.
+## Functions Index
+### `base.py`
+- `fn: __init__`
+- `fn: _action`
 
-## Client Class: [ZohoWorkdriveAPI](file:///d:/workplace/zoho_sdk/src/zoho/wd/client.py#L39)
+### `client.py`
+- `fn: __init__`
+- `fn: get_team_id`
+- `fn: request`
 
-- `__init__(self, access_token: str, domain: str = "in", team_id: Optional[str] = None, token_refresh_callback: Optional[Any] = None)`
-- `get_team_id(self) -> str`
-- `request(self, method: str, endpoint: str, json: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None, stream: bool = False, override_url: Optional[str] = None, files: Optional[Dict[str, Any]] = None) -> Any`
+## Subdirectories
+- `resources`
 
-## Files
-
-| File | Description |
-| :--- | :--- |
-| [__init__.py](file:///d:/workplace/zoho_sdk/src/zoho/wd/__init__.py) | Package initialization. |
-| [base.py](file:///d:/workplace/zoho_sdk/src/zoho/wd/base.py) | [BaseResource](file:///d:/workplace/zoho_sdk/src/zoho/wd/base.py#L3) helper class. |
-| [client.py](file:///d:/workplace/zoho_sdk/src/zoho/wd/client.py) | Main [ZohoWorkdriveAPI](file:///d:/workplace/zoho_sdk/src/zoho/wd/client.py#L39) client implementation. |
-| [exceptions.py](file:///d:/workplace/zoho_sdk/src/zoho/wd/exceptions.py) | [ZohoWorkdriveError](file:///d:/workplace/zoho_sdk/src/zoho/wd/exceptions.py#L1) exception. |
-
-## Subfolders
-
-| Folder | Description |
-| :--- | :--- |
-| [resources/](file:///d:/workplace/zoho_sdk/src/zoho/wd/resources/GEMINI.md) | Zoho Workdrive resource modules (Files). |
+## File Inventory
+| File Name | Extension | Size | Date Last Modified |
+| --- | --- | --- | --- |
+| __init__.py | .py | 0.07 KB | 2026-05-09 17:30:13 |
+| base.py | .py | 0.72 KB | 2026-05-09 17:30:13 |
+| client.py | .py | 5.31 KB | 2026-06-12 15:28:22 |
+| exceptions.py | .py | 0.10 KB | 2026-05-09 17:30:13 |
+| GEMINI.md | .md | 1.35 KB | 2026-06-12 10:59:58 |

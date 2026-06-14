@@ -1,24 +1,31 @@
-# Folder Index: `zoho/mail`
+# Directory Index: mail
+- **Absolute Path:** `/Users/vak/Documents/workspace/zoho_sdk/src/zoho/mail`
+- **Relative Path:** `src/zoho/mail`
 
-Zoho Mail API client integration.
+## Functions Index
+### `base.py`
+- `fn: __init__`
+- `fn: _action`
+- `fn: _prepare_payload`
+- `fn: create`
+- `fn: delete`
+- `fn: get`
+- `fn: list`
+- `fn: update`
 
-## Client Class: [ZohoMailAPI](file:///d:/workplace/zoho_sdk/src/zoho/mail/client.py#L27)
+### `client.py`
+- `fn: __init__`
+- `fn: account`
+- `fn: request`
 
-- `__init__(self, access_token: str, domain: str = "com")`
-- `account(self, account_id: str) -> AccountScope`
-- `request(self, method: str, endpoint: str, json: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None, files: Optional[Dict[str, Any]] = None, stream: bool = False) -> Any`
+## Subdirectories
+- `resources`
 
-## Files
-
-| File | Description |
-| :--- | :--- |
-| [__init__.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/__init__.py) | Package initialization. |
-| [base.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/base.py) | [BaseResource](file:///d:/workplace/zoho_sdk/src/zoho/mail/base.py#L4): list, get, create, update, delete, _action |
-| [client.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/client.py) | Main [ZohoMailAPI](file:///d:/workplace/zoho_sdk/src/zoho/mail/client.py#L27) client implementation. |
-| [exceptions.py](file:///d:/workplace/zoho_sdk/src/zoho/mail/exceptions.py) | [ZohoMailError](file:///d:/workplace/zoho_sdk/src/zoho/mail/exceptions.py#L1) exception. |
-
-## Subfolders
-
-| Folder | Description |
-| :--- | :--- |
-| [resources/](file:///d:/workplace/zoho_sdk/src/zoho/mail/resources/GEMINI.md) | Zoho Mail resource modules (Accounts, Folders, Messages). |
+## File Inventory
+| File Name | Extension | Size | Date Last Modified |
+| --- | --- | --- | --- |
+| __init__.py | .py | 0.07 KB | 2026-05-09 17:30:13 |
+| base.py | .py | 2.49 KB | 2026-05-09 17:30:13 |
+| client.py | .py | 3.61 KB | 2026-06-12 15:28:22 |
+| exceptions.py | .py | 0.10 KB | 2026-05-09 17:30:13 |
+| GEMINI.md | .md | 1.31 KB | 2026-06-12 10:59:58 |

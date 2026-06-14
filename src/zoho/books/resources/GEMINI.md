@@ -1,70 +1,82 @@
-# Folder Index: `zoho/books/resources`
+# Directory Index: resources
+- **Absolute Path:** `/Users/vak/Documents/workspace/zoho_sdk/src/zoho/books/resources`
+- **Relative Path:** `src/zoho/books/resources`
 
-Zoho Books Resource modules mapping to specific API endpoints.
+## Functions Index
+### `banking.py`
+- `fn: __init__`
+- `fn: categorize_as_expense`
+- `fn: match`
+- `fn: publish`
 
-## Files and Available Classes/Methods
+### `contacts.py`
+- `fn: __init__`
+- `fn: email_statement`
+- `fn: enable_portal`
 
-### [banking.py](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/banking.py)
-- **[BankAccounts](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/banking.py#L5)** (inherits `BaseResource`, `ActiveInactiveMixin`)
-- **[BankTransactions](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/banking.py#L9)** (inherits `BaseResource`)
-  - `match(self, transaction_id: str, data: Dict[str, Any]) -> Dict[str, Any]`
-  - `categorize_as_expense(self, transaction_id: str, data: Dict[str, Any]) -> Dict[str, Any]`
-- **[Journals](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/banking.py#L19)** (inherits `BaseResource`)
-  - `publish(self, journal_id: str) -> Dict[str, Any]`
+### `customer_validator.py`
+- `fn: __init__`
+- `fn: check_custom_fields`
+- `fn: check_geographic_name`
+- `fn: check_phone_isd`
+- `fn: check_proper_casing`
+- `fn: check_punctuation_anomalies`
+- `fn: fetch_details`
+- `fn: validate_customer_data`
 
-### [contacts.py](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/contacts.py)
-- **[Contacts](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/contacts.py#L5)** (inherits `BaseResource`, `ActiveInactiveMixin`)
-  - `enable_portal(self, contact_id: str, data: Dict[str, Any]) -> Dict[str, Any]`
-  - `email_statement(self, contact_id: str, data: Dict[str, Any], params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]`
-- **[Organizations](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/contacts.py#L15)** (inherits `BaseResource`)
-- **[ChartOfAccounts](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/contacts.py#L19)** (inherits `BaseResource`, `ActiveInactiveMixin`)
+### `gst.py`
+- `fn: __init__`
+- `fn: _fetch_details_concurrently`
+- `fn: _generate_tax_summary`
+- `fn: _validate_document_sequence_and_status`
+- `fn: fetch_one`
+- `fn: finalize_summary`
+- `fn: get_month_date_range`
+- `fn: init_agg`
+- `fn: parse_doc_number`
+- `fn: validate_gst_data`
 
-### [customer_validator.py](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/customer_validator.py)
-- **[CustomerValidator](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/customer_validator.py#L9)** (inherits `BaseResource`)
-  - `check_proper_casing(self, text: str) -> List[str]`
-  - `check_punctuation_anomalies(self, text: str) -> List[str]`
-  - `check_phone_isd(self, number: str) -> Optional[str]`
-  - `check_geographic_name(self, contact: Dict[str, Any]) -> Optional[str]`
-  - `check_custom_fields(self, contact: Dict[str, Any]) -> List[str]`
-  - `validate_customer_data(self, limit: Optional[int] = None) -> Dict[str, Any]`
+### `inventory.py`
+- `fn: __init__`
+- `fn: list_by_purchase_account`
 
-### [gst.py](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/gst.py)
-- **[GST](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/gst.py#L31)** (inherits `BaseResource`)
-  - `get_month_date_range(self, month_str: str) -> Tuple[str, str]`
-  - `validate_gst_data(self, month_str: str) -> Dict[str, Any]`
+### `projects.py`
+- `fn: __init__`
+- `fn: clone`
+- `fn: start_timer`
+- `fn: stop_timer`
 
-### [inventory.py](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/inventory.py)
-- **[Items](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/inventory.py#L5)** (inherits `BaseResource`, `ActiveInactiveMixin`)
-  - `list_by_purchase_account(self, account_id: str, status: str = "all") -> list`
+### `purchases.py`
+- `fn: __init__`
+- `fn: add_attachment`
+- `fn: find_duplicate_groups`
+- `fn: list_duplicate_bill_groups`
+- `fn: mark_as_billed`
+- `fn: mark_as_cancelled`
+- `fn: normalize_bill_number`
+- `fn: update`
 
-### [projects.py](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/projects.py)
-- **[Projects](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/projects.py#L5)** (inherits `BaseResource`, `ActiveInactiveMixin`)
-  - `clone(self, project_id: str, data: Dict[str, Any]) -> Dict[str, Any]`
-- **[Tasks](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/projects.py#L12)** (inherits `BaseResource`)
-- **[TimeEntries](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/projects.py#L16)** (inherits `BaseResource`)
-  - `start_timer(self, time_entry_id: str) -> Dict[str, Any]`
-  - `stop_timer(self) -> Dict[str, Any]`
+### `sales.py`
+- `fn: __init__`
+- `fn: apply_credits`
+- `fn: create_from_yaml`
+- `fn: mark_as_accepted`
+- `fn: mark_as_declined`
+- `fn: refund`
 
-### [purchases.py](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/purchases.py)
-- **[Bills](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/purchases.py#L6)** (inherits `BaseResource`, `StatusMixin`, `ApprovalMixin`, `CreditsMixin`)
-  - `normalize_bill_number(bill_number: Any) -> str` (Static)
-  - `find_duplicate_groups(bills: Iterable[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]` (Classmethod)
-  - `list_duplicate_bill_groups(self) -> Dict[str, List[Dict[str, Any]]]`
-  - `add_attachment(self, bill_id: str, file_content: Any, filename: str) -> Dict[str, Any]`
-- **[PurchaseOrders](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/purchases.py#L85)** (inherits `BaseResource`, `StatusMixin`)
-  - `mark_as_billed(self, po_id: str) -> Dict[str, Any]`
-  - `mark_as_cancelled(self, po_id: str) -> Dict[str, Any]`
-- **[VendorPayments](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/purchases.py#L95)** (inherits `BaseResource`)
+## Subdirectories
+*No subdirectories.*
 
-### [sales.py](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/sales.py)
-- **[Invoices](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/sales.py#L5)** (inherits `BaseResource`, `StatusMixin`, `EmailMixin`, `ApprovalMixin`, `CreditsMixin`)
-  - `apply_credits(self, invoice_id: str, data: Dict[str, Any]) -> Dict[str, Any]`
-- **[Estimates](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/sales.py#L12)** (inherits `BaseResource`, `StatusMixin`, `EmailMixin`)
-  - `mark_as_accepted(self, estimate_id: str) -> Dict[str, Any]`
-  - `mark_as_declined(self, estimate_id: str) -> Dict[str, Any]`
-- **[SalesOrders](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/sales.py#L22)** (inherits `BaseResource`, `StatusMixin`)
-  - `create_from_yaml(self, yaml_str: str, customer_id: str = "1094368000001317103", create_missing_items: bool = False) -> Dict[str, Any]`
-- **[CreditNotes](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/sales.py#L184)** (inherits `BaseResource`, `StatusMixin`)
-- **[SalesReturns](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/sales.py#L188)** (inherits `BaseResource`, `StatusMixin`)
-- **[CustomerPayments](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/sales.py#L192)** (inherits `BaseResource`)
-  - `refund(self, payment_id: str, data: Dict[str, Any]) -> Dict[str, Any]`
+## File Inventory
+| File Name | Extension | Size | Date Last Modified |
+| --- | --- | --- | --- |
+| __init__.py | .py | 0.00 KB | 2026-05-09 17:30:13 |
+| banking.py | .py | 0.98 KB | 2026-05-09 17:30:13 |
+| contacts.py | .py | 0.88 KB | 2026-05-09 17:30:13 |
+| customer_validator.py | .py | 12.05 KB | 2026-06-10 13:26:46 |
+| GEMINI.md | .md | 5.60 KB | 2026-06-12 10:59:58 |
+| gst.py | .py | 11.93 KB | 2026-06-09 11:08:26 |
+| inventory.py | .py | 1.77 KB | 2026-05-12 11:50:02 |
+| projects.py | .py | 0.85 KB | 2026-05-09 17:30:13 |
+| purchases.py | .py | 3.41 KB | 2026-05-10 16:04:43 |
+| sales.py | .py | 7.73 KB | 2026-05-25 00:56:17 |

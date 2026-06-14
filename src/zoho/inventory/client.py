@@ -12,6 +12,7 @@ from .resources.shipments import Shipments
 from .resources.picklists import Picklists
 from .resources.bins import Bins
 from .resources.batches import Batches
+from .resources.item_groups import ItemGroups
 
 logger = logging.getLogger("zoho_inventory")
 logger.setLevel(logging.INFO)
@@ -53,6 +54,7 @@ class ZohoInventoryAPI:
         self.picklists = Picklists(self)
         self.bins = Bins(self)
         self.batches = Batches(self)
+        self.item_groups = ItemGroups(self)
 
     def request(self, method: str, endpoint: str, json: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None, files: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """

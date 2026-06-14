@@ -209,5 +209,73 @@ class TestWorkdriveFiles(unittest.TestCase):
         self.files.merge_folders.assert_called_once_with("f_dup", "f_orig", "FolderA (1)")
         self.files.delete.assert_called_once_with("f_dup")
 
+class TestWorkdriveCatalystAuth(unittest.TestCase):
+    @patch("requests.request")
+    @patch("requests.post")
+    def test_catalyst_auth_mutations(self, mock_post, mock_request):
+        mock_response_catalyst = MagicMock()
+        mock_response_catalyst.status_code = 200
+        mock_response_catalyst.json.return_value = {
+            "status": "success",
+            "tokens": {"workdrive": "catalyst_wd_token"}
+        }
+        mock_post.return_value = mock_response_catalyst
+
+        mock_response_zoho = MagicMock()
+        mock_response_zoho.status_code = 200
+        mock_response_zoho.json.return_value = {"status": "ok"}
+        mock_response_zoho.content = b'{"status": "ok"}'
+        mock_request.return_value = mock_response_zoho
+
+        from zoho.auth import CatalystAuth
+        auth = CatalystAuth(
+            direct_token="direct_token",
+            catalyst_token_url="http://localhost:3000/server/new/tokens",
+            service_key="workdrive"
+        )
+        client = ZohoWorkdriveAPI(
+            access_token=auth,
+            domain="in",
+            team_id="team123"
+        )
+
+        # GET request should not use Catalyst
+        client.request("GET", "files/some_id")
+        mock_post.assert_not_called()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
+
+        # POST request should not use Catalyst
+        mock_request.reset_mock()
+        client.request("POST", "files", json={})
+        mock_post.assert_not_called()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
+
+        # PUT request should use Catalyst
+        mock_request.reset_mock()
+        client.request("PUT", "files/some_id", json={})
+        mock_post.assert_called_once_with(
+            "http://localhost:3000/server/new/tokens",
+            headers={"Content-Type": "application/json"},
+            json={},
+            timeout=10
+        )
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_wd_token")
+
+        # PATCH request should use Catalyst
+        mock_request.reset_mock()
+        mock_post.reset_mock()
+        client.request("PATCH", "files/some_id", json={})
+        mock_post.assert_called_once()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_wd_token")
+
+        # DELETE request should use Catalyst
+        mock_request.reset_mock()
+        mock_post.reset_mock()
+        client.request("DELETE", "files/some_id")
+        mock_post.assert_called_once()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_wd_token")
+
+
 if __name__ == "__main__":
     unittest.main()
+

@@ -197,5 +197,59 @@ class TestZohoSheetAPI(unittest.TestCase):
             }
         )
 
+class TestSheetCatalystAuth(unittest.TestCase):
+    @patch("requests.post")
+    def test_catalyst_auth_flow(self, mock_post):
+        # Setup mock responses based on request URL
+        def mock_post_side_effect(url, *args, **kwargs):
+            resp = MagicMock()
+            resp.status_code = 200
+            if "localhost" in url or "tokens" in url:
+                resp.json.return_value = {
+                    "status": "success",
+                    "tokens": {"sheet": "catalyst_sheet_token"}
+                }
+            else:
+                resp.json.return_value = {"status": "success"}
+            return resp
+
+        mock_post.side_effect = mock_post_side_effect
+
+        from zoho.auth import CatalystAuth
+        auth = CatalystAuth(
+            direct_token="direct_token",
+            catalyst_token_url="http://localhost:3000/server/new/tokens",
+            service_key="sheet"
+        )
+        client = ZohoSheetAPI(
+            access_token=auth,
+            domain="in"
+        )
+
+        # 1. Non-mutating header check
+        headers_non_mut = client._get_headers()
+        self.assertEqual(headers_non_mut["Authorization"], "Zoho-oauthtoken direct_token")
+
+        # 2. Call a mutating method and verify the Authorization header passed
+        # set_cell is a mutating method
+        mock_post.reset_mock()
+        res = client.set_cell("wb123", "Sheet1", 1, 1, "hello")
+        self.assertEqual(res, {"status": "success"})
+        
+        # There should be 2 post calls: 1 to Catalyst token endpoint, 1 to Zoho Sheet API
+        self.assertEqual(mock_post.call_count, 2)
+        
+        # Check first call is Catalyst URL
+        first_call_args, first_call_kwargs = mock_post.call_args_list[0]
+        self.assertEqual(first_call_args[0], "http://localhost:3000/server/new/tokens")
+
+        # Check second call is Zoho Sheet API with catalyst token in headers
+        second_call_args, second_call_kwargs = mock_post.call_args_list[1]
+        self.assertEqual(second_call_args[0], "https://sheet.zoho.in/api/v2/wb123")
+        self.assertEqual(second_call_kwargs["headers"]["Authorization"], "Zoho-oauthtoken catalyst_sheet_token")
+
+
+
 if __name__ == "__main__":
     unittest.main()
+

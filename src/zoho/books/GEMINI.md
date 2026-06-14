@@ -1,24 +1,44 @@
-# Folder Index: `zoho/books`
+# Directory Index: books
+- **Absolute Path:** `/Users/vak/Documents/workspace/zoho_sdk/src/zoho/books`
+- **Relative Path:** `src/zoho/books`
 
-Zoho Books API client integration.
+## Functions Index
+### `base.py`
+- `fn: __init__`
+- `fn: _action`
+- `fn: _prepare_payload`
+- `fn: create`
+- `fn: delete`
+- `fn: get`
+- `fn: list`
+- `fn: list_all`
+- `fn: update`
 
-## Client Class: [ZohoBooksAPI](file:///d:/workplace/zoho_sdk/src/zoho/books/client.py#L33)
+### `client.py`
+- `fn: __init__`
+- `fn: request`
 
-- `__init__(self, access_token: str, organization_id: str, domain: str = "com", on_request_completed: Optional[Any] = None, token_refresh_callback: Optional[Any] = None)`
-- `request(self, method: str, endpoint: str, json: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None, files: Optional[Dict[str, Any]] = None) -> Dict[str, Any]`
+### `mixins.py`
+- `fn: apply_credits`
+- `fn: approve`
+- `fn: email`
+- `fn: mark_as_active`
+- `fn: mark_as_draft`
+- `fn: mark_as_inactive`
+- `fn: mark_as_open`
+- `fn: mark_as_sent`
+- `fn: mark_as_void`
+- `fn: submit_for_approval`
 
-## Files
+## Subdirectories
+- `resources`
 
-| File | Description |
-| :--- | :--- |
-| [__init__.py](file:///d:/workplace/zoho_sdk/src/zoho/books/__init__.py) | Package initialization. |
-| [base.py](file:///d:/workplace/zoho_sdk/src/zoho/books/base.py) | [BaseResource](file:///d:/workplace/zoho_sdk/src/zoho/books/base.py#L4): list, list_all, get, create, update, delete |
-| [client.py](file:///d:/workplace/zoho_sdk/src/zoho/books/client.py) | Main [ZohoBooksAPI](file:///d:/workplace/zoho_sdk/src/zoho/books/client.py#L33) client class. |
-| [exceptions.py](file:///d:/workplace/zoho_sdk/src/zoho/books/exceptions.py) | [ZohoBooksError](file:///d:/workplace/zoho_sdk/src/zoho/books/exceptions.py#L1) exception. |
-| [mixins.py](file:///d:/workplace/zoho_sdk/src/zoho/books/mixins.py) | Common operations mixins: ActiveInactiveMixin, StatusMixin, ApprovalMixin, EmailMixin, CreditsMixin |
-
-## Subfolders
-
-| Folder | Description |
-| :--- | :--- |
-| [resources/](file:///d:/workplace/zoho_sdk/src/zoho/books/resources/GEMINI.md) | Zoho Books resource modules (Invoices, Estimates, Contacts, items, etc.). |
+## File Inventory
+| File Name | Extension | Size | Date Last Modified |
+| --- | --- | --- | --- |
+| __init__.py | .py | 0.12 KB | 2026-05-09 17:30:13 |
+| base.py | .py | 4.89 KB | 2026-05-09 17:30:13 |
+| client.py | .py | 5.33 KB | 2026-06-12 15:28:22 |
+| exceptions.py | .py | 0.09 KB | 2026-05-09 17:30:13 |
+| GEMINI.md | .md | 1.55 KB | 2026-06-12 10:59:58 |
+| mixins.py | .py | 1.55 KB | 2026-05-09 17:30:13 |
