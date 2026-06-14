@@ -25,6 +25,7 @@ class TestZohoBooksAPI(unittest.TestCase):
     def test_request_success(self, mock_request):
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/json"}
         mock_response.text = '{"status": "ok"}'
         mock_response.json.return_value = {"status": "ok"}
         mock_request.return_value = mock_response
@@ -53,6 +54,7 @@ class TestZohoBooksAPI(unittest.TestCase):
         mock_response1.status_code = 401
         mock_response2 = MagicMock()
         mock_response2.status_code = 200
+        mock_response2.headers = {"Content-Type": "application/json"}
         mock_response2.text = '{"status": "ok"}'
         mock_response2.json.return_value = {"status": "ok"}
         
@@ -219,6 +221,7 @@ items:
         # Mock requests
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/json"}
         mock_response.text = '{"status": "ok"}'
         mock_response.json.return_value = {"status": "ok"}
         mock_request.return_value = mock_response
@@ -303,6 +306,35 @@ class TestBooksCatalystAuth(unittest.TestCase):
         mock_post.assert_called_once()
         self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_books_token")
 
+
+class TestContactsAndVendorsStatements(unittest.TestCase):
+    def setUp(self):
+        self.client = MagicMock()
+        self.client.organization_id = "org123"
+        from zoho.books.resources.contacts import Contacts, Vendors
+        self.contacts = Contacts(self.client)
+        self.vendors = Vendors(self.client)
+
+    def test_get_statement_contacts(self):
+        self.contacts.get_statement("c123", params={"accept": "xls"})
+        self.client.request.assert_called_with('GET', 'contacts/c123/statements', params={"accept": "xls"}, json=None)
+
+    def test_get_statement_vendors(self):
+        self.vendors.get_statement("v123", params={"accept": "xls"})
+        self.client.request.assert_called_with('GET', 'vendors/v123/statements', params={"accept": "xls"}, json=None)
+
+    @patch("builtins.open", new_callable=unittest.mock.mock_open)
+    @patch("os.makedirs")
+    def test_download_statement_contacts(self, mock_makedirs, mock_open):
+        self.contacts.get_statement = MagicMock(return_value=b"xls_content")
+        import tempfile
+        import os
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_path = os.path.join(tmpdir, "statement.xls")
+            self.contacts.download_statement("c123", save_path)
+            self.contacts.get_statement.assert_called_once_with("c123", params={"accept": "xls"})
+            mock_open.assert_called_once_with(save_path, "wb")
+            mock_open().write.assert_called_once_with(b"xls_content")
 
 if __name__ == "__main__":
     unittest.main()

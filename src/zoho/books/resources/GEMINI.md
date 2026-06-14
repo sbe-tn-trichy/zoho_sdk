@@ -13,6 +13,7 @@
 - `fn: __init__`
 - `fn: email_statement`
 - `fn: enable_portal`
+- `fn: get_statement`
 
 ### `customer_validator.py`
 - `fn: __init__`
@@ -72,9 +73,9 @@
 | --- | --- | --- | --- |
 | __init__.py | .py | 0.00 KB | 2026-05-09 17:30:13 |
 | banking.py | .py | 0.98 KB | 2026-05-09 17:30:13 |
-| contacts.py | .py | 0.88 KB | 2026-05-09 17:30:13 |
+| contacts.py | .py | 1.34 KB | 2026-06-14 18:12:43 |
 | customer_validator.py | .py | 12.05 KB | 2026-06-10 13:26:46 |
-| GEMINI.md | .md | 5.60 KB | 2026-06-12 10:59:58 |
+| GEMINI.md | .md | 2.05 KB | 2026-06-14 18:04:49 |
 | gst.py | .py | 11.93 KB | 2026-06-09 11:08:26 |
 | inventory.py | .py | 1.77 KB | 2026-05-12 11:50:02 |
 | projects.py | .py | 0.85 KB | 2026-05-09 17:30:13 |

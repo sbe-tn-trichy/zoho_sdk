@@ -122,11 +122,7 @@ def fetch_token_from_catalyst(url: str, service_key: str) -> Optional[str]:
 class CatalystAuth(str):
     """
     Dynamic authentication wrapper that behaves like a string.
-    When stringified (e.g. inside header formatting), it inspects the call stack
-    and checks if the calling request is a mutating request (PUT, PATCH, DELETE)
-    or a mutating Sheet operation. If so, it dynamically resolves the token
-    via the local Catalyst serverless token endpoint; otherwise, it returns
-    the direct access token.
+    Allows explicit request mutation token switching via get_token_for_request(is_mutation).
     """
     def __new__(cls, direct_token: str, catalyst_token_url: str, service_key: str):
         obj = str.__new__(cls, direct_token)
@@ -135,41 +131,19 @@ class CatalystAuth(str):
         obj.service_key = service_key
         return obj
 
-    def __str__(self) -> str:
-        import inspect
-        is_mutation = False
-        
-        # Traverse the call stack to see if we're in a mutating Zoho API request
-        for frame_info in inspect.stack():
-            frame = frame_info.frame
-            f_locals = frame.f_locals
-            
-            # Check if we are inside a method of a Zoho API Client
-            caller_self = f_locals.get("self")
-            if caller_self:
-                class_name = caller_self.__class__.__name__
-                if class_name in ("ZohoBooksAPI", "ZohoInventoryAPI", "ZohoWorkdriveAPI", "ZohoMailAPI", "ZohoSheetAPI", "ZohoCreatorAPI"):
-                    # 1. Check if the frame has 'method' (used in Books, Inventory, Workdrive, Mail, Creator)
-                    if "method" in f_locals:
-                        method = f_locals["method"]
-                        if isinstance(method, str):
-                            method_upper = method.upper()
-                            # Books/Inventory/Mail use PUT/DELETE. Workdrive uses PUT/PATCH/DELETE.
-                            # Creator requests use PATCH/DELETE or POST (handled via function name).
-                            if method_upper in ("PUT", "PATCH", "DELETE"):
-                                is_mutation = True
-                                break
-                    
-                    # 2. Check if the frame's function name is a mutating method (Sheet or Creator)
-                    func_name = frame_info.function
-                    if func_name in ("set_content", "set_cell", "add_sheet", "add_rows", "update_rows", "truncate_sheet", "add_records", "add_records_bulk", "update_records", "delete_records"):
-                        is_mutation = True
-                        break
-
+    def get_token_for_request(self, is_mutation: bool) -> str:
+        """
+        Explicitly resolves token based on request mutation flag,
+        bypassing expensive stack introspection.
+        """
         if is_mutation and self.catalyst_token_url:
             token = fetch_token_from_catalyst(self.catalyst_token_url, self.service_key)
             if token:
                 return token
-                
         return self.direct_token
+
+    def __str__(self) -> str:
+        # Default string conversion returns the direct token to avoid unexpected Catalyst triggers
+        return self.direct_token
+
 

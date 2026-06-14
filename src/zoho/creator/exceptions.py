@@ -1,3 +1,1 @@
-class ZohoCreatorError(Exception):
-    """Base exception class for Zoho Creator API errors."""
-    pass
+from zoho.exceptions import ZohoCreatorError

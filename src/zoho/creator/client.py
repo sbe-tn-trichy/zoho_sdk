@@ -1,12 +1,10 @@
-import os
-import requests
 import logging
+import os
 from typing import Any, Dict, List, Optional, Union
+from zoho.base_client import BaseZohoClient
 from .exceptions import ZohoCreatorError
 
-logger = logging.getLogger("zoho_creator")
-
-class ZohoCreatorAPI:
+class ZohoCreatorAPI(BaseZohoClient):
     """
     Client for Zoho Creator API v2.1.
     Docs: https://www.zoho.com/creator/help/api/v2.1/
@@ -19,12 +17,17 @@ class ZohoCreatorAPI:
         environment: str = "production",
         token_refresh_callback: Optional[Any] = None
     ):
-        self.access_token = access_token
+        base_url = f"https://www.zohoapis.{domain or 'com'}/creator/v2.1"
+        super().__init__(
+            access_token=access_token,
+            domain=domain or "com",
+            base_url=base_url,
+            service_name="creator",
+            token_refresh_callback=token_refresh_callback,
+            default_timeout=30
+        )
         self.account_owner_name = account_owner_name
-        self.domain = domain or "com"
         self.environment = environment or "production"
-        self.token_refresh_callback = token_refresh_callback
-        self.base_url = f"https://www.zohoapis.{self.domain}/creator/v2.1"
 
     def request(
         self,
@@ -34,56 +37,16 @@ class ZohoCreatorAPI:
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, Any]] = None
     ) -> Any:
-        url = f"{self.base_url}/{endpoint}"
-        
-        req_headers = {
-            "Authorization": f"Zoho-oauthtoken {self.access_token}",
-            "environment": self.environment
-        }
+        req_headers = {"environment": self.environment}
         if headers:
             req_headers.update(headers)
-            
-        logger.info(f"Request: {method} {url} | Params: {params} | Headers: {req_headers}")
-        
-        response = requests.request(
+        return super().request(
             method=method,
-            url=url,
-            headers=req_headers,
-            params=params,
+            endpoint=endpoint,
             json=json,
-            timeout=30
+            params=params,
+            headers=req_headers
         )
-        
-        # Automatic refresh once if 401 Unauthorized
-        if response.status_code == 401 and self.token_refresh_callback:
-            logger.warning("Token expired. Refreshing token...")
-            self.access_token = self.token_refresh_callback()
-            req_headers["Authorization"] = f"Zoho-oauthtoken {self.access_token}"
-            response = requests.request(
-                method=method,
-                url=url,
-                headers=req_headers,
-                params=params,
-                json=json,
-                timeout=30
-            )
-            
-        if response.status_code not in (200, 201, 202, 204):
-            logger.error(f"Request failed: {response.status_code} - {response.text}")
-            try:
-                err_data = response.json()
-                msg = err_data.get("message") or err_data.get("description") or response.text
-                code = err_data.get("code")
-                raise ZohoCreatorError(f"API Error (code={code}): {msg}")
-            except Exception as e:
-                if isinstance(e, ZohoCreatorError):
-                    raise
-                raise ZohoCreatorError(f"HTTP Error {response.status_code}: {response.text}")
-                
-        if response.status_code == 204:
-            return {}
-            
-        return response.json()
 
     # ==========================================
     # 1. Native Metadata APIs

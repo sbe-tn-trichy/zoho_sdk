@@ -46,6 +46,7 @@ class Files(BaseResource):
     def download(self, file_id: str, save_path: str, source_folder_id: str = None) -> None:
         """Download a file and save it to the specified path."""
         if not os.path.isabs(save_path):
+            save_path = os.path.join("output", save_path)
             save_path = os.path.abspath(save_path)
 
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -105,7 +106,10 @@ class Files(BaseResource):
         dry_run: bool = False,
     ) -> List[Path]:
         """Recursively download all files from a Zoho WorkDrive folder."""
-        root = Path(destination).expanduser().resolve()
+        dest_path = Path(destination)
+        if not dest_path.is_absolute():
+            dest_path = Path("output") / dest_path
+        root = dest_path.expanduser().resolve()
         downloaded: List[Path] = []
         reserved_paths: set[Path] = set()
 

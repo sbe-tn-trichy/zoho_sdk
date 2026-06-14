@@ -1,3 +1,1 @@
-class ZohoBooksError(Exception):
-    """Custom exception for Zoho Books API errors."""
-    pass
+from zoho.exceptions import ZohoBooksError
