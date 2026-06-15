@@ -16,6 +16,9 @@ dist/
 # Logs
 logs/
 
+# SDK-generated output files
+output/
+
 # IDE files
 .vscode/
 .idea/
