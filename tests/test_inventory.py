@@ -245,5 +245,27 @@ class TestInventoryCatalystAuth(unittest.TestCase):
         self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_inventory_books_token")
 
 
+class TestItems(unittest.TestCase):
+    def test_group_items(self):
+        client = MagicMock()
+        from zoho.inventory.resources.items import Items
+        items = Items(client)
+        
+        grouping_data = {
+            "group_name": "Zoomer Prime ES",
+            "unit": "NOS"
+        }
+        
+        items.group_items(grouping_data)
+        
+        import json
+        client.request.assert_called_once_with(
+            'POST',
+            'items/grouping',
+            headers={"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"},
+            data={"JSONString": json.dumps(grouping_data)}
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

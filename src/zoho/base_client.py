@@ -1,5 +1,6 @@
 import logging
 import os
+import collections.abc
 import requests
 from typing import Any, Dict, Optional
 from zoho.logging import configure_logger
@@ -23,6 +24,10 @@ _ERROR_MAP = {
     "cliq": ZohoCliqError,
     "sheet": ZohoSheetError
 }
+
+def _is_json_content_type(content_type: str) -> bool:
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    return media_type == "application/json" or media_type.endswith("+json")
 
 class BaseZohoClient:
     """
@@ -258,12 +263,11 @@ class BaseZohoClient:
         self._raise_for_status(response)
 
         # Content types handling
-        import collections.abc
         content_type = ""
         if hasattr(response, "headers") and isinstance(response.headers, collections.abc.Mapping):
             content_type = response.headers.get("Content-Type", "")
 
-        if content_type and "application/json" not in content_type.lower():
+        if content_type and not _is_json_content_type(content_type):
             return response.content
 
         return response.json()

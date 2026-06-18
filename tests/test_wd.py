@@ -63,6 +63,21 @@ class TestZohoWorkdriveAPI(unittest.TestCase):
         token_callback.assert_called_once()
         self.assertEqual(mock_request.call_count, 2)
 
+    @patch("requests.request")
+    def test_request_parses_vendor_json_api_content_type(self, mock_request):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"data": [{"id": "file123"}]}'
+        mock_response.content = b'{"data": [{"id": "file123"}]}'
+        mock_response.headers = {"Content-Type": "application/vnd.api+json"}
+        mock_response.json.return_value = {"data": [{"id": "file123"}]}
+        mock_request.return_value = mock_response
+
+        result = self.client.request("GET", "files/folder1/files")
+
+        self.assertEqual(result, {"data": [{"id": "file123"}]})
+        mock_response.json.assert_called_once()
+
 
 class TestWorkdriveFiles(unittest.TestCase):
     def setUp(self):
@@ -278,4 +293,3 @@ class TestWorkdriveCatalystAuth(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
