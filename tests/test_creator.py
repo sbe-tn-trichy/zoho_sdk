@@ -151,7 +151,7 @@ class TestCreatorCustomSDKFunctions(unittest.TestCase):
         
         # Check call parameters
         self.client.get_records.assert_any_call("app_link", "report_link", params={"max_records": 1000})
-        self.client.get_records.assert_any_call("app_link", "report_link", params={"record_cursor": "cursor_token_abc"})
+        self.client.get_records.assert_any_call("app_link", "report_link", headers={"record_cursor": "cursor_token_abc"})
 
     def test_add_records_bulk(self):
         records = [{"Name": f"User {i}"} for i in range(500)]

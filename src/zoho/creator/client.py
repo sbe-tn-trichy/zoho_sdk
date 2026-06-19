@@ -74,10 +74,16 @@ class ZohoCreatorAPI(BaseZohoClient):
         self,
         app_link_name: str,
         report_link_name: str,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Fetches records from a report (up to 1000 records)."""
-        return self.request("GET", f"data/{self.account_owner_name}/{app_link_name}/report/{report_link_name}", params=params)
+        kwargs = {}
+        if params is not None:
+            kwargs["params"] = params
+        if headers is not None:
+            kwargs["headers"] = headers
+        return self.request("GET", f"data/{self.account_owner_name}/{app_link_name}/report/{report_link_name}", **kwargs)
 
     def add_records(
         self,
@@ -140,13 +146,20 @@ class ZohoCreatorAPI(BaseZohoClient):
         all_records.extend(data)
         
         # Loop while cursor exists in the response
+        seen_cursors = set()
         while True:
-            cursor = res.get("page_context", {}).get("record_cursor") or res.get("record_cursor")
-            if not cursor:
+            page_context = res.get("page_context", {})
+            if "has_more_page" in page_context and not page_context["has_more_page"]:
                 break
-            # Query next page using cursor
-            params = {"record_cursor": cursor}
-            res = self.get_records(app_link_name, report_link_name, params=params)
+                
+            cursor = page_context.get("record_cursor") or res.get("record_cursor")
+            if not cursor or cursor in seen_cursors:
+                break
+            seen_cursors.add(cursor)
+            
+            # Query next page using cursor in header
+            headers = {"record_cursor": cursor}
+            res = self.get_records(app_link_name, report_link_name, headers=headers)
             data = res.get("data", [])
             all_records.extend(data)
             if not data:

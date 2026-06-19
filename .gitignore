@@ -31,3 +31,4 @@ htmlcov/
 
 # Local config
 zoho_config.json
+uv.lock
