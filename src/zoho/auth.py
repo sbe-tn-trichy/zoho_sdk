@@ -1,6 +1,69 @@
+import json
 import time
 import requests
-from typing import Optional
+from typing import Dict, Mapping, Optional
+
+from .exceptions import ZohoAuthError
+
+
+class HttpTokenProvider:
+    """Retrieve service tokens from an HTTP token broker without persisting them."""
+
+    def __init__(
+        self,
+        url: str,
+        timeout: float = 10.0,
+        fallback_services: Optional[Mapping[str, str]] = None,
+    ):
+        if not url:
+            raise ValueError("token provider URL is required")
+        self.url = url
+        self.timeout = timeout
+        self.fallback_services = dict(fallback_services or {})
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(url={self.url!r}, tokens=<not-stored>)"
+
+    @staticmethod
+    def _parse_tokens(payload: object) -> Dict[str, Optional[str]]:
+        if not isinstance(payload, dict):
+            raise ZohoAuthError("Token service returned a non-object response.")
+        body = payload.get("body", payload)
+        if isinstance(body, str):
+            try:
+                body = json.loads(body)
+            except json.JSONDecodeError as exc:
+                raise ZohoAuthError("Token service returned malformed JSON in its body.") from exc
+        if not isinstance(body, dict) or not isinstance(body.get("tokens"), dict):
+            raise ZohoAuthError("Token service response does not contain a tokens object.")
+        return {
+            str(service): str(token) if token else None
+            for service, token in body["tokens"].items()
+        }
+
+    def get_tokens(self) -> Dict[str, Optional[str]]:
+        try:
+            response = requests.post(
+                self.url,
+                headers={"Content-Type": "application/json"},
+                json={},
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            return self._parse_tokens(response.json())
+        except ZohoAuthError:
+            raise
+        except (requests.RequestException, ValueError) as exc:
+            raise ZohoAuthError("Unable to retrieve tokens from the token service.") from exc
+
+    def get_token(self, service: str) -> str:
+        tokens = self.get_tokens()
+        token = tokens.get(service)
+        if not token and service in self.fallback_services:
+            token = tokens.get(self.fallback_services[service])
+        if not token:
+            raise ZohoAuthError(f"Token service did not return a token for {service!r}.")
+        return token
 
 class ZohoOAuth2Manager:
     """
@@ -145,5 +208,4 @@ class CatalystAuth(str):
     def __str__(self) -> str:
         # Default string conversion returns the direct token to avoid unexpected Catalyst triggers
         return self.direct_token
-
 

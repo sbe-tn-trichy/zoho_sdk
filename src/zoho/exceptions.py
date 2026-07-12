@@ -2,6 +2,14 @@ class ZohoError(Exception):
     """Base exception class for all Zoho SDK errors."""
     pass
 
+class ZohoAuthError(ZohoError):
+    """Authentication or token-provider failure."""
+    pass
+
+class ZohoAnalyticsError(ZohoError):
+    """Zoho Analytics API failure."""
+    pass
+
 class ZohoBooksError(ZohoError):
     """Custom exception for Zoho Books API errors."""
     pass

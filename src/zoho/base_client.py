@@ -11,6 +11,7 @@ from zoho.exceptions import (
     ZohoWorkdriveError,
     ZohoMailError,
     ZohoCreatorError,
+    ZohoAnalyticsError,
     ZohoCliqError,
     ZohoSheetError
 )
@@ -22,7 +23,8 @@ _ERROR_MAP = {
     "mail": ZohoMailError,
     "creator": ZohoCreatorError,
     "cliq": ZohoCliqError,
-    "sheet": ZohoSheetError
+    "sheet": ZohoSheetError,
+    "analytics": ZohoAnalyticsError,
 }
 
 def _is_json_content_type(content_type: str) -> bool:
@@ -173,7 +175,7 @@ class BaseZohoClient:
         }
 
         # Dynamically set timeout based on service expectations (to pass legacy mock assertions)
-        if self.service_name in ("books", "inventory", "creator"):
+        if self.service_name in ("books", "inventory", "creator", "analytics"):
             req_kwargs["timeout"] = timeout if timeout is not None else self.default_timeout
         elif timeout is not None:
             req_kwargs["timeout"] = timeout

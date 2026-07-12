@@ -1,7 +1,46 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import time
-from zoho.auth import ZohoOAuth2Manager
+from zoho.auth import HttpTokenProvider, ZohoOAuth2Manager
+from zoho.exceptions import ZohoAuthError
+
+
+class TestHttpTokenProvider(unittest.TestCase):
+    @patch("requests.post")
+    def test_get_token_from_wrapped_string_body(self, mock_post):
+        response = MagicMock()
+        response.json.return_value = {"body": '{"tokens":{"books":"secret"}}'}
+        mock_post.return_value = response
+        provider = HttpTokenProvider("http://localhost/tokens")
+
+        self.assertEqual(provider.get_token("books"), "secret")
+        self.assertNotIn("secret", repr(provider))
+        mock_post.assert_called_once_with(
+            "http://localhost/tokens",
+            headers={"Content-Type": "application/json"},
+            json={},
+            timeout=10.0,
+        )
+
+    @patch("requests.post")
+    def test_explicit_service_fallback(self, mock_post):
+        response = MagicMock()
+        response.json.return_value = {"tokens": {"books": "secret"}}
+        mock_post.return_value = response
+        provider = HttpTokenProvider(
+            "http://localhost/tokens",
+            fallback_services={"inventory": "books"},
+        )
+        self.assertEqual(provider.get_token("inventory"), "secret")
+
+    @patch("requests.post")
+    def test_malformed_response_is_sanitized(self, mock_post):
+        response = MagicMock()
+        response.json.return_value = {"access_token": "must-not-leak"}
+        mock_post.return_value = response
+        with self.assertRaises(ZohoAuthError) as caught:
+            HttpTokenProvider("http://localhost/tokens").get_token("books")
+        self.assertNotIn("must-not-leak", str(caught.exception))
 
 class TestZohoOAuth2Manager(unittest.TestCase):
     def setUp(self):

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zoho-sdk"
-version = "0.1.0"
-description = "Decoupled SDK for Zoho API services (Books, WorkDrive, Mail, Cliq, Sheet)"
+version = "0.2.0"
+description = "Decoupled SDK for Zoho API services"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [

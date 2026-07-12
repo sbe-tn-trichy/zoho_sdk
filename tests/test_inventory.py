@@ -246,6 +246,32 @@ class TestInventoryCatalystAuth(unittest.TestCase):
 
 
 class TestItems(unittest.TestCase):
+    def test_list_by_purchase_account(self):
+        client = MagicMock()
+        from zoho.inventory.resources.items import Items
+        items = Items(client)
+        client.request.return_value = {"items": [], "page_context": {"has_more_page": False}}
+        items.list_by_purchase_account("account-1", status="active")
+        client.request.assert_called_once_with(
+            "GET",
+            "items",
+            params={
+                "purchase_account_id": "account-1",
+                "filter_by": "Status.Active",
+                "page": 1,
+                "per_page": 200,
+            },
+        )
+
+    def test_mark_inactive_bulk(self):
+        client = MagicMock()
+        from zoho.inventory.resources.items import Items
+        items = Items(client)
+        client.request.return_value = {"code": 0}
+        result = items.mark_inactive_bulk(["1", "2", "3"], batch_size=2)
+        self.assertEqual([row["item_ids"] for row in result], [["1", "2"], ["3"]])
+        self.assertEqual(client.request.call_count, 2)
+
     def test_group_items(self):
         client = MagicMock()
         from zoho.inventory.resources.items import Items

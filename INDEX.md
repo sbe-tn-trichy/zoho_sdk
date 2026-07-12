@@ -18,6 +18,7 @@ Supported services:
 5. **Zoho Sheet** — Spreadsheet: read/write rows and cells
 6. **Zoho Creator** — Low-code app data: CRUD records, bulk operations
 7. **Zoho Inventory** — Inventory management: items, orders, warehouses, batches
+8. **Zoho Analytics** — View data exports with synchronous-to-bulk fallback
 
 ---
 
@@ -62,6 +63,7 @@ zoho_sdk/
 │   │   └── client.py                # ZohoSheetAPI — workbook/sheet/row operations
 │   ├── creator/
 │   │   └── client.py                # ZohoCreatorAPI — app records CRUD + bulk helpers
+│   ├── analytics/                    # Zoho Analytics client + view export polling
 │   └── inventory/                   # Zoho Inventory service
 │       ├── client.py                # ZohoInventoryAPI — main client + module wiring
 │       ├── base.py                  # BaseResource (Inventory version)
@@ -108,7 +110,10 @@ All exports are declared in `src/zoho/__init__.py`.
 | `ZohoCliqAPI` | Client class | Zoho Cliq |
 | `ZohoCreatorAPI` | Client class | Zoho Creator |
 | `ZohoCreatorError` | Exception | Zoho Creator |
+| `ZohoAnalyticsAPI` | Client class | Zoho Analytics |
+| `ZohoAnalyticsError` | Exception | Zoho Analytics |
 | `ZohoOAuth2Manager` | Auth helper | All services |
+| `HttpTokenProvider` | Auth helper | All services |
 | `CatalystAuth` | Auth helper | All services (Catalyst token switching) |
 | `ZohoError` | Base exception | All services |
 | `ZohoCliqError` | Exception | Zoho Cliq |
@@ -117,6 +122,18 @@ All exports are declared in `src/zoho/__init__.py`.
 ---
 
 ## auth.py — Authentication Helpers
+
+### HttpTokenProvider
+
+Retrieves tokens from an HTTP broker at runtime. It supports direct,
+`body`-wrapped, and JSON-string `body` responses. Tokens are not cached or
+included in `repr()`, and optional service fallbacks must be explicit.
+
+```python
+provider = HttpTokenProvider(url, timeout=10, fallback_services={"inventory": "books"})
+provider.get_tokens()
+provider.get_token("books")
+```
 
 ### ZohoOAuth2Manager
 
@@ -326,6 +343,13 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 |---|---|---|
 | `match` | `(transaction_id, data)` | POST uncategorized match |
 | `categorize_as_expense` | `(transaction_id, data)` | POST categorize as expense |
+
+**`vendor_credits` (VendorCredits)**
+
+| Method | Signature | Notes |
+|---|---|---|
+| Standard CRUD | BaseResource methods | `/vendorcredits` |
+| `add_attachment` | `(vendor_credit_id, file_path)` | Uploads a PDF attachment |
 
 **`journals` (Journals)**
 

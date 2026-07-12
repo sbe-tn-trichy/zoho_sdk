@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Optional
 from ..base import BaseResource
 from ..mixins import StatusMixin, EmailMixin, ApprovalMixin, CreditsMixin
@@ -184,6 +185,22 @@ class SalesOrders(BaseResource, StatusMixin):
 class CreditNotes(BaseResource, StatusMixin):
     def __init__(self, client: Any):
         super().__init__(client, 'creditnotes')
+
+class VendorCredits(BaseResource, StatusMixin):
+    def __init__(self, client: Any):
+        super().__init__(client, 'vendorcredits')
+
+    def add_attachment(self, vendor_credit_id: str, file_path: str) -> Dict[str, Any]:
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+        filename = os.path.basename(file_path)
+        with open(file_path, "rb") as handle:
+            files = {"attachment": (filename, handle, "application/pdf")}
+            return self.client.request(
+                "POST",
+                f"vendorcredits/{vendor_credit_id}/attachment",
+                files=files,
+            )
 
 class SalesReturns(BaseResource, StatusMixin):
     def __init__(self, client: Any):

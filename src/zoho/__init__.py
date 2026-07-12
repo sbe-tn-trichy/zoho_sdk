@@ -5,8 +5,9 @@ from .sheet import ZohoSheetAPI
 from .wd import ZohoWorkdriveAPI
 from .inventory import ZohoInventoryAPI, ZohoInventoryError
 from .creator import ZohoCreatorAPI, ZohoCreatorError
-from .auth import ZohoOAuth2Manager, CatalystAuth
-from .exceptions import ZohoError, ZohoCliqError, ZohoSheetError
+from .analytics import ZohoAnalyticsAPI, ZohoAnalyticsError
+from .auth import ZohoOAuth2Manager, CatalystAuth, HttpTokenProvider
+from .exceptions import ZohoError, ZohoAuthError, ZohoCliqError, ZohoSheetError
 
 __all__ = [
     'ZohoBooksAPI',
@@ -20,8 +21,12 @@ __all__ = [
     'ZohoInventoryError',
     'ZohoCreatorAPI',
     'ZohoCreatorError',
+    'ZohoAnalyticsAPI',
+    'ZohoAnalyticsError',
     'ZohoOAuth2Manager',
     'CatalystAuth',
+    'HttpTokenProvider',
+    'ZohoAuthError',
     'ZohoError',
     'ZohoCliqError',
     'ZohoSheetError'

@@ -3,7 +3,7 @@ import os
 from typing import Any, Dict, Optional
 from zoho.base_client import BaseZohoClient
 from .resources.contacts import Contacts, Organizations, ChartOfAccounts, Vendors
-from .resources.sales import Invoices, Estimates, SalesOrders, CreditNotes, SalesReturns, CustomerPayments
+from .resources.sales import Invoices, Estimates, SalesOrders, CreditNotes, VendorCredits, SalesReturns, CustomerPayments
 from .resources.purchases import Bills, PurchaseOrders, VendorPayments
 from .resources.banking import BankAccounts, BankTransactions, Journals
 from .resources.projects import Projects, Tasks, TimeEntries
@@ -49,6 +49,7 @@ class ZohoBooksAPI(BaseZohoClient):
         self.estimates = Estimates(self)
         self.sales_orders = SalesOrders(self)
         self.credit_notes = CreditNotes(self)
+        self.vendor_credits = VendorCredits(self)
         self.sales_returns = SalesReturns(self)
         self.customer_payments = CustomerPayments(self)
         self.bills = Bills(self)

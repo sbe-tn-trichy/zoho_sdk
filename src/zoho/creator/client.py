@@ -15,6 +15,7 @@ class ZohoCreatorAPI(BaseZohoClient):
         account_owner_name: str,
         domain: str = "com",
         environment: str = "production",
+        send_environment_header: bool = True,
         token_refresh_callback: Optional[Any] = None
     ):
         base_url = f"https://www.zohoapis.{domain or 'com'}/creator/v2.1"
@@ -28,6 +29,7 @@ class ZohoCreatorAPI(BaseZohoClient):
         )
         self.account_owner_name = account_owner_name
         self.environment = environment or "production"
+        self.send_environment_header = send_environment_header
 
     def request(
         self,
@@ -37,7 +39,9 @@ class ZohoCreatorAPI(BaseZohoClient):
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, Any]] = None
     ) -> Any:
-        req_headers = {"environment": self.environment}
+        req_headers = {}
+        if self.send_environment_header:
+            req_headers["environment"] = self.environment
         if headers:
             req_headers.update(headers)
         return super().request(

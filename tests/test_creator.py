@@ -21,6 +21,19 @@ class TestZohoCreatorAPI(unittest.TestCase):
         self.assertEqual(self.client.base_url, "https://www.zohoapis.com/creator/v2.1")
 
     @patch("requests.request")
+    def test_environment_header_can_be_disabled(self, mock_request):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {"status": "ok"}
+        mock_request.return_value = response
+        client = ZohoCreatorAPI(
+            access_token="token",
+            account_owner_name="owner",
+            send_environment_header=False,
+        )
+        client.request("GET", "test")
+        self.assertNotIn("environment", mock_request.call_args.kwargs["headers"])
+
+    @patch("requests.request")
     def test_request_success(self, mock_request):
         mock_response = MagicMock()
         mock_response.status_code = 200
