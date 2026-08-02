@@ -1,7 +1,8 @@
 import csv
 import io
+import json
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .exceptions import ZohoAnalyticsError
 
@@ -20,10 +21,28 @@ class Views:
     def __init__(self, client: Any):
         self.client = client
 
-    def export_data(self, workspace_id: str, view_id: str) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _config(
+        response_format: str,
+        config: Optional[Dict[str, Any]] = None,
+        **required: Any,
+    ) -> Dict[str, str]:
+        export_config = dict(config or {})
+        export_config.update(required)
+        export_config["responseFormat"] = response_format
+        return {"CONFIG": json.dumps(export_config)}
+
+    def export_data(
+        self,
+        workspace_id: str,
+        view_id: str,
+        response_format: str = "csv",
+        config: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         payload = self.client.request(
             "GET",
             f"workspaces/{workspace_id}/views/{view_id}/data",
+            params=self._config(response_format, config),
         )
         return _rows(payload)
 
@@ -33,9 +52,16 @@ class Views:
         view_id: str,
         poll_interval: float = 2.0,
         max_attempts: int = 12,
+        response_format: str = "csv",
+        config: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         try:
-            return self.export_data(workspace_id, view_id)
+            return self.export_data(
+                workspace_id,
+                view_id,
+                response_format=response_format,
+                config=config,
+            )
         except ZohoAnalyticsError as exc:
             if "SYNC_EXPORT_NOT_ALLOWED" not in str(exc):
                 raise
@@ -44,6 +70,8 @@ class Views:
             view_id,
             poll_interval=poll_interval,
             max_attempts=max_attempts,
+            response_format=response_format,
+            config=config,
         )
 
     def export_bulk(
@@ -52,9 +80,44 @@ class Views:
         view_id: str,
         poll_interval: float = 2.0,
         max_attempts: int = 12,
+        response_format: str = "csv",
+        config: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         base = f"bulk/workspaces/{workspace_id}"
-        created = self.client.request("GET", f"{base}/views/{view_id}/data")
+        created = self.client.request(
+            "GET",
+            f"{base}/views/{view_id}/data",
+            params=self._config(response_format, config),
+        )
+        return self._poll_export(workspace_id, created, poll_interval, max_attempts)
+
+    def query_data(
+        self,
+        workspace_id: str,
+        sql_query: str,
+        poll_interval: float = 2.0,
+        max_attempts: int = 12,
+        response_format: str = "csv",
+        config: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Execute a dynamic SQL SELECT query through ZA's asynchronous export API."""
+        if not sql_query or not sql_query.strip():
+            raise ValueError("sql_query is required.")
+        created = self.client.request(
+            "GET",
+            f"bulk/workspaces/{workspace_id}/data",
+            params=self._config(response_format, config, sqlQuery=sql_query),
+        )
+        return self._poll_export(workspace_id, created, poll_interval, max_attempts)
+
+    def _poll_export(
+        self,
+        workspace_id: str,
+        created: Any,
+        poll_interval: float,
+        max_attempts: int,
+    ) -> List[Dict[str, Any]]:
+        base = f"bulk/workspaces/{workspace_id}"
         job_id = created.get("data", {}).get("jobId") if isinstance(created, dict) else None
         if not job_id:
             raise ZohoAnalyticsError("Analytics bulk export did not return a job ID.")

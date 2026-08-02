@@ -23,6 +23,7 @@ output/
 .vscode/
 .idea/
 .DS_Store
+.codex/
 
 # Testing
 .pytest_cache/

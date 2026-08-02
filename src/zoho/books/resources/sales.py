@@ -29,7 +29,6 @@ class SalesOrders(BaseResource, StatusMixin):
         Create a Sales Order in Zoho Books from a flat or standard invoice YAML string.
         Resolves items by SKU (optionally creating them if missing when create_missing_items=True).
         """
-        import yaml
         from datetime import datetime
         
         # 1. Custom line-by-line YAML parser to handle flat formats
