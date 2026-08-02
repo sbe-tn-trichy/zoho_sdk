@@ -19,7 +19,7 @@ From the repository root, create and activate a virtual environment, then instal
 ```powershell
 python -m venv .venv
 & .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[test]"
+python -m pip install -e ".[workflows,test]"
 ```
 
 The shared `zoho_usable_functions` environment may also be used when it is available:
@@ -27,7 +27,7 @@ The shared `zoho_usable_functions` environment may also be used when it is avail
 ```powershell
 & "d:/workplace/zoho_usable_functions/.venv/Scripts/pytest.exe" `
   "d:/workplace/zoho_sdk/tests" `
-  "d:/workplace/zoho_sdk/src/zoho/workflows"
+  "d:/workplace/zoho_sdk/src/workflows"
 ```
 
 # Validation
@@ -45,19 +45,19 @@ $env:PYTHONPATH = (Resolve-Path "src").Path
 python -m unittest discover -s tests
 ```
 
-Confirm both current and legacy imports after changes to public workflow exports:
+Confirm the SDK and standalone workflow packages import successfully:
 
 ```powershell
-python -c "import zoho.workflows; import zoho_sdk_advanced"
+python -c "import zoho; import workflows"
 ```
 
 # Development Rules
 
-- Keep generic HTTP and service-client behavior below `zoho.workflows`.
+- Keep generic HTTP and service-client behavior below `workflows`.
 - Inject low-level clients into workflows instead of importing workflow code from client packages.
 - Mock network calls in unit tests. Live verification must use runtime credentials and read-only operations unless a mutation is explicitly intended.
 - Never commit tokens, `.env` files, generated reports, logs, or `.codex` artifacts.
-- Preserve the `zoho_sdk_advanced` compatibility surface when moving or renaming workflow exports.
+- Keep workflow imports under the standalone `workflows` package; no legacy package alias is maintained.
 
 # Safe Workflow Execution
 

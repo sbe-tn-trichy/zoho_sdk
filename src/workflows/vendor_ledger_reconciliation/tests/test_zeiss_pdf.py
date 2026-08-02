@@ -1,7 +1,7 @@
 import os
 import unittest
 from unittest.mock import patch, MagicMock
-from zoho.workflows.vendor_ledger_reconciliation.zeiss_pdf import (
+from workflows.vendor_ledger_reconciliation.zeiss_pdf import (
     parse_month_from_filename,
     format_amount,
     parse_zeiss_pdf_statement,
@@ -53,7 +53,7 @@ class TestZeissPdf(unittest.TestCase):
         self.assertEqual(rows[1]["Debit"], "0")
         self.assertEqual(rows[1]["Credit"], "50")
 
-    @patch("zoho.workflows.vendor_ledger_reconciliation.zeiss_pdf.parse_zeiss_pdf_statement")
+    @patch("workflows.vendor_ledger_reconciliation.zeiss_pdf.parse_zeiss_pdf_statement")
     @patch("os.path.isdir")
     @patch("os.listdir")
     @patch("builtins.open", new_callable=MagicMock)

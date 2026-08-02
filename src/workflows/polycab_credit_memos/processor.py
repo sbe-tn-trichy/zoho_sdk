@@ -23,7 +23,9 @@ def parse_polycab_credit_memo(pdf_path: str) -> Dict[str, Any]:
         
     logger.info(f"Parsing credit memo PDF: {pdf_path}")
     with pdfplumber.open(pdf_path) as pdf:
-        all_text = "\n".join([page.extract_text() for page in pdf.pages])
+        all_text = "\n".join((page.extract_text() or "") for page in pdf.pages)
+    if not all_text.strip():
+        raise ValueError(f"No extractable text found in PDF: {pdf_path}")
         
     # 1. Credit Note Number (AR Invoice Number)
     cn_match = re.search(r"AR Invoice Number[ \t]*:[ \t]*(\d+)", all_text)
@@ -45,8 +47,18 @@ def parse_polycab_credit_memo(pdf_path: str) -> Dict[str, Any]:
             day, month_str, year = parts
             months = {"JAN": "01", "FEB": "02", "MAR": "03", "APR": "04", "MAY": "05", "JUN": "06", 
                       "JUL": "07", "AUG": "08", "SEP": "09", "OCT": "10", "NOV": "11", "DEC": "12"}
-            month = months.get(month_str.upper(), "01")
-            formatted_date = f"{year}-{month}-{day.zfill(2)}"
+            month = months.get(month_str.upper())
+            if not month:
+                raise ValueError(f"Unsupported invoice month: {month_str!r}")
+            year_format = "%y" if len(year) == 2 else "%Y"
+            try:
+                parsed_date = datetime.strptime(
+                    f"{day.zfill(2)}-{month}-{year}",
+                    f"%d-%m-{year_format}",
+                )
+            except ValueError as exc:
+                raise ValueError(f"Invalid invoice date: {raw_date!r}") from exc
+            formatted_date = parsed_date.strftime("%Y-%m-%d")
             
     # 3. Amount
     amount = 0.0
@@ -198,7 +210,8 @@ def create_vendor_credit_from_pdf(
     books_client: Any, 
     pdf_path: str, 
     vendor_name: str = "Polycab",
-    account_name: str = "Polycab Scheme - Expense"
+    account_name: str = "Polycab Scheme - Expense",
+    vendor_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Parses PDF and posts a new Vendor Credit transaction to Zoho Books.
@@ -206,7 +219,7 @@ def create_vendor_credit_from_pdf(
     """
     details = parse_polycab_credit_memo(pdf_path)
     
-    vendor_id = resolve_vendor_id(books_client, vendor_name)
+    vendor_id = vendor_id or resolve_vendor_id(books_client, vendor_name)
     if not vendor_id:
         raise ValueError(f"Could not resolve vendor ID for name: '{vendor_name}'")
         
@@ -218,6 +231,9 @@ def create_vendor_credit_from_pdf(
         bill_id = resolve_bill_id_by_number(books_client, vendor_id, bill_number)
         
     item_id = resolve_item_id(details["raw_text"])
+    account_id = resolve_account_id(books_client, account_name)
+    if not account_id:
+        raise ValueError(f"Could not resolve account ID for name: '{account_name}'")
     
     # If it is an RSO CN, use the RSO number alone as description
     description = details["description"]
@@ -233,6 +249,7 @@ def create_vendor_credit_from_pdf(
         "line_items": [
             {
                 "item_id": item_id,
+                "account_id": account_id,
                 "rate": details["amount"],
                 "quantity": 1,
                 "description": description,
@@ -298,8 +315,10 @@ def process_polycab_credit_memos(
         wd_files = wd_client.files.list_all_files(folder_id)
         existing_wd_filenames = {f.get("attributes", {}).get("name") for f in wd_files}
     except Exception as e:
-        logger.warning(f"Could not list WorkDrive folder contents: {e}")
-        existing_wd_filenames = set()
+        raise RuntimeError(
+            "Could not verify existing WorkDrive files; refusing to upload because "
+            "duplicate protection is unavailable."
+        ) from e
     logger.info(f"Found {len(existing_wd_filenames)} files in target WorkDrive folder.")
 
     # Get all PDF files to process
@@ -353,6 +372,7 @@ def process_polycab_credit_memos(
                 
             # Step 2: Create Vendor Credit in Zoho Books
             vc_id = None
+            credit_created = False
             if cn_num in existing_credit_numbers:
                 logger.info(f"Vendor credit {cn_num} already exists in Zoho Books. Skipping creation.")
                 summary["books_skipped"] += 1
@@ -362,14 +382,19 @@ def process_polycab_credit_memos(
                         break
             else:
                 logger.info("Creating vendor credit in Zoho Books...")
-                vc = create_vendor_credit_from_pdf(books_client, file_path)
+                vc = create_vendor_credit_from_pdf(
+                    books_client,
+                    file_path,
+                    vendor_id=vendor_id,
+                )
                 vc_id = vc.get("vendor_credit_id")
                 logger.info(f"Vendor credit successfully created in Books (ID: {vc_id}).")
                 summary["books_created"] += 1
+                credit_created = True
                 existing_credit_numbers.add(cn_num)
                 
             # Step 3: Attach PDF in Zoho Books
-            if vc_id:
+            if vc_id and credit_created:
                 try:
                     logger.info("Attaching PDF to vendor credit in Books...")
                     upload_vendor_credit_attachment(books_client, vc_id, file_path)

@@ -64,6 +64,27 @@ class TestZohoAnalyticsAPI(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "sql_query is required"):
             Views(MagicMock()).query_data("workspace", "  ")
 
+    def test_export_rejects_non_tabular_response_format(self):
+        with self.assertRaisesRegex(ValueError, "structured row exports support"):
+            Views(MagicMock()).export_data("workspace", "view", response_format="pdf")
+
+    def test_bulk_export_decodes_json_rows(self):
+        client = MagicMock()
+        client.request.side_effect = [
+            {"data": {"jobId": "job-json"}},
+            {"data": {"jobStatus": "JOB COMPLETED", "downloadUrl": "https://download"}},
+            b'{"data":[{"Customer":"Acme","Total":42}]}',
+        ]
+
+        rows = Views(client).export_bulk(
+            "workspace",
+            "view",
+            poll_interval=0,
+            response_format="json",
+        )
+
+        self.assertEqual(rows, [{"Customer": "Acme", "Total": 42}])
+
 
 if __name__ == "__main__":
     unittest.main()

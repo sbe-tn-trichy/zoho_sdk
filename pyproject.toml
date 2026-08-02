@@ -10,14 +10,16 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "requests>=2.25.0",
+]
+
+[project.optional-dependencies]
+workflows = [
     "xlrd>=2.0.1",
     "pdfplumber>=0.10.0",
     "python-dotenv>=1.0.0",
     "openpyxl>=3.1.5",
     "pandas>=2.0.0",
 ]
-
-[project.optional-dependencies]
 test = ["pytest>=8.0.0"]
 
 [tool.setuptools.packages.find]
@@ -26,5 +28,5 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = [
     "tests",
-    "src/zoho/workflows",
+    "src/workflows",
 ]

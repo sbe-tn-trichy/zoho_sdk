@@ -59,7 +59,7 @@ class Config:
         GSTIN_TO_VENDOR_ID = {}
 
 # Warn if default config is loaded
-logger = logging.getLogger("zoho.workflows.config")
+logger = logging.getLogger("workflows.config")
 if Config.ORG_ID == "60018185359":
     logger.debug("Config: Relying on default Zoho Books ORG_ID. Ensure this is intentional.")
 if Config.POLYCAB_FOLDER_ID == "wue3rf80474a32d3f4b67af8652d97ea5ab6c":

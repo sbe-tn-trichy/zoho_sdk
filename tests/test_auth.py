@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import time
-from zoho.auth import HttpTokenProvider, ZohoOAuth2Manager
+import requests
+from zoho.auth import CatalystAuth, HttpTokenProvider, ZohoOAuth2Manager
 from zoho.exceptions import ZohoAuthError
 
 
@@ -41,6 +42,28 @@ class TestHttpTokenProvider(unittest.TestCase):
         with self.assertRaises(ZohoAuthError) as caught:
             HttpTokenProvider("http://localhost/tokens").get_token("books")
         self.assertNotIn("must-not-leak", str(caught.exception))
+
+
+class TestCatalystAuth(unittest.TestCase):
+    @patch("requests.post")
+    def test_mutation_fails_closed_when_broker_is_unavailable(self, mock_post):
+        mock_post.side_effect = requests.ConnectionError("broker unavailable")
+        auth = CatalystAuth("direct", "http://localhost/tokens", "books")
+
+        with self.assertRaises(ZohoAuthError):
+            auth.get_token_for_request(is_mutation=True)
+
+    @patch("requests.post")
+    def test_direct_fallback_requires_explicit_opt_in(self, mock_post):
+        mock_post.side_effect = requests.ConnectionError("broker unavailable")
+        auth = CatalystAuth(
+            "direct",
+            "http://localhost/tokens",
+            "books",
+            allow_direct_token_fallback=True,
+        )
+
+        self.assertEqual(auth.get_token_for_request(is_mutation=True), "direct")
 
 class TestZohoOAuth2Manager(unittest.TestCase):
     def setUp(self):

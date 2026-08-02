@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from zoho.workflows.polycab_credit_memos.processor import (
+from workflows.polycab_credit_memos.processor import (
     parse_polycab_credit_memo,
     resolve_vendor_id,
     resolve_account_id,
@@ -43,6 +43,26 @@ class TestCreditMemoProcessor(unittest.TestCase):
         self.assertEqual(details["amount"], 108896.82)
         self.assertTrue("Scintillate Slim Integral" in details["description"])
 
+    @patch("os.path.exists", return_value=True)
+    @patch("pdfplumber.open")
+    def test_parse_rejects_pdf_without_extractable_text(self, mock_plumber_open, mock_exists):
+        page = MagicMock()
+        page.extract_text.return_value = None
+        mock_plumber_open.return_value.__enter__.return_value.pages = [page]
+
+        with self.assertRaisesRegex(ValueError, "No extractable text"):
+            parse_polycab_credit_memo("image-only.pdf")
+
+    @patch("os.path.exists", return_value=True)
+    @patch("pdfplumber.open")
+    def test_parse_rejects_unknown_invoice_month(self, mock_plumber_open, mock_exists):
+        page = MagicMock()
+        page.extract_text.return_value = "Invoice Date : 03-XYZ-2026"
+        mock_plumber_open.return_value.__enter__.return_value.pages = [page]
+
+        with self.assertRaisesRegex(ValueError, "Unsupported invoice month"):
+            parse_polycab_credit_memo("bad-date.pdf")
+
     def test_resolve_vendor_id(self):
         books_client = MagicMock()
         books_client.contacts.list.return_value = {
@@ -65,11 +85,19 @@ class TestCreditMemoProcessor(unittest.TestCase):
         account_id = resolve_account_id(books_client, "Polycab Scheme - Expense")
         self.assertEqual(account_id, "acc_02")
 
-    @patch("zoho.workflows.polycab_credit_memos.processor.resolve_bill_id_by_number")
-    @patch("zoho.workflows.polycab_credit_memos.processor.parse_polycab_credit_memo")
-    @patch("zoho.workflows.polycab_credit_memos.processor.resolve_vendor_id")
-    @patch("zoho.workflows.polycab_credit_memos.processor.resolve_item_id")
-    def test_create_vendor_credit_from_pdf(self, mock_resolve_item, mock_resolve_vend, mock_parse, mock_resolve_bill):
+    @patch("workflows.polycab_credit_memos.processor.resolve_account_id")
+    @patch("workflows.polycab_credit_memos.processor.resolve_bill_id_by_number")
+    @patch("workflows.polycab_credit_memos.processor.parse_polycab_credit_memo")
+    @patch("workflows.polycab_credit_memos.processor.resolve_vendor_id")
+    @patch("workflows.polycab_credit_memos.processor.resolve_item_id")
+    def test_create_vendor_credit_from_pdf(
+        self,
+        mock_resolve_item,
+        mock_resolve_vend,
+        mock_parse,
+        mock_resolve_bill,
+        mock_resolve_account,
+    ):
         books_client = MagicMock()
         mock_parse.return_value = {
             "vendor_name": "Polycab India Limited",
@@ -81,6 +109,7 @@ class TestCreditMemoProcessor(unittest.TestCase):
         }
         mock_resolve_vend.return_value = "vendor_99"
         mock_resolve_item.return_value = "item_123"
+        mock_resolve_account.return_value = "account_456"
         books_client.vendor_credits.create.return_value = {
             "vendorcredit": {"vendor_credit_id": "vc_100"}
         }
@@ -96,6 +125,7 @@ class TestCreditMemoProcessor(unittest.TestCase):
         self.assertEqual(payload["reference_invoice_type"], "registered")
         self.assertNotIn("bill_id", payload)
         self.assertEqual(payload["line_items"][0]["item_id"], "item_123")
+        self.assertEqual(payload["line_items"][0]["account_id"], "account_456")
         self.assertEqual(payload["line_items"][0]["rate"], 810.31)
         self.assertEqual(payload["line_items"][0]["gst_treatment_code"], "out_of_scope")
         self.assertNotIn("tax_id", payload["line_items"][0])
@@ -113,7 +143,7 @@ class TestCreditMemoProcessor(unittest.TestCase):
         self.assertNotIn("reference_invoice_type", payload)
         
         # Test Case 3: RSO CN description override with RSO Number alone
-        from zoho.workflows.core.config import Config
+        from workflows.core.config import Config
         books_client.vendor_credits.create.reset_mock()
         mock_resolve_item.return_value = Config.ZOHO_RSO_CN_ITEM_ID
         mock_parse.return_value["raw_text"] = "RSO Number : 25267008565 E-Way Bill No :\n"
@@ -123,6 +153,18 @@ class TestCreditMemoProcessor(unittest.TestCase):
         payload = books_client.vendor_credits.create.call_args.args[0]
         self.assertEqual(payload["line_items"][0]["description"], "25267008565")
         self.assertEqual(payload["line_items"][0]["item_id"], Config.ZOHO_RSO_CN_ITEM_ID)
+
+        # Test Case 4: An explicit vendor ID bypasses name-based resolution.
+        books_client.vendor_credits.create.reset_mock()
+        mock_resolve_vend.reset_mock()
+        create_vendor_credit_from_pdf(
+            books_client,
+            "dummy.pdf",
+            vendor_id="vendor_explicit",
+        )
+        mock_resolve_vend.assert_not_called()
+        payload = books_client.vendor_credits.create.call_args.args[0]
+        self.assertEqual(payload["vendor_id"], "vendor_explicit")
 
     def test_upload_vendor_credit_attachment(self):
         books_client = MagicMock()
@@ -141,7 +183,7 @@ class TestCreditMemoProcessor(unittest.TestCase):
         wd_client.files.upload.assert_called_once_with("folder_123", "dummy.pdf")
 
     def test_resolve_item_id(self):
-        from zoho.workflows.core.config import Config
+        from workflows.core.config import Config
         
         # Test Case 1: Scheme CN (RSO Number missing or empty)
         self.assertEqual(resolve_item_id("Some raw text without RSO"), Config.ZOHO_SCHEME_CN_ITEM_ID)

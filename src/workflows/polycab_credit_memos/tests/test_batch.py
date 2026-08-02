@@ -1,16 +1,16 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from zoho.workflows.polycab_credit_memos.processor import (
+from workflows.polycab_credit_memos.processor import (
     process_polycab_credit_memos,
     check_vendor_credits_location
 )
 
 class TestCreditMemoBatch(unittest.TestCase):
-    @patch("zoho.workflows.polycab_credit_memos.processor.upload_to_workdrive")
-    @patch("zoho.workflows.polycab_credit_memos.processor.upload_vendor_credit_attachment")
-    @patch("zoho.workflows.polycab_credit_memos.processor.create_vendor_credit_from_pdf")
-    @patch("zoho.workflows.polycab_credit_memos.processor.parse_polycab_credit_memo")
-    @patch("zoho.workflows.polycab_credit_memos.processor.fetch_vendor_credits")
+    @patch("workflows.polycab_credit_memos.processor.upload_to_workdrive")
+    @patch("workflows.polycab_credit_memos.processor.upload_vendor_credit_attachment")
+    @patch("workflows.polycab_credit_memos.processor.create_vendor_credit_from_pdf")
+    @patch("workflows.polycab_credit_memos.processor.parse_polycab_credit_memo")
+    @patch("workflows.polycab_credit_memos.processor.fetch_vendor_credits")
     @patch("os.path.exists")
     @patch("os.listdir")
     def test_process_polycab_credit_memos(
@@ -57,11 +57,32 @@ class TestCreditMemoBatch(unittest.TestCase):
         self.assertEqual(summary["wd_skipped"], 1)
         
         # Verify calls
-        mock_create.assert_called_once()
-        mock_upload.assert_called_once()
         import os
         expected_path = os.path.join("/dummy/cn", "CN-2603211539.pdf")
-        mock_attach.assert_called_with(books_client, "vc_222", expected_path)
+        mock_create.assert_called_once_with(
+            books_client,
+            expected_path,
+            vendor_id="vendor_999",
+        )
+        mock_upload.assert_called_once()
+        mock_attach.assert_called_once_with(books_client, "vc_222", expected_path)
+
+    @patch("workflows.polycab_credit_memos.processor.fetch_vendor_credits", return_value=[])
+    def test_workdrive_listing_failure_stops_before_processing(self, mock_fetch):
+        books_client = MagicMock()
+        wd_client = MagicMock()
+        wd_client.files.list_all_files.side_effect = OSError("temporary failure")
+
+        with self.assertRaisesRegex(RuntimeError, "duplicate protection is unavailable"):
+            process_polycab_credit_memos(
+                books_client=books_client,
+                wd_client=wd_client,
+                files_dir="/dummy/cn",
+                folder_id="folder_123",
+                vendor_id="vendor_999",
+            )
+
+        mock_fetch.assert_called_once_with(books_client, {"vendor_id": "vendor_999"})
 
         
     def test_check_vendor_credits_location(self):

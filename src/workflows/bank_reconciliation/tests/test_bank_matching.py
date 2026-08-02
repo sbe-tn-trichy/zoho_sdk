@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 from datetime import date
-from zoho.workflows.bank_reconciliation.matcher import (
+from workflows.bank_reconciliation.matcher import (
     parse_date,
     get_abs_amount,
     ref_match,
@@ -148,7 +148,7 @@ class TestMatchLedgerEntries(unittest.TestCase):
         self.assertEqual(results["unmatched_vendor_payments"][0]["payment_id"], "vp_04")
 
 from unittest.mock import patch
-from zoho.workflows.bank_reconciliation.matcher import (
+from workflows.bank_reconciliation.matcher import (
     match_bank_with_vendor_ledger
 )
 
@@ -159,8 +159,8 @@ class TestMatchBankWithVendorLedger(unittest.TestCase):
         self.ledger_path = "dummy_ledger.xls"
 
     @patch("os.path.exists")
-    @patch("zoho.workflows.bank_reconciliation._matcher.get_ledger_metadata")
-    @patch("zoho.workflows.bank_reconciliation._matcher.clean_ledger_file")
+    @patch("workflows.bank_reconciliation._matcher.get_ledger_metadata")
+    @patch("workflows.bank_reconciliation._matcher.clean_ledger_file")
     def test_match_bank_with_vendor_ledger(self, mock_clean, mock_metadata, mock_exists):
         mock_exists.return_value = True
         mock_metadata.return_value = {

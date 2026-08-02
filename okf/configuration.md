@@ -5,7 +5,7 @@ description: Runtime configuration, environment variables, organization identifi
 tags: [configuration, environment, credentials]
 sources:
   - id: config-module
-    resource: https://github.com/sbe-tn-trichy/zoho_sdk/blob/main/src/zoho/workflows/core/config.py
+    resource: https://github.com/sbe-tn-trichy/zoho_sdk/blob/main/src/workflows/core/config.py
     title: Workflow Configuration module
     author: team:sbe-tn-trichy
     last_modified: 2026-08-02

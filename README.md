@@ -43,10 +43,10 @@ returns a list of dictionaries.
 ## Business workflows
 
 Higher-level reconciliation and credit-memo operations are available under
-`zoho.workflows`:
+`workflows`:
 
 ```python
-from zoho.workflows import (
+from workflows import (
     match_bank_with_vendor_ledger,
     process_polycab_credit_memos,
     reconcile_vendor_account,
@@ -55,13 +55,13 @@ from zoho.workflows import (
 
 The workflow layer builds on the low-level clients and includes bank and vendor
 ledger reconciliation, Zeiss statement parsing, and Polycab credit memo
-processing. Existing root imports from `zoho_sdk_advanced` and its workflow
-subpackages remain supported through a compatibility shim.
+processing. It is a standalone top-level package alongside `zoho`; workflow
+code should be imported directly from `workflows`.
 
 Install workflow and test dependencies with:
 
 ```bash
-pip install -e ".[test]"
+pip install -e ".[workflows,test]"
 ```
 
 Architecture, configuration, and operational guidance is indexed in

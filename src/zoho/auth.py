@@ -148,38 +148,18 @@ class ZohoOAuth2Manager:
         return self._access_token
 
 
-def fetch_token_from_catalyst(url: str, service_key: str) -> Optional[str]:
+def fetch_token_from_catalyst(url: str, service_key: str) -> str:
     """
     Fetches the OAuth token for a specific service from the local Catalyst token endpoint.
+
+    Raises ZohoAuthError when the broker cannot be reached or does not return the
+    requested token. Error messages never include response payloads or tokens.
     """
-    try:
-        response = requests.post(url, headers={"Content-Type": "application/json"}, json={}, timeout=10)
-        response.raise_for_status()
-        res_data = response.json()
-        
-        # Extract tokens dictionary
-        tokens = res_data.get("tokens")
-        if not isinstance(tokens, dict):
-            # In case it is double-wrapped in body
-            body = res_data.get("body")
-            if isinstance(body, str):
-                import json
-                try:
-                    body = json.loads(body)
-                except Exception:
-                    body = {}
-            if isinstance(body, dict):
-                tokens = body.get("tokens")
-                
-        if isinstance(tokens, dict):
-            # Fallback for inventory to books
-            if service_key == "inventory" and "inventory" not in tokens:
-                return tokens.get("books")
-            return tokens.get(service_key)
-            
-        return None
-    except Exception:
-        return None
+    provider = HttpTokenProvider(
+        url,
+        fallback_services={"inventory": "books"},
+    )
+    return provider.get_token(service_key)
 
 
 class CatalystAuth(str):
@@ -187,11 +167,18 @@ class CatalystAuth(str):
     Dynamic authentication wrapper that behaves like a string.
     Allows explicit request mutation token switching via get_token_for_request(is_mutation).
     """
-    def __new__(cls, direct_token: str, catalyst_token_url: str, service_key: str):
+    def __new__(
+        cls,
+        direct_token: str,
+        catalyst_token_url: str,
+        service_key: str,
+        allow_direct_token_fallback: bool = False,
+    ):
         obj = str.__new__(cls, direct_token)
         obj.direct_token = direct_token
         obj.catalyst_token_url = catalyst_token_url
         obj.service_key = service_key
+        obj.allow_direct_token_fallback = allow_direct_token_fallback
         return obj
 
     def get_token_for_request(self, is_mutation: bool) -> str:
@@ -200,9 +187,11 @@ class CatalystAuth(str):
         bypassing expensive stack introspection.
         """
         if is_mutation and self.catalyst_token_url:
-            token = fetch_token_from_catalyst(self.catalyst_token_url, self.service_key)
-            if token:
-                return token
+            try:
+                return fetch_token_from_catalyst(self.catalyst_token_url, self.service_key)
+            except ZohoAuthError:
+                if not self.allow_direct_token_fallback:
+                    raise
         return self.direct_token
 
     def __str__(self) -> str:

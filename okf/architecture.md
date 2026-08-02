@@ -17,7 +17,7 @@ status: active
 `zoho_sdk` enforces strict modularity through a layered architecture with one-way import rules:
 
 ```
-zoho.core (Auth / Transport) <-- zoho.books / zoho.wd / zoho.creator (API Clients) <-- zoho.workflows (Business Workflows)
+zoho.core (Auth / Transport) <-- zoho.books / zoho.wd / zoho.creator (API Clients) <-- workflows (Business Workflows)
 ```
 
 ## Layer Boundaries
@@ -30,11 +30,12 @@ zoho.core (Auth / Transport) <-- zoho.books / zoho.wd / zoho.creator (API Client
    - Single-service REST endpoint wrappers.
    - Low-level clients do not import each other and do not import workflows.
 
-3. **Workflow Layer (`zoho.workflows`)**:
+3. **Workflow Layer (`workflows`)**:
    - Multi-service orchestrators (e.g., Polycab credit memo pipeline using Books + WorkDrive + local PDF parser).
    - Receives client instances via dependency injection.
+   - Is a standalone top-level package parallel to `zoho` and installed through the optional `workflows` dependency extra, so low-level SDK consumers do not require PDF, spreadsheet, or dataframe packages.
 
 # Import Rules
 
-- **Rule 1**: Lower layers (`zoho.books`, `zoho.core`) MUST NEVER import from `zoho.workflows`.
+- **Rule 1**: Lower layers (`zoho.books`, `zoho.core`) MUST NEVER import from `workflows`.
 - **Rule 2**: Subpackage encapsulation is maintained via `__init__.py` public exports (`__all__`).

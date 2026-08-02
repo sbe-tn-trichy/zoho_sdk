@@ -1,5 +1,5 @@
 class ZohoUsableError(Exception):
-    """Base exception class for all errors in the zoho.workflows library."""
+    """Base exception class for all errors in the workflows library."""
     pass
 
 class ZohoAuthError(ZohoUsableError, ValueError):

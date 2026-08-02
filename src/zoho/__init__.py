@@ -8,8 +8,6 @@ from .creator import ZohoCreatorAPI, ZohoCreatorError
 from .analytics import ZohoAnalyticsAPI, ZohoAnalyticsError
 from .auth import ZohoOAuth2Manager, CatalystAuth, HttpTokenProvider
 from .exceptions import ZohoError, ZohoAuthError, ZohoCliqError, ZohoSheetError
-from . import workflows
-
 __all__ = [
     'ZohoBooksAPI',
     'ZohoBooksError',
@@ -31,5 +29,4 @@ __all__ = [
     'ZohoError',
     'ZohoCliqError',
     'ZohoSheetError',
-    'workflows',
 ]

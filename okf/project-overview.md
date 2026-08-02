@@ -14,7 +14,7 @@ status: active
 
 # Purpose
 
-`zoho_sdk` is a unified Python package containing low-level REST API clients for Zoho services and higher-level domain workflows (formerly `zoho_sdk_advanced`).
+`zoho_sdk` distributes low-level REST API clients under `zoho` and higher-level domain workflows under the parallel top-level `workflows` package.
 
 # Architecture Scope
 
@@ -24,14 +24,14 @@ The unified source tree contains two distinct layers:
    - Generic REST wrappers around raw Zoho HTTP endpoints.
    - Authentication managers (`ZohoOAuth2Manager`, `CatalystAuth`, `HttpTokenProvider`).
 
-2. **High-Level Domain Workflows (`zoho.workflows`)**:
-   - `zoho.workflows.bank_reconciliation`: Bank transaction and ledger matching.
-   - `zoho.workflows.vendor_ledger_reconciliation`: Vendor ledger cleaning, matching, and Zeiss statement parsing.
-   - `zoho.workflows.polycab_credit_memos`: Polycab credit memo PDF extraction, Zoho Books creation, attachment uploads, and WorkDrive uploads.
+2. **High-Level Domain Workflows (`workflows`)**:
+   - `workflows.bank_reconciliation`: Bank transaction and ledger matching.
+   - `workflows.vendor_ledger_reconciliation`: Vendor ledger cleaning, matching, and Zeiss statement parsing.
+   - `workflows.polycab_credit_memos`: Polycab credit memo PDF extraction, Zoho Books creation, attachment uploads, and WorkDrive uploads.
 
-# Backward Compatibility
+# Package Layout
 
-To maintain compatibility with legacy codebases, `zoho_sdk_advanced` is exposed as a root module alias pointing to `zoho.workflows`.
+`zoho` and `workflows` are independent top-level packages under `src/`. The former `zoho_sdk_advanced` compatibility package has been removed.
 
 # Related Knowledge
 

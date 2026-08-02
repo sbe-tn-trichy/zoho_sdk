@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from zoho.workflows.vendor_ledger_reconciliation.matcher import (
+from workflows.vendor_ledger_reconciliation.matcher import (
     reconcile_vendor,
     reconcile_vendor_account,
 )
@@ -14,8 +14,8 @@ class TestReconcileVendorAccount(unittest.TestCase):
         self.ledger_path = "dummy_ledger.xls"
 
     @patch("os.path.exists")
-    @patch("zoho.workflows.vendor_ledger_reconciliation._reconciler.get_ledger_metadata")
-    @patch("zoho.workflows.vendor_ledger_reconciliation._reconciler.clean_ledger_file")
+    @patch("workflows.vendor_ledger_reconciliation._reconciler.get_ledger_metadata")
+    @patch("workflows.vendor_ledger_reconciliation._reconciler.clean_ledger_file")
     def test_reconcile_vendor_account(self, mock_clean, mock_metadata, mock_exists):
         mock_exists.return_value = True
         mock_metadata.return_value = {
@@ -183,8 +183,8 @@ class TestReconcileVendor(unittest.TestCase):
         self.ledger_path_zeiss = "input_files/zeiss/Statement.csv"
         self.ledger_path_unknown = "input_files/unknown/ledger.xls"
 
-    @patch("zoho.workflows.vendor_ledger_reconciliation._reconciler.reconcile_vendor_account")
-    @patch("zoho.workflows.core.auth.get_books_client")
+    @patch("workflows.vendor_ledger_reconciliation._reconciler.reconcile_vendor_account")
+    @patch("workflows.core.auth.get_books_client")
     def test_reconcile_vendor_with_all_explicit_params(self, mock_get_client, mock_reconcile_account):
         mock_reconcile_account.return_value = {"status": "success"}
 
@@ -206,10 +206,10 @@ class TestReconcileVendor(unittest.TestCase):
         self.assertEqual(res, {"status": "success"})
         mock_get_client.assert_not_called()
 
-    @patch("zoho.workflows.vendor_ledger_reconciliation._reconciler.reconcile_vendor_account")
-    @patch("zoho.workflows.core.auth.get_books_client")
+    @patch("workflows.vendor_ledger_reconciliation._reconciler.reconcile_vendor_account")
+    @patch("workflows.core.auth.get_books_client")
     def test_reconcile_vendor_auto_detect_polycab(self, mock_get_client, mock_reconcile_account):
-        from zoho.workflows.core.config import Config
+        from workflows.core.config import Config
         mock_reconcile_account.return_value = {"status": "success"}
         mock_get_client.return_value = self.books_client
 
@@ -227,10 +227,10 @@ class TestReconcileVendor(unittest.TestCase):
         mock_get_client.assert_called_once()
         self.assertEqual(res, {"status": "success"})
 
-    @patch("zoho.workflows.vendor_ledger_reconciliation._reconciler.reconcile_vendor_account")
-    @patch("zoho.workflows.core.auth.get_books_client")
+    @patch("workflows.vendor_ledger_reconciliation._reconciler.reconcile_vendor_account")
+    @patch("workflows.core.auth.get_books_client")
     def test_reconcile_vendor_auto_detect_zeiss(self, mock_get_client, mock_reconcile_account):
-        from zoho.workflows.core.config import Config
+        from workflows.core.config import Config
         mock_reconcile_account.return_value = {"status": "success"}
         mock_get_client.return_value = self.books_client
 

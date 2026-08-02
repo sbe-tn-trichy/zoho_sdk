@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import xlrd
-from zoho.workflows.vendor_ledger_reconciliation.cleaner import clean_ledger_file
+from workflows.vendor_ledger_reconciliation.cleaner import clean_ledger_file
 
 class TestLedgerCleaner(unittest.TestCase):
     @patch("os.path.exists")
@@ -92,7 +92,7 @@ class TestLedgerCleaner(unittest.TestCase):
         mock_sheet.ncols = 3
         mock_sheet.cell_value.side_effect = lambda r, c: mock_rows[r][c]
         
-        from zoho.workflows.vendor_ledger_reconciliation.cleaner import get_ledger_metadata
+        from workflows.vendor_ledger_reconciliation.cleaner import get_ledger_metadata
         metadata = get_ledger_metadata("dummy_path.xls")
         
         self.assertEqual(metadata["start_date"], "2026-01-01")

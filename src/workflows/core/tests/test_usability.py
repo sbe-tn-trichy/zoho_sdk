@@ -1,5 +1,5 @@
 import unittest
-from zoho.workflows import (
+from workflows import (
     DotDict,
     ZohoUsableError,
     ZohoAuthError,

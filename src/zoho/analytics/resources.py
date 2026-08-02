@@ -7,13 +7,34 @@ from typing import Any, Dict, List, Optional
 from .exceptions import ZohoAnalyticsError
 
 
-def _rows(payload: Any) -> List[Dict[str, Any]]:
+_TABULAR_RESPONSE_FORMATS = {"csv", "json"}
+
+
+def _response_format(value: str) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized not in _TABULAR_RESPONSE_FORMATS:
+        supported = ", ".join(sorted(_TABULAR_RESPONSE_FORMATS))
+        raise ValueError(
+            f"Unsupported response_format {value!r}; structured row exports support: {supported}."
+        )
+    return normalized
+
+
+def _rows(payload: Any, response_format: str = "csv") -> List[Dict[str, Any]]:
+    response_format = _response_format(response_format)
     if isinstance(payload, bytes):
         text = payload.decode("utf-8-sig")
-        return list(csv.DictReader(io.StringIO(text)))
+        if response_format == "csv":
+            return list(csv.DictReader(io.StringIO(text)))
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ZohoAnalyticsError("Analytics returned malformed JSON export data.") from exc
     if not isinstance(payload, dict):
         return []
-    rows = payload.get("data") or payload.get("rows") or payload.get("result", {}).get("data") or []
+    result = payload.get("result")
+    result_rows = result.get("data") if isinstance(result, dict) else None
+    rows = payload.get("data") or payload.get("rows") or result_rows or []
     return rows if isinstance(rows, list) else []
 
 
@@ -27,6 +48,7 @@ class Views:
         config: Optional[Dict[str, Any]] = None,
         **required: Any,
     ) -> Dict[str, str]:
+        response_format = _response_format(response_format)
         export_config = dict(config or {})
         export_config.update(required)
         export_config["responseFormat"] = response_format
@@ -44,7 +66,7 @@ class Views:
             f"workspaces/{workspace_id}/views/{view_id}/data",
             params=self._config(response_format, config),
         )
-        return _rows(payload)
+        return _rows(payload, response_format)
 
     def export_all(
         self,
@@ -89,7 +111,13 @@ class Views:
             f"{base}/views/{view_id}/data",
             params=self._config(response_format, config),
         )
-        return self._poll_export(workspace_id, created, poll_interval, max_attempts)
+        return self._poll_export(
+            workspace_id,
+            created,
+            poll_interval,
+            max_attempts,
+            response_format,
+        )
 
     def query_data(
         self,
@@ -108,7 +136,13 @@ class Views:
             f"bulk/workspaces/{workspace_id}/data",
             params=self._config(response_format, config, sqlQuery=sql_query),
         )
-        return self._poll_export(workspace_id, created, poll_interval, max_attempts)
+        return self._poll_export(
+            workspace_id,
+            created,
+            poll_interval,
+            max_attempts,
+            response_format,
+        )
 
     def _poll_export(
         self,
@@ -116,6 +150,7 @@ class Views:
         created: Any,
         poll_interval: float,
         max_attempts: int,
+        response_format: str,
     ) -> List[Dict[str, Any]]:
         base = f"bulk/workspaces/{workspace_id}"
         job_id = created.get("data", {}).get("jobId") if isinstance(created, dict) else None
@@ -136,4 +171,7 @@ class Views:
 
         if not download_url:
             raise TimeoutError(f"Analytics bulk export job {job_id} did not complete.")
-        return _rows(self.client.request("GET", "", override_url=download_url))
+        return _rows(
+            self.client.request("GET", "", override_url=download_url),
+            response_format,
+        )

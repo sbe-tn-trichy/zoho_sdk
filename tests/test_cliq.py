@@ -28,18 +28,19 @@ class TestZohoCliqAPI(unittest.TestCase):
         self.assertIsNone(res)
         mock_logger.warning.assert_called_with("Cliq Access Token not provided. Skipping notification.")
 
-    @patch("requests.post")
-    def test_send_notification_to_bot(self, mock_post):
+    @patch("requests.request")
+    def test_send_notification_to_bot(self, mock_request):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"status": "success"}
-        mock_post.return_value = mock_response
+        mock_request.return_value = mock_response
 
         res = self.client.send_notification("Hello Bot")
         
         self.assertEqual(res, {"status": "success"})
-        mock_post.assert_called_once_with(
-            "https://cliq.zoho.com/api/v2/bots/testbot/message",
+        mock_request.assert_called_once_with(
+            method="POST",
+            url="https://cliq.zoho.com/api/v2/bots/testbot/message",
             headers={
                 "Authorization": "Zoho-oauthtoken fake_access_token",
                 "Content-Type": "application/json"
@@ -48,18 +49,19 @@ class TestZohoCliqAPI(unittest.TestCase):
             timeout=10
         )
 
-    @patch("requests.post")
-    def test_send_notification_to_channel(self, mock_post):
+    @patch("requests.request")
+    def test_send_notification_to_channel(self, mock_request):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"status": "success"}
-        mock_post.return_value = mock_response
+        mock_request.return_value = mock_response
 
         res = self.client.send_notification("Hello Channel", channel="general")
         
         self.assertEqual(res, {"status": "success"})
-        mock_post.assert_called_once_with(
-            "https://cliq.zoho.com/api/v2/channels/general/message",
+        mock_request.assert_called_once_with(
+            method="POST",
+            url="https://cliq.zoho.com/api/v2/channels/general/message",
             headers={
                 "Authorization": "Zoho-oauthtoken fake_access_token",
                 "Content-Type": "application/json"
@@ -68,9 +70,9 @@ class TestZohoCliqAPI(unittest.TestCase):
             timeout=10
         )
 
-    @patch("requests.post")
-    def test_send_notification_failure(self, mock_post):
-        mock_post.side_effect = Exception("Connection error")
+    @patch("requests.request")
+    def test_send_notification_failure(self, mock_request):
+        mock_request.side_effect = Exception("Connection error")
         res = self.client.send_notification("Hello Fail")
         self.assertIsNone(res)
 
