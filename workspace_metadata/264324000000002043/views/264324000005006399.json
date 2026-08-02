@@ -1,0 +1,23 @@
+{
+  "createdBy": "arun.kumar@bharathdst.in",
+  "createdByName": "Arun Kumar",
+  "createdByZuId": "60018494835",
+  "createdTime": "1754414200160",
+  "involvedViews": [
+    {
+      "viewId": "264324000005006176",
+      "viewName": "TrackOlap",
+      "viewType": "Table"
+    }
+  ],
+  "lastDesignModifiedBy": "arun.kumar@bharathdst.in",
+  "lastDesignModifiedByName": "Arun Kumar",
+  "lastDesignModifiedByZuId": "60018494835",
+  "lastDesignModifiedTime": "1764786899822",
+  "orgId": "60018545708",
+  "viewDesc": "",
+  "viewId": "264324000005006399",
+  "viewName": "Outlet Visited",
+  "viewType": "Pivot",
+  "workspaceId": "264324000000002043"
+}

@@ -115,7 +115,11 @@ class BaseZohoClient:
                     if isinstance(e, ZohoError):
                         raise
 
-            raise err_class(f"HTTP Error: {response.status_code} - {response.text}")
+            error = err_class(f"HTTP Error: {response.status_code} - {response.text}")
+            error.status_code = response.status_code
+            if hasattr(response, "headers") and isinstance(response.headers, collections.abc.Mapping):
+                error.retry_after = response.headers.get("Retry-After")
+            raise error
 
     def request(
         self,

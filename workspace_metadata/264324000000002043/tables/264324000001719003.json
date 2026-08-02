@@ -1,0 +1,40 @@
+{
+  "columns": [
+    {
+      "columnDesc": "",
+      "columnId": "264324000001719006",
+      "columnIndex": 1,
+      "columnMaxSize": 253,
+      "columnName": "CITY",
+      "dataType": "PLAIN",
+      "dataTypeId": 1,
+      "dataTypeName": "Plain Text",
+      "defaultValue": "",
+      "formulaDisplayName": "",
+      "isHidden": false,
+      "isNullable": true,
+      "pkColumnName": "",
+      "pkTableName": "",
+      "sortedIndex": 0,
+      "sortedOrder": 1
+    },
+    {
+      "columnDesc": "",
+      "columnId": "264324000001719007",
+      "columnIndex": 2,
+      "columnMaxSize": 253,
+      "columnName": "SE_NAME",
+      "dataType": "PLAIN",
+      "dataTypeId": 1,
+      "dataTypeName": "Plain Text",
+      "defaultValue": "",
+      "formulaDisplayName": "",
+      "isHidden": false,
+      "isNullable": true,
+      "pkColumnName": "",
+      "pkTableName": "",
+      "sortedIndex": -1,
+      "sortedOrder": 0
+    }
+  ]
+}

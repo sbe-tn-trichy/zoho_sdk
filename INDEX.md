@@ -18,7 +18,7 @@ Supported services:
 5. **Zoho Sheet** — Spreadsheet: read/write rows and cells
 6. **Zoho Creator** — Low-code app data: CRUD records, bulk operations
 7. **Zoho Inventory** — Inventory management: items, orders, warehouses, batches
-8. **Zoho Analytics** — View data exports with synchronous-to-bulk fallback
+8. **Zoho Analytics** — View exports, dynamic queries, and resumable workspace metadata snapshots
 
 ---
 
@@ -63,7 +63,7 @@ zoho_sdk/
 │   │   └── client.py                # ZohoSheetAPI — workbook/sheet/row operations
 │   ├── creator/
 │   │   └── client.py                # ZohoCreatorAPI — app records CRUD + bulk helpers
-│   ├── analytics/                    # Zoho Analytics client + view export polling
+│   ├── analytics/                    # View exports and workspace metadata snapshots
 │   └── inventory/                   # Zoho Inventory service
 │       ├── client.py                # ZohoInventoryAPI — main client + module wiring
 │       ├── base.py                  # BaseResource (Inventory version)

@@ -1,0 +1,38 @@
+{
+  "createdBy": "arun.kumar@bharathdst.in",
+  "createdByName": "Arun Kumar",
+  "createdByZuId": "60018494835",
+  "createdTime": "1767114176130",
+  "involvedViews": [
+    {
+      "viewId": "264324000006142281",
+      "viewType": "WIDGET"
+    },
+    {
+      "viewId": "264324000006142506",
+      "viewType": "WIDGET"
+    },
+    {
+      "viewId": "264324000006142662",
+      "viewType": "WIDGET"
+    },
+    {
+      "viewId": "264324000006142903",
+      "viewType": "WIDGET"
+    },
+    {
+      "viewId": "264324000006532427",
+      "viewType": "WIDGET"
+    }
+  ],
+  "lastDesignModifiedBy": "arun.kumar@bharathdst.in",
+  "lastDesignModifiedByName": "Arun Kumar",
+  "lastDesignModifiedByZuId": "60018494835",
+  "lastDesignModifiedTime": "1771670458441",
+  "orgId": "60018545708",
+  "viewDesc": "",
+  "viewId": "264324000006142278",
+  "viewName": "Sales Man Dashboard",
+  "viewType": "Dashboard",
+  "workspaceId": "264324000000002043"
+}

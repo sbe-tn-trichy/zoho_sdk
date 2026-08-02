@@ -1,0 +1,23 @@
+{
+  "createdBy": "arun.kumar@bharathdst.in",
+  "createdByName": "Arun Kumar",
+  "createdByZuId": "60018494835",
+  "createdTime": "1737196167123",
+  "involvedViews": [
+    {
+      "viewId": "264324000003479418",
+      "viewName": "Cash Flow Query (Zoho Books)",
+      "viewType": "Query Table"
+    }
+  ],
+  "lastDesignModifiedBy": "arun.kumar@bharathdst.in",
+  "lastDesignModifiedByName": "Arun Kumar",
+  "lastDesignModifiedByZuId": "60018494835",
+  "lastDesignModifiedTime": "1737196267176",
+  "orgId": "60018545708",
+  "viewDesc": "",
+  "viewId": "264324000003481460",
+  "viewName": "Cash Flow Statement (Zoho Books)",
+  "viewType": "Pivot",
+  "workspaceId": "264324000000002043"
+}

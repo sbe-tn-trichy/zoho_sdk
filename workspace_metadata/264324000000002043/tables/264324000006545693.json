@@ -1,0 +1,62 @@
+{
+  "columns": [
+    {
+      "columnDesc": "",
+      "columnId": "264324000006548331",
+      "columnIndex": 1,
+      "columnMaxSize": 253,
+      "columnName": "Account Name",
+      "dataType": "PLAIN",
+      "dataTypeId": 1,
+      "dataTypeName": "Plain Text",
+      "defaultValue": "",
+      "formulaDisplayName": "",
+      "isHidden": false,
+      "isNullable": true,
+      "pkColumnName": "",
+      "pkTableName": "",
+      "sortedIndex": -1,
+      "sortedOrder": 0
+    },
+    {
+      "columnDesc": "",
+      "columnId": "264324000006548332",
+      "columnIndex": 2,
+      "columnMaxSize": 22,
+      "columnName": "Current Value",
+      "dataType": "DECIMAL_NUMBER",
+      "dataTypeId": 6,
+      "dataTypeName": "Decimal Number",
+      "decimalPlaces": -1,
+      "decimalSeparator": ".",
+      "defaultValue": "",
+      "formulaDisplayName": "",
+      "isHidden": false,
+      "isNullable": true,
+      "pkColumnName": "",
+      "pkTableName": "",
+      "sortedIndex": -1,
+      "sortedOrder": 0,
+      "thousandSeparator": ""
+    },
+    {
+      "columnDesc": "",
+      "columnId": "264324000006551003",
+      "columnIndex": 3,
+      "columnMaxSize": 19,
+      "columnName": "Date",
+      "dataType": "DATE_AS_DATE",
+      "dataTypeId": 22,
+      "dataTypeName": "Date",
+      "dateFormat": "dd MMM, yyyy HH:mm:ss",
+      "defaultValue": "",
+      "formulaDisplayName": "",
+      "isHidden": false,
+      "isNullable": true,
+      "pkColumnName": "",
+      "pkTableName": "",
+      "sortedIndex": -1,
+      "sortedOrder": 0
+    }
+  ]
+}

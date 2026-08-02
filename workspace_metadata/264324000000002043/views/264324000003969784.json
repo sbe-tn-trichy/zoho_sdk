@@ -1,0 +1,23 @@
+{
+  "createdBy": "arun.kumar@bharathdst.in",
+  "createdByName": "Arun Kumar",
+  "createdByZuId": "60018494835",
+  "createdTime": "1742142679718",
+  "involvedViews": [
+    {
+      "viewId": "264324000003965699",
+      "viewName": "Interest Calculation",
+      "viewType": "Query Table"
+    }
+  ],
+  "lastDesignModifiedBy": "arun.kumar@bharathdst.in",
+  "lastDesignModifiedByName": "Arun Kumar",
+  "lastDesignModifiedByZuId": "60018494835",
+  "lastDesignModifiedTime": "1742802650419",
+  "orgId": "60018545708",
+  "viewDesc": "",
+  "viewId": "264324000003969784",
+  "viewName": "Interest",
+  "viewType": "Pivot",
+  "workspaceId": "264324000000002043"
+}

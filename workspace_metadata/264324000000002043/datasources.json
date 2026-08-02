@@ -1,0 +1,167 @@
+[
+  {
+    "datasourceId": "264324000001774415",
+    "datasourceName": "Zoho Books",
+    "lastDataSyncStatus": "Data Sync Successful",
+    "lastDataSyncTime": "02 August, 2026 06:47:37 PM IST",
+    "nextScheduleTime": "02 August, 2026 09:47:46 PM IST",
+    "schedule": "Every 3 Hours",
+    "source": "Bharath Distributors (Zoho Books,Zoho Inventory)",
+    "syncUsed": "0",
+    "totalSyncAllowed": "5"
+  },
+  {
+    "datasourceId": "264324000007236032",
+    "datasourceName": "Zoho Creator",
+    "lastDataSyncStatus": "Data Sync Successful",
+    "lastDataSyncTime": "02 August, 2026 07:05:56 PM IST",
+    "nextScheduleTime": "02 August, 2026 08:06:01 PM IST",
+    "schedule": "Every 1 Hour",
+    "source": "OpsLink",
+    "syncUsed": "0",
+    "tableDetails": [],
+    "totalSyncAllowed": "5"
+  },
+  {
+    "datasourceName": "Zoho WorkDrive",
+    "fileType": "Excel",
+    "lastDataSyncStatus": "Sync Success",
+    "lastDataSyncTime": "02 August, 2026 01:00:03 AM IST",
+    "nextScheduleTime": "03 August, 2026 01:00:00 AM IST",
+    "schedule": "Daily at 01:00 hrs IST",
+    "source": "TrackOlap",
+    "tableDetails": [
+      {
+        "lastSyncTime": "02 August, 2026 01:00:03 AM IST",
+        "syncStatus": "Success",
+        "viewId": "264324000005006176",
+        "viewName": "TrackOlap"
+      }
+    ]
+  },
+  {
+    "datasourceName": "Local Drive",
+    "tableDetails": [
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000001719003",
+        "viewName": "Sales Person Map"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000001872454",
+        "viewName": "Polycab Ledger"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000002067042",
+        "viewName": "GSTR2-B"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000002170389",
+        "viewName": "customer_wise_sales_books"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000002911005",
+        "viewName": "BL Ledger"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000005369250",
+        "viewName": "GSTR-1 ZB"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000005403179",
+        "viewName": "Books GSTR2 Invoices"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000005465015",
+        "viewName": "GSTR-2 CN"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000005543597",
+        "viewName": "books GSTR2 CN"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000005584114",
+        "viewName": "LocationReportFromBooks"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000005793002",
+        "viewName": "Bank Statement"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000005793145",
+        "viewName": "Detailed Ledger"
+      },
+      {
+        "lastSyncTime": "-",
+        "syncStatus": "Success",
+        "viewId": "264324000006315013",
+        "viewName": "TrackOlap-New"
+      }
+    ]
+  },
+  {
+    "datasourceId": "264324000002552001",
+    "datasourceName": "Zoho Analytics",
+    "source": "W",
+    "syncIntervals": [
+      {
+        "lastDataSyncStatus": "Sync Success",
+        "lastDataSyncTime": "02 August, 2026 12:02:11 AM IST",
+        "nextScheduleTime": "03 August, 2026 12:00:00 AM IST",
+        "schedule": "Daily at 00:00 hrs IST",
+        "syncIntervalId": "264324000002552002",
+        "syncUsed": "0",
+        "tableDetails": [
+          {
+            "lastSyncTime": "02 August, 2026 12:02:11 AM IST",
+            "sourceName": "-- Custom Query --",
+            "syncStatus": "Success",
+            "viewId": "264324000001900002",
+            "viewName": "BL_category_order"
+          }
+        ]
+      }
+    ],
+    "totalSyncAllowed": "5"
+  },
+  {
+    "datasourceId": "264324000002553001",
+    "datasourceName": "Local File",
+    "source": "arun-6217",
+    "syncIntervals": [
+      {
+        "lastDataSyncStatus": "Not Applicable",
+        "lastDataSyncTime": "06 May, 2024 10:32:06 AM IST",
+        "nextScheduleTime": "-",
+        "schedule": "Not Scheduled",
+        "syncIntervalId": "264324000002553002",
+        "syncUsed": "0",
+        "tableDetails": []
+      }
+    ],
+    "totalSyncAllowed": "5"
+  }
+]

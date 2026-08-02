@@ -1,0 +1,23 @@
+{
+  "createdBy": "arun.kumar@bharathdst.in",
+  "createdByName": "Arun Kumar",
+  "createdByZuId": "60018494835",
+  "createdTime": "1763299457053",
+  "involvedViews": [
+    {
+      "viewId": "264324000005793145",
+      "viewName": "Detailed Ledger",
+      "viewType": "Table"
+    }
+  ],
+  "lastDesignModifiedBy": "arun.kumar@bharathdst.in",
+  "lastDesignModifiedByName": "Arun Kumar",
+  "lastDesignModifiedByZuId": "60018494835",
+  "lastDesignModifiedTime": "1763311564841",
+  "orgId": "60018545708",
+  "viewDesc": "",
+  "viewId": "264324000005793388",
+  "viewName": "Books SBE HDFC",
+  "viewType": "Pivot",
+  "workspaceId": "264324000000002043"
+}

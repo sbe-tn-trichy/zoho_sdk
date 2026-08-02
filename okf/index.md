@@ -12,6 +12,7 @@ okf_version: "0.2"
 ## Reference
 
 * [Configuration Reference](configuration.md) - OAuth credentials, organization settings, environment variables, and CLI dry-run flags.
+* [Analytics Metadata Snapshots](analytics-metadata.md) - Complete workspace metadata collection, rate-limit handling, snapshot files, and relationship maps.
 * [OKF Maintenance](okf-maintenance.md) - Rules for maintaining concept documentation, YAML frontmatter, and change logs.
 
 ## Operations

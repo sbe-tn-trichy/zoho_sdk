@@ -1,0 +1,92 @@
+{
+  "columns": [
+    {
+      "columnDesc": "",
+      "columnId": "264324000007625010",
+      "columnIndex": 1,
+      "columnMaxSize": 253,
+      "columnName": "Vendor Payments (Zoho Books).Payment Number",
+      "dataType": "PLAIN",
+      "dataTypeId": 1,
+      "dataTypeName": "Plain Text",
+      "defaultValue": "",
+      "formulaDisplayName": "",
+      "isHidden": false,
+      "isNullable": true,
+      "pkColumnName": "",
+      "pkTableName": "",
+      "sortedIndex": 0,
+      "sortedOrder": 1
+    },
+    {
+      "columnDesc": "",
+      "columnId": "264324000007625011",
+      "columnIndex": 2,
+      "columnMaxSize": 19,
+      "columnName": "Vendor Payments (Zoho Books).Payment Date",
+      "dataType": "DATE_AS_DATE",
+      "dataTypeId": 22,
+      "dataTypeName": "Date",
+      "dateFormat": "dd/MM/yyyy",
+      "defaultValue": "",
+      "formulaDisplayName": "",
+      "isHidden": false,
+      "isNullable": true,
+      "pkColumnName": "",
+      "pkTableName": "",
+      "sortedIndex": -1,
+      "sortedOrder": 0
+    },
+    {
+      "columnDesc": "",
+      "columnId": "264324000007625012",
+      "columnIndex": 3,
+      "columnMaxSize": 19,
+      "columnName": "Bills (Zoho Books).Bill Date",
+      "dataType": "DATE_AS_DATE",
+      "dataTypeId": 22,
+      "dataTypeName": "Date",
+      "dateFormat": "dd/MM/yyyy",
+      "defaultValue": "",
+      "formulaDisplayName": "",
+      "isHidden": false,
+      "isNullable": true,
+      "pkColumnName": "",
+      "pkTableName": "",
+      "sortedIndex": -1,
+      "sortedOrder": 0
+    }
+  ],
+  "createdBy": "arun.kumar@bharathdst.in",
+  "createdByName": "Arun Kumar",
+  "createdByZuId": "60018494835",
+  "createdTime": "1783876676710",
+  "involvedViews": [
+    {
+      "viewId": "264324000001766391",
+      "viewName": "Bills (Zoho Books)",
+      "viewType": "Table"
+    },
+    {
+      "viewId": "264324000001767646",
+      "viewName": "Vendor Payments (Zoho Books)",
+      "viewType": "Table"
+    },
+    {
+      "viewId": "264324000001767674",
+      "viewName": "Payments Made (Zoho Books)",
+      "viewType": "Table"
+    }
+  ],
+  "lastDesignModifiedBy": "arun.kumar@bharathdst.in",
+  "lastDesignModifiedByName": "Arun Kumar",
+  "lastDesignModifiedByZuId": "60018494835",
+  "lastDesignModifiedTime": "1783876703682",
+  "orgId": "60018545708",
+  "rowCount": 0,
+  "viewDesc": "",
+  "viewId": "264324000007625007",
+  "viewName": "tempQT",
+  "viewType": "QueryTable",
+  "workspaceId": "264324000000002043"
+}

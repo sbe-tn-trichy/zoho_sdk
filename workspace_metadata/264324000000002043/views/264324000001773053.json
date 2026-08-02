@@ -1,0 +1,84 @@
+{
+  "createdBy": "arun.kumar@bharathdst.in",
+  "createdByName": "Arun Kumar",
+  "createdByZuId": "60018494835",
+  "createdTime": "1715143231379",
+  "involvedViews": [
+    {
+      "viewId": "264324000001768185",
+      "viewName": "Sales Funnel - Estimates to SalesOrder to Invoice (Zoho Books)",
+      "viewType": "Chart View"
+    },
+    {
+      "viewId": "264324000001768199",
+      "viewName": "Sales Funnel - Estimates to SalesOrder to Invoice by Amount (Zoho Books)",
+      "viewType": "Chart View"
+    },
+    {
+      "viewId": "264324000001768925",
+      "viewName": "Sales by Invoice Status (Zoho Books)",
+      "viewType": "Chart View"
+    },
+    {
+      "viewId": "264324000001768957",
+      "viewName": "Cost of Sales vs Sales vs Profit Monthly Trend (Zoho Books)",
+      "viewType": "Chart View"
+    },
+    {
+      "viewId": "264324000001769013",
+      "viewName": "Open Invoice by Age Tier (Zoho Books)",
+      "viewType": "Chart View"
+    },
+    {
+      "viewId": "264324000001769565",
+      "viewName": "Invoice Generated Monthly Trend (Zoho Books)",
+      "viewType": "Chart View"
+    },
+    {
+      "viewId": "264324000001769773",
+      "viewName": "Invoice Overdue Monthly Trend (Zoho Books)",
+      "viewType": "Chart View"
+    },
+    {
+      "viewId": "264324000001770881",
+      "viewName": "Top 10 Fast Moving Products (Zoho Books)",
+      "viewType": "Chart View"
+    },
+    {
+      "viewId": "264324000001771105",
+      "viewName": "Estimates Trend - Created vs Won vs Lost count Last 12 months (Zoho Books)",
+      "viewType": "Chart View"
+    },
+    {
+      "viewId": "264324000001772447",
+      "viewName": "Invoice Stats by Products (Zoho Books)",
+      "viewType": "Pivot View"
+    },
+    {
+      "viewId": "264324000002153674",
+      "viewType": "WIDGET"
+    },
+    {
+      "viewId": "264324000002153692",
+      "viewType": "WIDGET"
+    },
+    {
+      "viewId": "264324000002153710",
+      "viewType": "WIDGET"
+    },
+    {
+      "viewId": "264324000002170150",
+      "viewType": "WIDGET"
+    }
+  ],
+  "lastDesignModifiedBy": "arun.kumar@bharathdst.in",
+  "lastDesignModifiedByName": "Arun Kumar",
+  "lastDesignModifiedByZuId": "60018494835",
+  "lastDesignModifiedTime": "1750352194969",
+  "orgId": "60018545708",
+  "viewDesc": "This dashboard gives you a comprehensive view about sales and receivables",
+  "viewId": "264324000001773053",
+  "viewName": "Sales and Receivables Dashboard (Zoho Books)",
+  "viewType": "Dashboard",
+  "workspaceId": "264324000000002043"
+}

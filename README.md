@@ -40,6 +40,40 @@ rows = analytics.views.query_data(
 The SDK creates an export job, polls it, downloads the result as CSV, and
 returns a list of dictionaries.
 
+### Download complete workspace metadata
+
+The Analytics client can create a resumable metadata snapshot containing the
+workspace, folders, data sources, views, table columns, and a normalized
+relationship map:
+
+```python
+from zoho import ZohoAnalyticsAPI
+
+analytics = ZohoAnalyticsAPI.from_token_provider(
+    token_service_key="zoho_analytics_conn",
+    organization_id="...",
+    domain="in",
+)
+manifest = analytics.metadata.download_workspace(
+    workspace_id="...",
+    output_dir="workspace_metadata",
+    include_column_dependents=False,
+    requests_per_minute=50,
+    resume=True,
+    show_progress=True,
+)
+```
+
+`from_token_provider()` uses
+`http://localhost:3000/server/new/tokens` by default; pass `token_url` only to
+override the broker location. The `zoho_analytics_conn` service key falls back
+to the broker's `analytics` token key.
+
+The collector requires the `ZohoAnalytics.metadata.read` OAuth scope. It
+paces requests below Zoho's metadata frequency limit, retries `6045` and HTTP
+429 responses, prints rate-limit and recovery messages immediately, and saves
+progress so an interrupted run can resume without refetching completed views.
+
 ## Business workflows
 
 Higher-level reconciliation and credit-memo operations are available under

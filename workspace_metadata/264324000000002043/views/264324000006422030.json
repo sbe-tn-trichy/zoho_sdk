@@ -1,0 +1,23 @@
+{
+  "createdBy": "arun.kumar@bharathdst.in",
+  "createdByName": "Arun Kumar",
+  "createdByZuId": "60018494835",
+  "createdTime": "1770633972058",
+  "involvedViews": [
+    {
+      "viewId": "264324000006115033",
+      "viewName": "Sales Order Status",
+      "viewType": "Query Table"
+    }
+  ],
+  "lastDesignModifiedBy": "arun.kumar@bharathdst.in",
+  "lastDesignModifiedByName": "Arun Kumar",
+  "lastDesignModifiedByZuId": "60018494835",
+  "lastDesignModifiedTime": "1770700843823",
+  "orgId": "60018545708",
+  "viewDesc": "",
+  "viewId": "264324000006422030",
+  "viewName": "Package Pending SO",
+  "viewType": "Pivot",
+  "workspaceId": "264324000000002043"
+}

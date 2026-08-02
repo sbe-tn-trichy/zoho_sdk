@@ -1,0 +1,28 @@
+{
+  "createdBy": "arun.kumar@bharathdst.in",
+  "createdByName": "Arun Kumar",
+  "createdByZuId": "60018494835",
+  "createdTime": "1717995005231",
+  "involvedViews": [
+    {
+      "viewId": "264324000002025050",
+      "viewName": "Invoice GST",
+      "viewType": "Pivot View"
+    },
+    {
+      "viewId": "264324000002034443",
+      "viewName": "GST Document Details",
+      "viewType": "Pivot View"
+    }
+  ],
+  "lastDesignModifiedBy": "arun.kumar@bharathdst.in",
+  "lastDesignModifiedByName": "Arun Kumar",
+  "lastDesignModifiedByZuId": "60018494835",
+  "lastDesignModifiedTime": "1718005840031",
+  "orgId": "60018545708",
+  "viewDesc": "",
+  "viewId": "264324000002034179",
+  "viewName": "GST Dashboard",
+  "viewType": "Dashboard",
+  "workspaceId": "264324000000002043"
+}
