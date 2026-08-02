@@ -42,9 +42,9 @@ returns a list of dictionaries.
 
 ### Download complete workspace metadata
 
-The Analytics client can create a resumable metadata snapshot containing the
-workspace, folders, data sources, views, table columns, and a normalized
-relationship map:
+The Analytics client can create a resumable, indexed metadata snapshot
+containing the workspace, folders, data sources, views, table columns, and a
+normalized relationship map:
 
 ```python
 from zoho import ZohoAnalyticsAPI
@@ -64,6 +64,19 @@ manifest = analytics.metadata.download_workspace(
 )
 ```
 
+The output directory contains `metadata.sqlite` for fast indexed access and a
+compact `summary.md` for human review. Use the snapshot reader without loading
+the complete workspace into memory:
+
+```python
+from zoho.analytics import WorkspaceMetadataStore
+
+with WorkspaceMetadataStore("workspace_metadata/metadata.sqlite") as metadata:
+    views = metadata.find_views("Accounts")
+    columns = metadata.get_columns(views[0]["view_id"])
+    links = metadata.get_relationships("view:" + views[0]["view_id"])
+```
+
 `from_token_provider()` uses
 `http://localhost:3000/server/new/tokens` by default; pass `token_url` only to
 override the broker location. The `zoho_analytics_conn` service key falls back
@@ -72,7 +85,23 @@ to the broker's `analytics` token key.
 The collector requires the `ZohoAnalytics.metadata.read` OAuth scope. It
 paces requests below Zoho's metadata frequency limit, retries `6045` and HTTP
 429 responses, prints rate-limit and recovery messages immediately, and saves
-progress so an interrupted run can resume without refetching completed views.
+progress inside the SQLite snapshot so an interrupted run can resume without
+refetching completed views.
+
+Later refreshes can use incremental synchronization:
+
+```python
+result = analytics.metadata.sync_workspace(
+    workspace_id="...",
+    output_dir="workspace_metadata",
+)
+print(result["sync"])
+```
+
+The view inventory is fetched 200 rows at a time. Only new or modified views
+have their details and table columns fetched again; deleted views are removed
+locally. Content hashes avoid rewriting SQLite rows when Zoho's modification
+timestamp changes but the metadata content does not.
 
 ## Business workflows
 

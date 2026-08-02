@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 from .exceptions import ZohoAnalyticsError
+from .snapshot import SCHEMA_VERSION, WorkspaceMetadataStore
 
 
 logger = logging.getLogger("zoho.analytics.metadata")
@@ -21,6 +22,10 @@ _RATE_LIMIT_PATTERN = re.compile(
 
 def _json_config(config: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
     return {"CONFIG": json.dumps(config or {})}
+
+
+def _as_text(value: Any) -> str:
+    return "" if value in (None, "null") else str(value)
 
 
 def _data(payload: Any, key: Optional[str] = None) -> Any:
@@ -207,7 +212,7 @@ class Metadata:
     def list_all_views(
         self,
         workspace_id: str,
-        page_size: int = 100,
+        page_size: int = 200,
         view_types: Optional[List[int]] = None,
     ) -> List[Dict[str, Any]]:
         if page_size <= 0:
@@ -288,26 +293,27 @@ class Metadata:
         max_retries: int = 5,
         resume: bool = True,
         show_progress: bool = True,
-        page_size: int = 100,
+        page_size: int = 200,
     ) -> Dict[str, Any]:
-        """Download a resumable, read-only metadata snapshot for one workspace."""
+        """Download a resumable metadata snapshot into an indexed SQLite database."""
         if not workspace_id or not str(workspace_id).strip():
             raise ValueError("workspace_id is required.")
         root = Path(output_dir).expanduser().resolve()
         root.mkdir(parents=True, exist_ok=True)
-        manifest_path = root / "manifest.json"
-        existing_manifest = _read_json(manifest_path, {}) if resume else {}
-        if existing_manifest and str(existing_manifest.get("workspaceId")) != str(workspace_id):
-            raise ValueError("Existing manifest belongs to a different workspace.")
-
-        completed_views = set(existing_manifest.get("completedViewIds", []))
-        completed_tables = set(existing_manifest.get("completedTableIds", []))
-        completed_dependents = set(existing_manifest.get("completedDependentIds", []))
+        database_path = root / "metadata.sqlite"
+        if not resume and database_path.exists():
+            database_path.unlink()
+        store = WorkspaceMetadataStore(database_path, str(workspace_id))
+        previous_states = store.view_sync_states()
+        completed_views = set(store.completed_ids("view"))
+        completed_tables = set(store.completed_ids("table"))
+        completed_dependents = set(store.completed_ids("dependent"))
         errors: List[Dict[str, Any]] = []
         manifest: Dict[str, Any] = {
-            "schemaVersion": 1,
+            "schemaVersion": SCHEMA_VERSION,
             "workspaceId": str(workspace_id),
-            "startedAt": existing_manifest.get("startedAt") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "startedAt": store.get_info("started_at")
+            or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "updatedAt": "",
             "complete": False,
             "includeColumnDependents": include_column_dependents,
@@ -325,24 +331,47 @@ class Metadata:
         previous_controller = self._controller
         self._controller = controller
 
-        def save_manifest() -> None:
+        def save_state() -> None:
             manifest["updatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             manifest["completedViewIds"] = sorted(completed_views)
             manifest["completedTableIds"] = sorted(completed_tables)
             manifest["completedDependentIds"] = sorted(completed_dependents)
-            _write_json(manifest_path, manifest)
+            store.set_info("started_at", manifest["startedAt"])
+            store.set_info("updated_at", manifest["updatedAt"])
+            store.set_info("include_column_dependents", include_column_dependents)
+            store.set_info("complete", manifest["complete"])
+            store.replace_errors(errors)
 
         try:
-            save_manifest()
+            save_state()
             controller.display(f"Downloading metadata for workspace {workspace_id}...")
             workspace = self.get_workspace(workspace_id)
             folders = self.list_folders(workspace_id)
             datasources = self.list_datasources(workspace_id)
             views = self.list_all_views(workspace_id, page_size=page_size)
-            _write_json(root / "workspace.json", workspace)
-            _write_json(root / "folders.json", folders)
-            _write_json(root / "datasources.json", datasources)
-            _write_json(root / "views.json", views)
+            current_ids = {
+                str(view.get("viewId")) for view in views if view.get("viewId")
+            }
+            previous_ids = set(previous_states)
+            modified_ids = {
+                str(view["viewId"])
+                for view in views
+                if view.get("viewId")
+                and str(view["viewId"]) in previous_states
+                and _as_text(view.get("lastModifiedTime"))
+                != previous_states[str(view["viewId"])]["source_modified_time"]
+            }
+            sync_counts = {
+                "added": len(current_ids - previous_ids),
+                "modified": len(modified_ids),
+                "deleted": len(previous_ids - current_ids),
+                "unchanged": len((current_ids & previous_ids) - modified_ids),
+                "metadataWrites": 0,
+            }
+            store.put_workspace(workspace, str(workspace_id))
+            store.replace_folders(str(workspace_id), folders)
+            store.replace_datasources(str(workspace_id), datasources)
+            store.replace_views(str(workspace_id), views)
 
             view_details: Dict[str, Dict[str, Any]] = {}
             table_metadata: Dict[str, Dict[str, Any]] = {}
@@ -357,20 +386,23 @@ class Metadata:
                 if not view_id:
                     errors.append({"operation": "view_details", "error": "View has no viewId."})
                     continue
-                path = root / "views" / f"{view_id}.json"
                 controller.progress = f"{index}/{len(views)} views completed"
-                if resume and view_id in completed_views and path.exists():
-                    view_details[view_id] = _read_json(path, {})
+                source_modified_time = _as_text(view.get("lastModifiedTime"))
+                if resume and store.view_details_are_current(
+                    view_id, source_modified_time
+                ):
+                    view_details[view_id] = store.get_view_details(view_id)
                     continue
                 try:
                     details = self.get_view_details(view_id, include_involved=True)
                     view_details[view_id] = details
-                    _write_json(path, details)
+                    if store.put_view_details(view_id, details, source_modified_time):
+                        sync_counts["metadataWrites"] += 1
                     completed_views.add(view_id)
-                    save_manifest()
+                    save_state()
                 except ZohoAnalyticsError as exc:
                     if self._is_rate_limit(exc):
-                        save_manifest()
+                        save_state()
                         raise
                     errors.append({
                         "operation": "view_details",
@@ -380,26 +412,35 @@ class Metadata:
 
             for index, view in enumerate(table_views, start=1):
                 view_id = str(view.get("viewId", ""))
-                path = root / "tables" / f"{view_id}.json"
                 controller.progress = f"{index}/{len(table_views)} tables completed"
-                if resume and view_id in completed_tables and path.exists():
-                    table_metadata[view_id] = _read_json(path, {})
+                source_modified_time = _as_text(view.get("lastModifiedTime"))
+                if resume and store.table_metadata_is_current(
+                    view_id, source_modified_time
+                ):
+                    table_metadata[view_id] = store.get_table_metadata(view_id)
                     continue
                 try:
                     metadata = self.get_table_metadata(workspace_id, view_id)
                     table_metadata[view_id] = metadata
-                    _write_json(path, metadata)
+                    if store.put_table_metadata(view_id, metadata, source_modified_time):
+                        sync_counts["metadataWrites"] += 1
                     completed_tables.add(view_id)
-                    save_manifest()
+                    save_state()
                 except ZohoAnalyticsError as exc:
                     if self._is_rate_limit(exc):
-                        save_manifest()
+                        save_state()
                         raise
                     errors.append({
                         "operation": "table_metadata",
                         "viewId": view_id,
                         "error": str(exc),
                     })
+
+            store.remove_table_metadata_except(
+                str(view.get("viewId"))
+                for view in table_views
+                if view.get("viewId")
+            )
 
             if include_column_dependents:
                 columns = [
@@ -411,10 +452,11 @@ class Metadata:
                 for index, (view_id, column) in enumerate(columns, start=1):
                     column_id = str(column["columnId"])
                     dependent_id = f"{view_id}:{column_id}"
-                    path = root / "dependents" / f"{view_id}_{column_id}.json"
                     controller.progress = f"{index}/{len(columns)} columns completed"
-                    if resume and dependent_id in completed_dependents and path.exists():
-                        dependent_metadata[dependent_id] = _read_json(path, {})
+                    if resume and dependent_id in completed_dependents:
+                        dependent_metadata[dependent_id] = store.get_column_dependents(
+                            view_id, column_id
+                        )
                         continue
                     try:
                         dependents = self.get_column_dependents(
@@ -423,12 +465,12 @@ class Metadata:
                             column_id,
                         )
                         dependent_metadata[dependent_id] = dependents
-                        _write_json(path, dependents)
+                        store.put_column_dependents(view_id, column_id, dependents)
                         completed_dependents.add(dependent_id)
-                        save_manifest()
+                        save_state()
                     except ZohoAnalyticsError as exc:
                         if self._is_rate_limit(exc):
-                            save_manifest()
+                            save_state()
                             raise
                         errors.append({
                             "operation": "column_dependents",
@@ -437,14 +479,6 @@ class Metadata:
                             "error": str(exc),
                         })
 
-            catalog = self._build_catalog(
-                workspace,
-                folders,
-                datasources,
-                views,
-                view_details,
-                table_metadata,
-            )
             relationships = self._build_relationships(
                 workspace_id,
                 folders,
@@ -454,22 +488,14 @@ class Metadata:
                 table_metadata,
                 dependent_metadata,
             )
-            _write_json(root / "catalog.json", catalog)
-            _write_json(root / "relationships.json", relationships)
-            _write_json(root / "errors.json", errors)
-            manifest["counts"] = {
-                "folders": len(folders),
-                "datasources": len(datasources),
-                "views": len(views),
-                "tables": len(table_views),
-                "columns": sum(
-                    len(value.get("columns", [])) for value in table_metadata.values()
-                ),
-                "relationships": len(relationships["edges"]),
-                "errors": len(errors),
-            }
+            store.replace_relationships(relationships["edges"])
+            store.replace_errors(errors)
+            manifest["counts"] = store.counts()
+            manifest["sync"] = sync_counts
             manifest["complete"] = not errors
-            save_manifest()
+            save_state()
+            store.write_summary(root / "summary.md")
+            store.optimize()
             controller.display(
                 "Zoho Analytics metadata download completed: "
                 f"{len(views)} views, {len(table_views)} tables, {len(errors)} errors."
@@ -477,6 +503,95 @@ class Metadata:
             return manifest
         finally:
             self._controller = previous_controller
+            store.close()
+
+    def sync_workspace(
+        self,
+        workspace_id: str,
+        output_dir: Any,
+        include_column_dependents: bool = False,
+        requests_per_minute: float = 50,
+        max_retries: int = 5,
+        show_progress: bool = True,
+        page_size: int = 200,
+    ) -> Dict[str, Any]:
+        """Incrementally refresh only new or modified workspace metadata."""
+        return self.download_workspace(
+            workspace_id=workspace_id,
+            output_dir=output_dir,
+            include_column_dependents=include_column_dependents,
+            requests_per_minute=requests_per_minute,
+            max_retries=max_retries,
+            resume=True,
+            show_progress=show_progress,
+            page_size=page_size,
+        )
+
+    @staticmethod
+    def migrate_json_snapshot(source_dir: Any, output_path: Optional[Any] = None) -> Dict[str, int]:
+        """Convert a legacy expanded JSON snapshot to the indexed SQLite format."""
+        root = Path(source_dir).expanduser().resolve()
+        workspace = _read_json(root / "workspace.json", {})
+        workspace_id = str(workspace.get("workspaceId") or "")
+        if not workspace_id:
+            raise ValueError("Legacy snapshot does not contain a workspaceId.")
+        destination = (
+            Path(output_path).expanduser().resolve()
+            if output_path is not None
+            else root / "metadata.sqlite"
+        )
+        if destination.exists():
+            destination.unlink()
+        folders = _read_json(root / "folders.json", [])
+        datasources = _read_json(root / "datasources.json", [])
+        views = _read_json(root / "views.json", [])
+        manifest = _read_json(root / "manifest.json", {})
+        errors = _read_json(root / "errors.json", manifest.get("errors", []))
+        relationships = _read_json(root / "relationships.json", {"edges": []})
+
+        with WorkspaceMetadataStore(destination, workspace_id) as store:
+            store.put_workspace(workspace, workspace_id)
+            store.replace_folders(workspace_id, folders)
+            store.replace_datasources(workspace_id, datasources)
+            store.replace_views(workspace_id, views)
+            for view in views:
+                view_id = str(view.get("viewId", ""))
+                detail_path = root / "views" / (view_id + ".json")
+                if view_id and detail_path.exists():
+                    source_modified_time = _as_text(view.get("lastModifiedTime"))
+                    store.put_view_details(
+                        view_id, _read_json(detail_path, {}), source_modified_time
+                    )
+            table_dir = root / "tables"
+            if table_dir.exists():
+                for table_path in table_dir.glob("*.json"):
+                    view = next(
+                        (item for item in views if str(item.get("viewId")) == table_path.stem),
+                        {},
+                    )
+                    store.put_table_metadata(
+                        table_path.stem,
+                        _read_json(table_path, {}),
+                        _as_text(view.get("lastModifiedTime")),
+                    )
+            dependent_dir = root / "dependents"
+            if dependent_dir.exists():
+                for dependent_path in dependent_dir.glob("*.json"):
+                    parts = dependent_path.stem.split("_", 1)
+                    if len(parts) == 2:
+                        store.put_column_dependents(
+                            parts[0], parts[1], _read_json(dependent_path, {})
+                        )
+            store.replace_relationships(relationships.get("edges", []))
+            store.replace_errors(errors)
+            store.set_info("started_at", manifest.get("startedAt", ""))
+            store.set_info("updated_at", manifest.get("updatedAt", ""))
+            store.set_info("include_column_dependents", manifest.get("includeColumnDependents", False))
+            store.set_info("complete", manifest.get("complete", not errors))
+            store.write_summary(destination.parent / "summary.md")
+            counts = store.counts()
+            store.optimize()
+            return counts
 
     @staticmethod
     def _build_catalog(

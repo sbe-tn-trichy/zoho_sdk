@@ -2,6 +2,12 @@
 
 ## 2026-08-02
 
+- Added 200-row Analytics view pagination and incremental SQLite synchronization
+  using remote modification markers, retry-safe sync checkpoints, content
+  hashes, deleted-view cleanup, and selective table-column updates.
+- Replaced expanded Analytics metadata JSON snapshots with compressed,
+  normalized SQLite storage, indexed readers, resumable database state, a
+  compact Markdown summary, and an offline legacy migration helper.
 - Added resumable Zoho Analytics workspace metadata snapshots, relationship-map generation, local `zoho_analytics_conn` token lookup, and visible `6045`/429 recovery messages.
 - Moved business workflows from `src/zoho/workflows` to the parallel top-level `src/workflows` package and removed the `zoho_sdk_advanced` compatibility shim.
 - Hardened the Polycab workflow against duplicate uploads and attachments, strict PDF parsing failures, ignored vendor/account inputs, and unsafe Catalyst fallback behavior.

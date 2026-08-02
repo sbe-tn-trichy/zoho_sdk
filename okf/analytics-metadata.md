@@ -19,9 +19,26 @@ folders, data sources, paginated views, view details, table columns, and column
 dependents. `download_workspace()` combines these endpoints into a versioned,
 resumable snapshot.
 
-The snapshot stores raw object responses alongside `catalog.json`, a normalized
-catalog, and `relationships.json`, a node-and-edge map covering containment,
-data-source, involved-view, lookup-column, and column-dependent relationships.
+The snapshot uses a single `metadata.sqlite` database. Workspace, folder,
+data-source, view, column, and relationship fields used for lookup are
+normalized and indexed. Uncommon raw Zoho fields are retained as compressed
+JSON blobs, avoiding duplicate catalog and per-object files while preserving
+the complete API response. Integer entity keys keep the relationship indexes
+compact. A generated `summary.md` provides a human-readable inventory.
+
+`WorkspaceMetadataStore` supports indexed view-name/type searches, column
+lookup by view ID, and incoming/outgoing relationship traversal without loading
+the complete snapshot into memory.
+
+# Incremental Synchronization
+
+`sync_workspace()` fetches the lightweight view inventory in pages of 200 and
+compares each view's `lastModifiedTime` with its successfully synchronized
+marker in SQLite. It fetches details and table metadata only for new or changed
+views, removes deleted views, and reconstructs relationships from the local
+snapshot. Separate discovered and synchronized markers ensure a failed request
+is retried on the next run. SHA-256 content hashes prevent unnecessary row and
+column rewrites when the remote timestamp changes without a metadata change.
 
 # Authentication
 
@@ -37,15 +54,18 @@ snapshot files or progress output.
 Workspace downloads default to 50 metadata requests per minute. Error `6045`
 and HTTP 429 responses trigger visible, immediately flushed console warnings,
 bounded exponential backoff, and a recovery message when requests resume. The
-collector writes `manifest.json` after every completed object. If retries are
-exhausted, it reports that the download is paused and the next run can resume.
+collector records completion in `metadata.sqlite` after every completed object.
+If retries are exhausted, it reports that the download is paused and the next
+run can resume.
 
 # Snapshot Files
 
-- `workspace.json`, `folders.json`, `datasources.json`, and `views.json`
-- `views/<view-id>.json` and `tables/<view-id>.json`
-- optional `dependents/<view-id>_<column-id>.json`
-- `catalog.json`, `relationships.json`, `errors.json`, and `manifest.json`
+- `metadata.sqlite` is the canonical, versioned snapshot and resume state.
+- `summary.md` lists counts, view/relationship types, and table column counts.
+
+`Metadata.migrate_json_snapshot()` converts the former expanded JSON layout
+without making network requests. After validation, the legacy JSON files can
+be removed.
 
 Individual view failures are recorded and do not stop unrelated metadata from
 being collected. A snapshot is marked complete only when no object-level errors
