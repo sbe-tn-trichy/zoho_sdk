@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 import os
 from ..base import BaseResource
 from ..mixins import ActiveInactiveMixin
@@ -6,6 +6,17 @@ from ..mixins import ActiveInactiveMixin
 class Contacts(BaseResource, ActiveInactiveMixin):
     def __init__(self, client: Any):
         super().__init__(client, 'contacts')
+
+    def list_customers(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Fetch all active customer contacts, with optional filter overrides."""
+        params = {"filter_by": "Status.Active", **(filters or {})}
+        params["contact_type"] = "customer"
+        contacts = self.list_all(params=params, resource_key="contacts")
+        return [
+            contact
+            for contact in contacts
+            if str(contact.get("contact_type", "")).lower() == "customer"
+        ]
 
     def enable_portal(self, contact_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         return self._action('POST', contact_id, 'portal/enable', data=data)

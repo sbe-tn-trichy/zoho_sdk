@@ -1,5 +1,9 @@
 # Knowledge Change Log
 
+## 2026-08-03
+
+- Added the `contacts.list_customers()` public API, including default active-status filtering, optional filter overrides, and client-side customer-only enforcement for inconsistent live API responses.
+
 ## 2026-08-02
 
 - Added 200-row Analytics view pagination and incremental SQLite synchronization

@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 from zoho.books import ZohoBooksAPI, ZohoBooksError
 from zoho.books.base import BaseResource
 from zoho.books.resources.customer_validator import CustomerValidator
+from zoho.books.resources.contacts import Contacts
 from zoho.books.resources.gst import GST, parse_doc_number
 from zoho.books.resources.projects import Projects, TimeEntries
 
@@ -130,6 +131,35 @@ class TestBooksBaseResource(unittest.TestCase):
     def test_delete(self):
         self.resource.delete("r123")
         self.client.request.assert_called_once_with('DELETE', 'testresource/r123', params=None)
+
+
+class TestContacts(unittest.TestCase):
+    def setUp(self):
+        self.contacts = Contacts(MagicMock())
+        self.contacts.list_all = MagicMock(return_value=[
+            {"contact_id": "c1", "contact_type": "customer"},
+            {"contact_id": "v1", "contact_type": "vendor"},
+        ])
+
+    def test_list_customers_without_filters(self):
+        customers = self.contacts.list_customers()
+
+        self.assertEqual(customers, [{"contact_id": "c1", "contact_type": "customer"}])
+        self.contacts.list_all.assert_called_once_with(
+            params={"filter_by": "Status.Active", "contact_type": "customer"},
+            resource_key="contacts",
+        )
+
+    def test_list_customers_merges_filters_and_enforces_customer_type(self):
+        filters = {"filter_by": "Status.Inactive", "contact_type": "vendor"}
+
+        self.contacts.list_customers(filters)
+
+        self.contacts.list_all.assert_called_once_with(
+            params={"filter_by": "Status.Inactive", "contact_type": "customer"},
+            resource_key="contacts",
+        )
+        self.assertEqual(filters, {"filter_by": "Status.Inactive", "contact_type": "vendor"})
 
 
 class TestCustomerValidator(unittest.TestCase):
