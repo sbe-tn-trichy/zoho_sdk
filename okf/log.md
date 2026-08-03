@@ -2,6 +2,7 @@
 
 ## 2026-08-03
 
+- Added form-encoded Zoho Books requests and the `contacts.bulk_update()` public API for updating multiple contacts with one request.
 - Added the `contacts.list_customers()` public API, including default active-status filtering, optional filter overrides, and client-side customer-only enforcement for inconsistent live API responses.
 
 ## 2026-08-02

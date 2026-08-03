@@ -284,6 +284,7 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 
 | Method | Signature | Notes |
 |---|---|---|
+| `bulk_update` | `(contacts, params=None)` | PUT `/contacts` with a form-encoded `JSONString` array |
 | `enable_portal` | `(contact_id, data)` | POST `/contacts/{id}/portal/enable` |
 | `email_statement` | `(contact_id, data, params=None)` | POST email |
 | `get_statement` | `(contact_id, params=None)` | GET → `bytes` (XLS/PDF) |

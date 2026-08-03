@@ -1,5 +1,7 @@
-from typing import Any, Dict, List, Optional
+import json
 import os
+from typing import Any, Dict, List, Optional
+
 from ..base import BaseResource
 from ..mixins import ActiveInactiveMixin
 
@@ -17,6 +19,19 @@ class Contacts(BaseResource, ActiveInactiveMixin):
             for contact in contacts
             if str(contact.get("contact_type", "")).lower() == "customer"
         ]
+
+    def bulk_update(
+        self,
+        contacts: List[Dict[str, Any]],
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Update multiple contacts in one form-encoded API request."""
+        return self.client.request(
+            'PUT',
+            self.endpoint,
+            data={'JSONString': json.dumps(contacts, separators=(',', ':'))},
+            params=params,
+        )
 
     def enable_portal(self, contact_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         return self._action('POST', contact_id, 'portal/enable', data=data)

@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import patch, MagicMock
 from zoho.books import ZohoBooksAPI, ZohoBooksError
@@ -44,6 +45,30 @@ class TestZohoBooksAPI(unittest.TestCase):
             json=None,
             files=None,
             timeout=30
+        )
+
+    @patch("requests.request")
+    def test_request_supports_form_data(self, mock_request):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/json"}
+        mock_response.text = '{"status": "ok"}'
+        mock_response.json.return_value = {"status": "ok"}
+        mock_request.return_value = mock_response
+
+        form_data = {"JSONString": '[{"contact_id":"c1"}]'}
+        res = self.client.request("PUT", "contacts", data=form_data)
+
+        self.assertEqual(res, {"status": "ok"})
+        mock_request.assert_called_once_with(
+            method="PUT",
+            url="https://www.zohoapis.com/books/v3/contacts",
+            headers={"Authorization": "Zoho-oauthtoken fake_access_token"},
+            params={"organization_id": "org123"},
+            json=None,
+            data=form_data,
+            files=None,
+            timeout=30,
         )
 
     @patch("requests.request")
@@ -160,6 +185,23 @@ class TestContacts(unittest.TestCase):
             resource_key="contacts",
         )
         self.assertEqual(filters, {"filter_by": "Status.Inactive", "contact_type": "vendor"})
+
+    def test_bulk_update_sends_form_encoded_json_string(self):
+        contacts = [
+            {
+                "contact_id": "c1",
+                "custom_fields": [{"customfield_id": "cf1", "value": "In Billing"}],
+            }
+        ]
+
+        self.contacts.bulk_update(contacts, params={"ignore_auto_number_generation": True})
+
+        self.contacts.client.request.assert_called_once_with(
+            'PUT',
+            'contacts',
+            data={'JSONString': json.dumps(contacts, separators=(',', ':'))},
+            params={"ignore_auto_number_generation": True},
+        )
 
 
 class TestCustomerValidator(unittest.TestCase):

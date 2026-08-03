@@ -72,7 +72,8 @@ class ZohoBooksAPI(BaseZohoClient):
         endpoint: str,
         json: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
-        files: Optional[Dict[str, Any]] = None
+        files: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None
     ) -> Any:
         """
         Internal HTTP request handler with logging.
@@ -85,6 +86,7 @@ class ZohoBooksAPI(BaseZohoClient):
             method=method,
             endpoint=endpoint,
             json=json,
+            data=data,
             params=params,
             files=files
         )
