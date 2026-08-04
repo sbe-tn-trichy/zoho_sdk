@@ -6,8 +6,16 @@ from .core.auth import (
 from .core.exceptions import (
     LedgerParsingError,
     ReconciliationError,
+    SchemaValidationError,
     ZohoAuthError,
     ZohoUsableError,
+)
+from .collection_reconciliation import (
+    CollectionReconciler,
+    CollectionReconciliationConfig,
+    REQUIRED_OAUTH_SCOPES,
+    missing_oauth_scopes,
+    reconcile_collections,
 )
 from .core.models import DotDict
 from .polycab_credit_memos.processor import (
@@ -40,6 +48,7 @@ __all__ = [
     "ZohoAuthError",
     "LedgerParsingError",
     "ReconciliationError",
+    "SchemaValidationError",
     "DotDict",
     "clean_ledger_file",
     "get_ledger_metadata",
@@ -55,5 +64,9 @@ __all__ = [
     "upload_to_workdrive",
     "process_polycab_credit_memos",
     "check_vendor_credits_location",
+    "CollectionReconciler",
+    "CollectionReconciliationConfig",
+    "reconcile_collections",
+    "REQUIRED_OAUTH_SCOPES",
+    "missing_oauth_scopes",
 ]
-

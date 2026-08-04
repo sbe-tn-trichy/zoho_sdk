@@ -44,7 +44,8 @@ zoho_sdk/
 │   │       ├── inventory.py         # Items (Books items — not Zoho Inventory service)
 │   │       ├── projects.py          # Projects, Tasks, TimeEntries
 │   │       ├── gst.py               # GST — validate_gst_data, GSTR reports
-│   │       └── customer_validator.py # CustomerValidator — GST/contact data validation
+│   │       ├── customer_validator.py # CustomerValidator — GST/contact data validation
+│   │       └── settings.py          # Books custom-field settings
 │   ├── wd/                          # Zoho WorkDrive service
 │   │   ├── client.py                # ZohoWorkdriveAPI — main client
 │   │   ├── base.py                  # BaseResource (WD version)
@@ -63,7 +64,7 @@ zoho_sdk/
 │   │   └── client.py                # ZohoSheetAPI — workbook/sheet/row operations
 │   ├── creator/
 │   │   └── client.py                # ZohoCreatorAPI — app records CRUD + bulk helpers
-│   ├── analytics/                    # View exports and workspace metadata snapshots
+│   ├── analytics/                    # View/SQL exports and workspace metadata snapshots
 │   └── inventory/                   # Zoho Inventory service
 │       ├── client.py                # ZohoInventoryAPI — main client + module wiring
 │       ├── base.py                  # BaseResource (Inventory version)
@@ -78,6 +79,8 @@ zoho_sdk/
 │           ├── picklists.py         # Picklists
 │           ├── bins.py              # Bins
 │           └── batches.py           # Batches
+├── src/workflows/                   # Multi-service business workflows
+│   └── collection_reconciliation/   # Creator ↔ Books collections + Analytics exceptions
 ├── tests/                           # Pytest tests
 │   ├── test_auth.py
 │   ├── test_books.py
@@ -256,6 +259,7 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 | `client.items` | `Items` | `/items` |
 | `client.gst` | `GST` | (multiple endpoints) |
 | `client.customer_validator` | `CustomerValidator` | (composite) |
+| `client.custom_fields` | `CustomFields` | `/settings/fields` |
 
 ### BaseResource — Standard CRUD (on every module above)
 
@@ -343,7 +347,24 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 | Method | Signature | Notes |
 |---|---|---|
 | `match` | `(transaction_id, data)` | POST uncategorized match |
+| `get_matches` | `(transaction_id)` | GET candidate Books transactions for a bank line |
+| `categorize_as_customer_payment` | `(transaction_id, data)` | Categorizes an incoming line as a customer payment |
 | `categorize_as_expense` | `(transaction_id, data)` | POST categorize as expense |
+| `unmatch` | `(transaction_id, account_id)` | Rolls a matched bank line back to uncategorized |
+
+**`chart_of_accounts` (ChartOfAccounts)**
+
+| Method | Signature | Notes |
+|---|---|---|
+| `list_transactions` | `(account_id, params=None)` | Gets one page of financial-account transactions |
+| `list_all_transactions` | `(account_id, params=None)` | Gets all pages of financial-account transactions |
+
+**`custom_fields` (CustomFields)**
+
+| Method | Signature | Notes |
+|---|---|---|
+| `list_for_entity` | `(entity, params=None)` | Lists fields from `/settings/fields` |
+| `create` | `(data)` | Creates a custom field after validating required values |
 
 **`vendor_credits` (VendorCredits)**
 
@@ -578,6 +599,43 @@ Header `environment` is injected into every request automatically.
 
 ---
 
+## ZohoAnalyticsAPI
+
+```python
+ZohoAnalyticsAPI(
+    access_token: str,
+    organization_id: str,      # required
+    domain: str = "com",
+    token_refresh_callback=None
+)
+```
+
+Base URL: `https://analyticsapi.zoho.{domain}/restapi/v2`
+The `ZANALYTICS-ORGID` header is injected into every request.
+
+### Modules (attributes on `ZohoAnalyticsAPI`)
+
+| Attribute | Resource | Purpose |
+|---|---|---|
+| `client.views` | `Views` | Synchronous and asynchronous view exports |
+| `client.queries` | `Queries` | Dynamic SQL SELECT exports |
+
+| Method | Signature | Returns | Notes |
+|---|---|---|---|
+| `client.views.export_data` | `(workspace_id, view_id)` | `List[Dict]` | Synchronous view export |
+| `client.views.export_all` | `(workspace_id, view_id, poll_interval=2.0, max_attempts=12)` | `List[Dict]` | Falls back to bulk export when required |
+| `client.views.export_bulk` | `(workspace_id, view_id, poll_interval=2.0, max_attempts=12)` | `List[Dict]` | Creates, polls, and downloads a bulk view export |
+| `client.queries.execute` | `(workspace_id, sql_query, poll_interval=2.0, max_attempts=12, config=None)` | `List[Dict]` | Creates, polls, and downloads a dynamic SQL export; JSON key/value rows by default |
+
+```python
+rows = client.queries.execute(
+    workspace_id="264324000000002043",
+    sql_query='SELECT * FROM "Payment Customer Finder" LIMIT 5',
+)
+```
+
+---
+
 ## ZohoInventoryAPI
 
 ```python
@@ -609,6 +667,25 @@ Base URL: `https://www.zohoapis.{domain}/inventory/v1`
 | `client.batches` | Batches (serial/batch tracking) |
 
 All modules expose the standard `BaseResource` CRUD: `list`, `list_all`, `get`, `create`, `update`, `delete`.
+
+---
+
+## Collection reconciliation workflow
+
+`workflows.collection_reconciliation` coordinates Creator collection records,
+Books bank lines/customer payments, and optional Analytics suggestions.
+
+| Symbol | Purpose |
+|---|---|
+| `CollectionReconciliationConfig` | Form/report names, bank account, Analytics workspace, tolerances, and dry-run behavior |
+| `CollectionReconciler.validate_schema` | Validates Creator forms and Books customer-payment custom fields |
+| `CollectionReconciler.reconcile_pending` | Safely reconciles pending Creator records and audits exceptions |
+| `CollectionReconciler.resolve_manual` | Applies a selected Analytics customer to an unmatched bank line |
+| `reconcile_collections` | Convenience entry point for scheduled jobs or webhook workers |
+| `REQUIRED_OAUTH_SCOPES` | Required Creator, Books, and Analytics OAuth scopes |
+
+Automatic reconciliation requires a unique reference/date/amount match. The
+workflow never auto-selects ambiguous bank lines and supports read-only dry runs.
 
 ---
 

@@ -2,7 +2,7 @@ import csv
 import io
 import json
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from .exceptions import ZohoAnalyticsError
 
@@ -30,12 +30,53 @@ def _rows(payload: Any, response_format: str = "csv") -> List[Dict[str, Any]]:
             payload = json.loads(text)
         except json.JSONDecodeError as exc:
             raise ZohoAnalyticsError("Analytics returned malformed JSON export data.") from exc
+    if isinstance(payload, list):
+        return payload
     if not isinstance(payload, dict):
         return []
     result = payload.get("result")
     result_rows = result.get("data") if isinstance(result, dict) else None
     rows = payload.get("data") or payload.get("rows") or result_rows or []
     return rows if isinstance(rows, list) else []
+
+
+def _download_export(
+    client: Any,
+    base: str,
+    job_id: str,
+    poll_interval: float,
+    max_attempts: int,
+    response_format: str = "csv",
+) -> List[Dict[str, Any]]:
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1.")
+    if poll_interval < 0:
+        raise ValueError("poll_interval cannot be negative.")
+
+    download_url = ""
+    for attempt in range(max_attempts):
+        status = client.request("GET", f"{base}/exportjobs/{job_id}")
+        data = status.get("data", {}) if isinstance(status, dict) else {}
+        job_code = str(data.get("jobCode", ""))
+        if job_code == "1004" or data.get("jobStatus") == "JOB COMPLETED":
+            download_url = data.get("downloadUrl") or (
+                f"{client.base_url}/{base}/exportjobs/{job_id}/data"
+            )
+            break
+        if job_code in {"1003", "1005"} or data.get("jobStatus") in {
+            "JOB FAILED",
+            "JOB ABORTED",
+        }:
+            raise ZohoAnalyticsError(f"Analytics bulk export job {job_id} failed.")
+        if attempt < max_attempts - 1:
+            time.sleep(poll_interval)
+
+    if not download_url:
+        raise TimeoutError(f"Analytics bulk export job {job_id} did not complete.")
+    return _rows(
+        client.request("GET", "", override_url=download_url),
+        response_format,
+    )
 
 
 class Views:
@@ -157,21 +198,55 @@ class Views:
         if not job_id:
             raise ZohoAnalyticsError("Analytics bulk export did not return a job ID.")
 
-        download_url = ""
-        for attempt in range(max_attempts):
-            status = self.client.request("GET", f"{base}/exportjobs/{job_id}")
-            data = status.get("data", {}) if isinstance(status, dict) else {}
-            if data.get("jobStatus") == "JOB COMPLETED":
-                download_url = data.get("downloadUrl", "")
-                break
-            if data.get("jobStatus") in {"JOB FAILED", "JOB ABORTED"}:
-                raise ZohoAnalyticsError(f"Analytics bulk export job {job_id} failed.")
-            if attempt < max_attempts - 1:
-                time.sleep(poll_interval)
-
-        if not download_url:
-            raise TimeoutError(f"Analytics bulk export job {job_id} did not complete.")
-        return _rows(
-            self.client.request("GET", "", override_url=download_url),
+        return _download_export(
+            self.client,
+            base,
+            str(job_id),
+            poll_interval,
+            max_attempts,
             response_format,
+        )
+
+class Queries:
+    """Execute dynamic read queries through Analytics bulk SQL exports."""
+
+    def __init__(self, client: Any):
+        self.client = client
+
+    def execute(
+        self,
+        workspace_id: str,
+        sql_query: str,
+        poll_interval: float = 2.0,
+        max_attempts: int = 12,
+        config: Optional[Mapping[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        if not workspace_id:
+            raise ValueError("workspace_id is required.")
+        if not isinstance(sql_query, str) or not sql_query.strip():
+            raise ValueError("sql_query is required.")
+
+        export_config = dict(config or {})
+        export_config["sqlQuery"] = sql_query
+        export_config.setdefault("responseFormat", "json")
+        if export_config["responseFormat"].lower() == "json":
+            export_config.setdefault("keyValueFormat", True)
+
+        base = f"bulk/workspaces/{workspace_id}"
+        created = self.client.request(
+            "GET",
+            f"{base}/data",
+            params={"CONFIG": json.dumps(export_config, separators=(",", ":"))},
+        )
+        job_id = created.get("data", {}).get("jobId") if isinstance(created, dict) else None
+        if not job_id:
+            raise ZohoAnalyticsError("Analytics SQL export did not return a job ID.")
+
+        return _download_export(
+            self.client,
+            base,
+            str(job_id),
+            poll_interval,
+            max_attempts,
+            str(export_config["responseFormat"]),
         )

@@ -30,6 +30,24 @@ inactive_customers = api.contacts.list_customers(
 Use `contacts.list()` when a single response page is wanted, or
 `contacts.list_all()` for an unqualified paginated contact listing.
 
+## Financial account transactions
+
+`chart_of_accounts.list_transactions(account_id, params=None)` returns one API
+page from `GET /chartofaccounts/accounttransactions`. The account ID is required;
+optional filters such as `date_start`, `date_end`, and amount filters are passed
+through without mutating the caller's mapping.
+
+`chart_of_accounts.list_all_transactions(account_id, params=None)` traverses the
+endpoint's `page_context` and returns the combined `transactions` list using
+200-row pages.
+
+```python
+transactions = api.chart_of_accounts.list_all_transactions(
+    "123456789",
+    {"date_start": "2026-04-01", "date_end": "2026-04-30"},
+)
+```
+
 ## Bulk contact updates
 
 `contacts.bulk_update(contacts, params=None)` updates multiple contacts through

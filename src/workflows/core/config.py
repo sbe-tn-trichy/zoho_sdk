@@ -2,7 +2,11 @@ import os
 import json
 import logging
 from pathlib import Path
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # The base SDK can still use dependency-light workflows.
+    def load_dotenv(*args, **kwargs):
+        return False
 
 # Load .env file from the root directory of the project
 # We check if .env exists in the current directory, parent, or project root
@@ -52,6 +56,10 @@ class Config:
     # Bank Account IDs
     BANK_ACCOUNT_IDFC = os.getenv("BANK_ACCOUNT_IDFC", "1094368000045308003")
     BANK_ACCOUNT_HDFC = os.getenv("BANK_ACCOUNT_HDFC", "1094368000000081927")
+    BANK_ACCOUNT_HDFC_AGENCIES = os.getenv(
+        "BANK_ACCOUNT_HDFC_AGENCIES", "1094368000000468208"
+    )
+    BANK_ACCOUNT_ICICI = os.getenv("BANK_ACCOUNT_ICICI", "1094368000056644467")
     # GSTIN Map
     try:
         GSTIN_TO_VENDOR_ID = json.loads(os.getenv("GSTIN_TO_VENDOR_ID", "{}"))

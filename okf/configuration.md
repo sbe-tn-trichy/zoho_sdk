@@ -31,7 +31,8 @@ Runtime configuration is loaded via environment variables or a local `.env` file
 - `ZOHO_TAX_SETTINGS_ID`: Books tax-settings identifier.
 - `EXPECTED_LOCATION_ID`: Default Zoho Books location / branch ID.
 - `EXPECTED_LOCATION_NAME`: Expected location display name.
-- `BANK_ACCOUNT_IDFC` and `BANK_ACCOUNT_HDFC`: Books bank-account identifiers.
+- `BANK_ACCOUNT_IDFC`, `BANK_ACCOUNT_HDFC`, `BANK_ACCOUNT_HDFC_AGENCIES`, and
+  `BANK_ACCOUNT_ICICI`: Books bank-account identifiers.
 - `GSTIN_TO_VENDOR_ID`: JSON object mapping GSTIN values to vendor IDs.
 
 # Credential Safety
@@ -39,3 +40,17 @@ Runtime configuration is loaded via environment variables or a local `.env` file
 Access tokens are retrieved dynamically at runtime from `TOKEN_URL` and are not persisted in source code, logs, or reports.
 
 `.env` is intended for local execution only and must not be committed. Prefer explicit environment configuration for deployed workloads. Treat organization, vendor, item, tax, bank-account, location, and WorkDrive folder IDs as deployment-specific values even where development defaults exist.
+
+# Collection Reconciliation Configuration
+
+`CollectionReconciliationConfig` is explicit rather than environment-backed.
+Callers provide the Creator app link name and Books bank-account ID, plus
+optional Creator form/report names, Analytics workspace and SQL template, date
+and amount tolerances, and `dry_run`. Deployment code remains responsible for
+constructing the three authenticated clients and choosing the organization and
+data-center domain.
+
+Use `dry_run=True` for the initial scheduled execution. Books custom-field
+creation requires the separate explicit
+`create_missing_books_fields=True` option on schema validation or the workflow
+entry point.

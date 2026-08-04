@@ -73,6 +73,41 @@ class ChartOfAccounts(BaseResource, ActiveInactiveMixin):
     def __init__(self, client: Any):
         super().__init__(client, 'chartofaccounts')
 
+    def list_transactions(
+        self,
+        account_id: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Return one page of transactions involving a financial account."""
+        if not account_id:
+            raise ValueError("account_id is required.")
+        query = {**(params or {}), "account_id": account_id}
+        return self.client.request(
+            'GET',
+            f'{self.endpoint}/accounttransactions',
+            params=query,
+        )
+
+    def list_all_transactions(
+        self,
+        account_id: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return every page of transactions involving a financial account."""
+        transactions: List[Dict[str, Any]] = []
+        page = 1
+        filters = dict(params or {})
+
+        while True:
+            response = self.list_transactions(
+                account_id,
+                params={**filters, "page": page, "per_page": 200},
+            )
+            transactions.extend(response.get("transactions", []))
+            if not response.get("page_context", {}).get("has_more_page", False):
+                return transactions
+            page += 1
+
 class Vendors(BaseResource, ActiveInactiveMixin):
     def __init__(self, client: Any):
         super().__init__(client, 'vendors')
@@ -102,4 +137,3 @@ class Vendors(BaseResource, ActiveInactiveMixin):
         with open(save_path, "wb") as f:
             f.write(content)
         return save_path
-

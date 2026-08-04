@@ -4,7 +4,7 @@ from zoho.auth import HttpTokenProvider
 from zoho.base_client import BaseZohoClient
 
 from .metadata import Metadata
-from .resources import Views
+from .resources import Queries, Views
 
 
 class ZohoAnalyticsAPI(BaseZohoClient):
@@ -30,6 +30,7 @@ class ZohoAnalyticsAPI(BaseZohoClient):
         self.organization_id = organization_id
         self.views = Views(self)
         self.metadata = Metadata(self)
+        self.queries = Queries(self)
 
     @classmethod
     def from_token_provider(

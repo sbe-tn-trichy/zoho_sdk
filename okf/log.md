@@ -1,5 +1,13 @@
 # Knowledge Change Log
 
+## 2026-08-04
+
+- Added single-page and automatically paginated Zoho Books financial-account transaction retrieval through `chart_of_accounts`.
+- Added a dry-run-first, checkpointed Creator matched-payment backfill that
+  updates reciprocal identifiers on existing Books customer payments without
+  creating payments or modifying bank matches.
+- Added production-safe Creator collection reconciliation with schema validation, Books customer-payment custom-field provisioning, exact reference/date/amount matching, Analytics-assisted manual exceptions, Creator audit records, dry-run operation, and declared OAuth scope requirements.
+
 ## 2026-08-03
 
 - Added form-encoded Zoho Books requests and the `contacts.bulk_update()` public API for updating multiple contacts with one request.

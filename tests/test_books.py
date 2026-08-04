@@ -4,9 +4,11 @@ from unittest.mock import patch, MagicMock
 from zoho.books import ZohoBooksAPI, ZohoBooksError
 from zoho.books.base import BaseResource
 from zoho.books.resources.customer_validator import CustomerValidator
-from zoho.books.resources.contacts import Contacts
+from zoho.books.resources.contacts import ChartOfAccounts, Contacts
 from zoho.books.resources.gst import GST, parse_doc_number
 from zoho.books.resources.projects import Projects, TimeEntries
+from zoho.books.resources.banking import BankTransactions
+from zoho.books.resources.settings import CustomFields
 
 class TestZohoBooksAPI(unittest.TestCase):
     def setUp(self):
@@ -156,6 +158,127 @@ class TestBooksBaseResource(unittest.TestCase):
     def test_delete(self):
         self.resource.delete("r123")
         self.client.request.assert_called_once_with('DELETE', 'testresource/r123', params=None)
+
+
+class TestBooksReconciliationResources(unittest.TestCase):
+    def test_custom_fields_list_and_create(self):
+        client = MagicMock()
+        client.request.return_value = {"fields": [{"label": "Creator_Record_ID"}]}
+        resource = CustomFields(client)
+
+        self.assertEqual(
+            resource.list_for_entity("customerpayment"),
+            [{"label": "Creator_Record_ID"}],
+        )
+        client.request.assert_called_once_with(
+            "GET",
+            "settings/fields",
+            params={"entity": "customerpayment", "filter_custom_fields": True},
+        )
+
+        field = {
+            "label": "Creator_Record_ID",
+            "data_type": "string",
+            "entity": "customerpayment",
+            "show_on_pdf": False,
+        }
+        resource.create(field)
+        client.request.assert_called_with("POST", "settings/fields", json=field)
+
+    def test_chart_of_accounts_lists_financial_account_transactions(self):
+        client = MagicMock()
+        client.request.return_value = {"transactions": [{"transaction_id": "tx-1"}]}
+        resource = ChartOfAccounts(client)
+        filters = {"date_start": "2026-04-01", "date_end": "2026-04-30"}
+
+        response = resource.list_transactions("account-1", filters)
+
+        self.assertEqual(response["transactions"], [{"transaction_id": "tx-1"}])
+        self.assertEqual(filters, {"date_start": "2026-04-01", "date_end": "2026-04-30"})
+        client.request.assert_called_once_with(
+            "GET",
+            "chartofaccounts/accounttransactions",
+            params={
+                "account_id": "account-1",
+                "date_start": "2026-04-01",
+                "date_end": "2026-04-30",
+            },
+        )
+
+    def test_chart_of_accounts_lists_all_financial_account_transactions(self):
+        client = MagicMock()
+        client.request.side_effect = [
+            {
+                "transactions": [{"transaction_id": "tx-1"}],
+                "page_context": {"has_more_page": True},
+            },
+            {
+                "transactions": [{"transaction_id": "tx-2"}],
+                "page_context": {"has_more_page": False},
+            },
+        ]
+        resource = ChartOfAccounts(client)
+
+        transactions = resource.list_all_transactions(
+            "account-1", {"date_start": "2026-04-01"}
+        )
+
+        self.assertEqual(
+            transactions,
+            [{"transaction_id": "tx-1"}, {"transaction_id": "tx-2"}],
+        )
+        self.assertEqual(client.request.call_count, 2)
+        self.assertEqual(client.request.call_args_list[0].kwargs["params"]["page"], 1)
+        self.assertEqual(client.request.call_args_list[1].kwargs["params"]["page"], 2)
+
+    def test_chart_of_accounts_transactions_require_account_id(self):
+        with self.assertRaisesRegex(ValueError, "account_id is required"):
+            ChartOfAccounts(MagicMock()).list_transactions("")
+
+    def test_bank_transaction_matching_and_customer_payment_categorization(self):
+        client = MagicMock()
+        resource = BankTransactions(client)
+
+        resource.get_matches("bank-1")
+        client.request.assert_called_with(
+            "GET",
+            "banktransactions/uncategorized/bank-1/match",
+            json=None,
+            params=None,
+        )
+
+        resource.match(
+            "bank-1",
+            [{"transaction_id": "payment-1", "transaction_type": "customer_payment"}],
+        )
+        client.request.assert_called_with(
+            "POST",
+            "banktransactions/uncategorized/bank-1/match",
+            json={
+                "transactions_to_be_matched": [
+                    {"transaction_id": "payment-1", "transaction_type": "customer_payment"}
+                ]
+            },
+            params=None,
+        )
+
+        payload = {"customer_id": "customer-1", "amount": 100}
+        resource.categorize_as_customer_payment("bank-1", payload)
+        client.request.assert_called_with(
+            "POST",
+            "banktransactions/uncategorized/bank-1/categorize/customerpayments",
+            json=payload,
+            params=None,
+        )
+
+        resource.unmatch("bank-1", "account-1")
+        client.request.assert_called_with(
+            "POST",
+            "banktransactions/bank-1/unmatch",
+            json=None,
+            params={"account_id": "account-1"},
+        )
+
 
 
 class TestContacts(unittest.TestCase):

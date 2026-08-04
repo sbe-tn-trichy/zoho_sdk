@@ -110,8 +110,10 @@ Higher-level reconciliation and credit-memo operations are available under
 
 ```python
 from workflows import (
+    CollectionReconciliationConfig,
     match_bank_with_vendor_ledger,
     process_polycab_credit_memos,
+    reconcile_collections,
     reconcile_vendor_account,
 )
 ```
@@ -120,6 +122,47 @@ The workflow layer builds on the low-level clients and includes bank and vendor
 ledger reconciliation, Zeiss statement parsing, and Polycab credit memo
 processing. It is a standalone top-level package alongside `zoho`; workflow
 code should be imported directly from `workflows`.
+
+### Creator collection reconciliation
+
+```python
+from workflows import CollectionReconciliationConfig, reconcile_collections
+
+config = CollectionReconciliationConfig(
+    creator_app_link_name="collections-app",
+    bank_account_id="...",
+    analytics_workspace_id="...",
+    dry_run=True,
+)
+
+result = reconcile_collections(
+    creator_client=creator,
+    books_client=books,
+    analytics_client=analytics,
+    config=config,
+    validate_schema=True,
+)
+```
+
+The workflow validates the Creator collection and audit forms, validates the
+two required Books customer-payment custom fields, matches date/amount/reference
+without auto-selecting ambiguous transactions, and returns Analytics suggestions
+for manual exceptions. Set `dry_run=False` only after reviewing the validation
+and match output. Pass `create_missing_books_fields=True` to explicitly create
+missing Books fields; Creator form fields must be configured in Creator.
+
+To backfill the reciprocal Creator identifiers onto existing Books customer
+payments from Creator's `matched` report, run the guarded temporary script:
+
+```bash
+python scripts/backfill_creator_matched_payments.py
+```
+
+The default is read-only and writes JSON/CSV assessment files under `output/`.
+A write run must use `--execute` with either `--creator-record-id ID` for one
+payment or the additional `--allow-batch` flag. The script only updates the
+`Creator Record ID` and `Creator Payment ID` custom fields; it never creates a
+payment or changes a bank match. Incremental checkpoints support safe restart.
 
 Install workflow and test dependencies with:
 

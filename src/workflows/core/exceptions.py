@@ -17,3 +17,8 @@ class LedgerNotImplementedError(LedgerParsingError, NotImplementedError):
 class ReconciliationError(ZohoUsableError, ValueError):
     """Raised when reconciliation or matching calculations encounter configuration or process errors."""
     pass
+
+
+class SchemaValidationError(ReconciliationError):
+    """Raised when required Creator or Books reconciliation fields are missing."""
+    pass

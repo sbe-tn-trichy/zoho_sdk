@@ -1,10 +1,10 @@
-import unittest
 import json
+import unittest
 from unittest.mock import MagicMock, patch
 
 from zoho.analytics import ZohoAnalyticsAPI
 from zoho.analytics.exceptions import ZohoAnalyticsError
-from zoho.analytics.resources import Views
+from zoho.analytics.resources import Queries, Views
 
 
 class TestZohoAnalyticsAPI(unittest.TestCase):
@@ -99,6 +99,49 @@ class TestZohoAnalyticsAPI(unittest.TestCase):
 
         self.assertEqual(caught.exception.status_code, 429)
         self.assertEqual(caught.exception.retry_after, "12")
+
+    def test_dynamic_query_exports_and_decodes_json_rows(self):
+        client = MagicMock()
+        client.base_url = "https://analyticsapi.zoho.in/restapi/v2"
+        client.request.side_effect = [
+            {"data": {"jobId": "job-2"}},
+            {
+                "data": {
+                    "jobCode": "1004",
+                    "jobStatus": "JOB COMPLETED",
+                    "downloadUrl": "https://download/query",
+                }
+            },
+            [{"Customer Name": "Acme", "Amount": "100.00"}],
+        ]
+
+        query = 'SELECT * FROM "Payment Customer Finder" LIMIT 5'
+        rows = Queries(client).execute("workspace", query, poll_interval=0)
+
+        self.assertEqual(rows, [{"Customer Name": "Acme", "Amount": "100.00"}])
+        create_call = client.request.call_args_list[0]
+        self.assertEqual(create_call.args, ("GET", "bulk/workspaces/workspace/data"))
+        sent_config = json.loads(create_call.kwargs["params"]["CONFIG"])
+        self.assertEqual(sent_config["sqlQuery"], query)
+        self.assertEqual(sent_config["responseFormat"], "json")
+        self.assertTrue(sent_config["keyValueFormat"])
+
+    def test_dynamic_query_rejects_empty_sql(self):
+        with self.assertRaisesRegex(ValueError, "sql_query is required"):
+            Queries(MagicMock()).execute("workspace", "  ")
+
+    def test_dynamic_query_raises_when_job_fails(self):
+        client = MagicMock()
+        client.request.side_effect = [
+            {"data": {"jobId": "job-3"}},
+            {"data": {"jobCode": "1003", "jobStatus": "JOB FAILED"}},
+        ]
+        with self.assertRaises(ZohoAnalyticsError):
+            Queries(client).execute("workspace", "SELECT 1", poll_interval=0)
+
+    def test_client_exposes_queries_resource(self):
+        client = ZohoAnalyticsAPI("token", "org")
+        self.assertIsInstance(client.queries, Queries)
 
 
 if __name__ == "__main__":

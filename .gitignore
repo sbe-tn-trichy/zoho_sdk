@@ -19,6 +19,9 @@ logs/
 # SDK-generated output files
 output/
 
+# Local project scripts
+/scripts/
+
 # IDE files
 .vscode/
 .idea/

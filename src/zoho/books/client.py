@@ -10,6 +10,7 @@ from .resources.projects import Projects, Tasks, TimeEntries
 from .resources.inventory import Items
 from .resources.gst import GST
 from .resources.customer_validator import CustomerValidator
+from .resources.settings import CustomFields
 
 class ZohoBooksAPI(BaseZohoClient):
     """
@@ -65,6 +66,7 @@ class ZohoBooksAPI(BaseZohoClient):
         self.items = Items(self)
         self.gst = GST(self)
         self.customer_validator = CustomerValidator(self)
+        self.custom_fields = CustomFields(self)
 
     def request(
         self,
