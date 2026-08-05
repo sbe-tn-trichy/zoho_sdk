@@ -18,7 +18,7 @@ Supported services:
 5. **Zoho Sheet** — Spreadsheet: read/write rows and cells
 6. **Zoho Creator** — Low-code app data: CRUD records, bulk operations
 7. **Zoho Inventory** — Inventory management: items, orders, warehouses, batches
-8. **Zoho Analytics** — View exports, dynamic queries, and resumable workspace metadata snapshots
+8. **Zoho Analytics** — View exports, dynamic SQL data retrieval, and resumable workspace metadata snapshots
 
 ---
 

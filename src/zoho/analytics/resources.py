@@ -207,6 +207,7 @@ class Views:
             response_format,
         )
 
+
 class Queries:
     """Execute dynamic read queries through Analytics bulk SQL exports."""
 
