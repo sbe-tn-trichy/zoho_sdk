@@ -1,5 +1,11 @@
 # Knowledge Change Log
 
+## 2026-08-10
+
+- Split GSTR-1 draft, sequence, chronology, and e-invoice verification by each location's GST registration (`tax_settings_id`) and added read-only Books location access.
+- Corrected GSTR-1 e-invoice verification to use each transaction's nested `einvoice_details` and IRN instead of separate bulk e-invoice endpoints.
+- Added a read-only GSTR-1 verification workflow for previous-month invoice and credit-note drafts, financial-year-aware number continuity and chronology, and applicable e-invoice registration status.
+
 ## 2026-08-04
 
 - Added single-page and automatically paginated Zoho Books financial-account transaction retrieval through `chart_of_accounts`.

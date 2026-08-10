@@ -39,6 +39,7 @@ from .vendor_ledger_reconciliation.zeiss_pdf import (
     consolidate_zeiss_statements,
     parse_zeiss_pdf_statement,
 )
+from .gstr1_verification import GSTR1VerificationConfig, GSTR1Verifier, verify_gstr1
 
 __all__ = [
     "fetch_access_tokens",
@@ -69,4 +70,7 @@ __all__ = [
     "reconcile_collections",
     "REQUIRED_OAUTH_SCOPES",
     "missing_oauth_scopes",
+    "GSTR1VerificationConfig",
+    "GSTR1Verifier",
+    "verify_gstr1",
 ]

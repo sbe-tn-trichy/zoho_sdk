@@ -1,5 +1,14 @@
 from typing import Any, Dict, List, Optional
 
+from ..base import BaseResource
+
+
+class Locations(BaseResource):
+    """Organization locations and their India tax-registration settings."""
+
+    def __init__(self, client: Any):
+        super().__init__(client, "locations")
+
 
 class CustomFields:
     """Zoho Books custom-field settings endpoints."""

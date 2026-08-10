@@ -260,6 +260,7 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 | `client.gst` | `GST` | (multiple endpoints) |
 | `client.customer_validator` | `CustomerValidator` | (composite) |
 | `client.custom_fields` | `CustomFields` | `/settings/fields` |
+| `client.locations` | `Locations` | `/locations` |
 
 ### BaseResource — Standard CRUD (on every module above)
 
@@ -687,6 +688,27 @@ Books bank lines/customer payments, and optional Analytics suggestions.
 
 Automatic reconciliation requires a unique reference/date/amount match. The
 workflow never auto-selects ambiguous bank lines and supports read-only dry runs.
+
+---
+
+## GSTR-1 verification workflow
+
+`workflows.gstr1_verification` performs read-only readiness checks for the
+previous calendar month, or for an explicit `YYYY-MM` period.
+
+| Symbol | Purpose |
+|---|---|
+| `GSTR1VerificationConfig` | Controls e-invoice applicability and the fiscal-year start month |
+| `GSTR1Verifier.run` | Fetches invoices and credit notes and returns the complete verification report |
+| `verify_gstr1` | Convenience entry point accepting a Books client, optional month/as-of date, and config |
+
+The workflow groups locations by their `tax_settings_id`, which represents the
+GST registration configured in Books. Draft, sequence, chronology, and
+e-invoice checks run independently inside each registration and are returned
+under `gst_registrations`. Sequence validation uses the financial-year
+population while findings remain scoped to the selected month. Pushed
+e-invoices must also carry an IRN/UUID. No push, cancel, status update, or other
+transaction mutation is performed.
 
 ---
 

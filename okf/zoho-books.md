@@ -30,6 +30,14 @@ inactive_customers = api.contacts.list_customers(
 Use `contacts.list()` when a single response page is wanted, or
 `contacts.list_all()` for an unqualified paginated contact listing.
 
+## Locations and GST registrations
+
+`locations.list_all(resource_key="locations")` retrieves Books locations from
+`GET /locations`. For India organisations, each location includes a
+`tax_settings_id`; locations with the same value belong to the same configured
+GST registration. The [GSTR-1 verification workflow](gstr1-verification.md)
+uses that relationship to keep different GST registrations isolated.
+
 ## Financial account transactions
 
 `chart_of_accounts.list_transactions(account_id, params=None)` returns one API

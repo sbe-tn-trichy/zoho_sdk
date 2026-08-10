@@ -111,12 +111,30 @@ Higher-level reconciliation and credit-memo operations are available under
 ```python
 from workflows import (
     CollectionReconciliationConfig,
+    GSTR1VerificationConfig,
     match_bank_with_vendor_ledger,
     process_polycab_credit_memos,
     reconcile_collections,
     reconcile_vendor_account,
+    verify_gstr1,
 )
 ```
+
+Run the read-only GSTR-1 readiness checks for the previous calendar month:
+
+```python
+report = verify_gstr1(
+    books_client,
+    config=GSTR1VerificationConfig(e_invoice_applicable=True),
+)
+```
+
+The workflow reports draft invoices and credit notes, financial-year-aware
+number gaps and chronology errors, and applicable e-invoices that are not
+successfully registered with an IRN. Locations sharing a Books
+`tax_settings_id` are checked together as one GST registration; different GST
+registrations are never combined. Pass `month="YYYY-MM"` to audit an explicit
+month. The workflow never pushes or modifies Books transactions.
 
 The workflow layer builds on the low-level clients and includes bank and vendor
 ledger reconciliation, Zeiss statement parsing, and Polycab credit memo

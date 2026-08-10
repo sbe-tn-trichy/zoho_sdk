@@ -27,6 +27,7 @@ The unified source tree contains two distinct layers:
 2. **High-Level Domain Workflows (`workflows`)**:
    - `workflows.bank_reconciliation`: Bank transaction and ledger matching.
    - `workflows.collection_reconciliation`: Incoming Creator collection matching, Books customer-payment categorization, Analytics-assisted exceptions, and Creator audit records.
+   - `workflows.gstr1_verification`: Read-only previous-month Books invoice and credit-note readiness checks for drafts, numbering, chronology, and e-invoice registration.
    - `workflows.vendor_ledger_reconciliation`: Vendor ledger cleaning, matching, and Zeiss statement parsing.
    - `workflows.polycab_credit_memos`: Polycab credit memo PDF extraction, Zoho Books creation, attachment uploads, and WorkDrive uploads.
 
