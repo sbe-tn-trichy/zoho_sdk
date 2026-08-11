@@ -41,6 +41,10 @@ Access tokens are retrieved dynamically at runtime from `TOKEN_URL` and are not 
 
 `.env` is intended for local execution only and must not be committed. Prefer explicit environment configuration for deployed workloads. Treat organization, vendor, item, tax, bank-account, location, and WorkDrive folder IDs as deployment-specific values even where development defaults exist.
 
+Polycab vendor-credit creation passes `EXPECTED_LOCATION_ID` explicitly in
+the Zoho Books payload. Callers may override the location for a single credit
+or a batch; the workflow does not rely on the Books organization default.
+
 # Collection Reconciliation Configuration
 
 `CollectionReconciliationConfig` is explicit rather than environment-backed.

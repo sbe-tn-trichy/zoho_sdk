@@ -46,7 +46,8 @@ class TestCreditMemoBatch(unittest.TestCase):
             wd_client=wd_client,
             files_dir="/dummy/cn",
             folder_id="folder_123",
-            vendor_id="vendor_999"
+            vendor_id="vendor_999",
+            location_id="location_999",
         )
         
         self.assertEqual(summary["total_files"], 2)
@@ -63,6 +64,7 @@ class TestCreditMemoBatch(unittest.TestCase):
             books_client,
             expected_path,
             vendor_id="vendor_999",
+            location_id="location_999",
         )
         mock_upload.assert_called_once()
         mock_attach.assert_called_once_with(books_client, "vc_222", expected_path)

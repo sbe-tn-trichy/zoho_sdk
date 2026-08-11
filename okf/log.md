@@ -1,5 +1,9 @@
 # Knowledge Change Log
 
+## 2026-08-11
+
+- Polycab vendor-credit creation now sends the configured location ID explicitly for single-credit and batch processing.
+
 ## 2026-08-10
 
 - Split GSTR-1 draft, sequence, chronology, and e-invoice verification by each location's GST registration (`tax_settings_id`) and added read-only Books location access.

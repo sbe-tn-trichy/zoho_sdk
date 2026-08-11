@@ -212,6 +212,7 @@ def create_vendor_credit_from_pdf(
     vendor_name: str = "Polycab",
     account_name: str = "Polycab Scheme - Expense",
     vendor_id: Optional[str] = None,
+    location_id: str = Config.EXPECTED_LOCATION_ID,
 ) -> Dict[str, Any]:
     """
     Parses PDF and posts a new Vendor Credit transaction to Zoho Books.
@@ -244,6 +245,7 @@ def create_vendor_credit_from_pdf(
     
     payload = {
         "vendor_id": vendor_id,
+        "location_id": location_id,
         "vendor_credit_number": details["vendor_credit_number"],
         "date": details["date"],
         "line_items": [
@@ -279,7 +281,8 @@ def process_polycab_credit_memos(
     wd_client: Optional[Any] = None,
     files_dir: str = Config.FILES_DIR,
     folder_id: str = Config.POLYCAB_FOLDER_ID,
-    vendor_id: str = Config.POLYCAB_VENDOR_ID
+    vendor_id: str = Config.POLYCAB_VENDOR_ID,
+    location_id: str = Config.EXPECTED_LOCATION_ID,
 ) -> Dict[str, Any]:
     """
     Processes all Polycab credit memo PDFs in the files_dir.
@@ -292,6 +295,7 @@ def process_polycab_credit_memos(
         files_dir (str): Directory containing credit memo PDFs.
         folder_id (str): Target Zoho WorkDrive folder ID.
         vendor_id (str): Vendor ID for Polycab.
+        location_id (str): Zoho Books location / branch ID for created credits.
         
     Returns:
         Dict[str, Any]: Detailed counts of processed, created, uploaded, and skipped items.
@@ -386,6 +390,7 @@ def process_polycab_credit_memos(
                     books_client,
                     file_path,
                     vendor_id=vendor_id,
+                    location_id=location_id,
                 )
                 vc_id = vc.get("vendor_credit_id")
                 logger.info(f"Vendor credit successfully created in Books (ID: {vc_id}).")

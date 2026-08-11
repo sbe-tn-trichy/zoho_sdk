@@ -9,6 +9,7 @@ from workflows.polycab_credit_memos.processor import (
     upload_vendor_credit_attachment,
     upload_to_workdrive
 )
+from workflows.core.config import Config
 
 class TestCreditMemoProcessor(unittest.TestCase):
     @patch("os.path.exists")
@@ -121,6 +122,7 @@ class TestCreditMemoProcessor(unittest.TestCase):
         books_client.vendor_credits.create.assert_called_once()
         payload = books_client.vendor_credits.create.call_args.args[0]
         self.assertEqual(payload["vendor_id"], "vendor_99")
+        self.assertEqual(payload["location_id"], Config.EXPECTED_LOCATION_ID)
         self.assertEqual(payload["vendor_credit_number"], "2603233393")
         self.assertEqual(payload["reference_invoice_type"], "registered")
         self.assertNotIn("bill_id", payload)
@@ -143,7 +145,6 @@ class TestCreditMemoProcessor(unittest.TestCase):
         self.assertNotIn("reference_invoice_type", payload)
         
         # Test Case 3: RSO CN description override with RSO Number alone
-        from workflows.core.config import Config
         books_client.vendor_credits.create.reset_mock()
         mock_resolve_item.return_value = Config.ZOHO_RSO_CN_ITEM_ID
         mock_parse.return_value["raw_text"] = "RSO Number : 25267008565 E-Way Bill No :\n"
@@ -161,10 +162,12 @@ class TestCreditMemoProcessor(unittest.TestCase):
             books_client,
             "dummy.pdf",
             vendor_id="vendor_explicit",
+            location_id="location_explicit",
         )
         mock_resolve_vend.assert_not_called()
         payload = books_client.vendor_credits.create.call_args.args[0]
         self.assertEqual(payload["vendor_id"], "vendor_explicit")
+        self.assertEqual(payload["location_id"], "location_explicit")
 
     def test_upload_vendor_credit_attachment(self):
         books_client = MagicMock()
@@ -183,8 +186,6 @@ class TestCreditMemoProcessor(unittest.TestCase):
         wd_client.files.upload.assert_called_once_with("folder_123", "dummy.pdf")
 
     def test_resolve_item_id(self):
-        from workflows.core.config import Config
-        
         # Test Case 1: Scheme CN (RSO Number missing or empty)
         self.assertEqual(resolve_item_id("Some raw text without RSO"), Config.ZOHO_SCHEME_CN_ITEM_ID)
         self.assertEqual(resolve_item_id("RSO Number : \n"), Config.ZOHO_SCHEME_CN_ITEM_ID)
