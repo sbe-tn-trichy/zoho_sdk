@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock
 from datetime import date
 from workflows.bank_reconciliation.matcher import (
+    get_bank_reference,
     parse_date,
     get_abs_amount,
     ref_match,
@@ -9,6 +10,38 @@ from workflows.bank_reconciliation.matcher import (
 )
 
 class TestLedgerMatcherUtils(unittest.TestCase):
+    def test_icici_upi_reference_comes_from_description(self):
+        transaction = {
+            "reference_number": "S78528277",
+            "description": "UPI/622494425255/UPI/customer@bank/BANK/AXI123",
+        }
+
+        self.assertEqual(
+            get_bank_reference(transaction, "1094368000056644467"),
+            "622494425255",
+        )
+
+    def test_icici_non_upi_and_other_banks_keep_zoho_reference(self):
+        transaction = {
+            "reference_number": "S78528277",
+            "description": "NEFT/SOME/OTHER/FORMAT",
+        }
+
+        self.assertEqual(
+            get_bank_reference(transaction, "1094368000056644467"),
+            "S78528277",
+        )
+        self.assertEqual(
+            get_bank_reference(
+                {
+                    "reference_number": "BANK-REF",
+                    "description": "UPI/622494425255/UPI/customer@bank/BANK/AXI123",
+                },
+                "another-bank",
+            ),
+            "BANK-REF",
+        )
+
     def test_parse_date(self):
         self.assertEqual(parse_date("2026-06-14"), date(2026, 6, 14))
         self.assertEqual(parse_date("2026-06-14T11:24:20Z"), date(2026, 6, 14))
@@ -146,6 +179,31 @@ class TestMatchLedgerEntries(unittest.TestCase):
         # Verify unmatched vendor payments (vp_04 remains)
         self.assertEqual(len(results["unmatched_vendor_payments"]), 1)
         self.assertEqual(results["unmatched_vendor_payments"][0]["payment_id"], "vp_04")
+
+    def test_icici_upi_description_reference_is_used_for_exact_match(self):
+        self.books_client.bank_transactions.list_all.return_value = [{
+            "transaction_id": "tx_icici",
+            "date": "2026-08-12",
+            "amount": "-1000.00",
+            "reference_number": "S78528277",
+            "description": "UPI/622494425255/UPI/customer@bank/BANK/AXI123",
+            "debit_or_credit": "debit",
+        }]
+        self.books_client.vendor_payments.list_all.return_value = [{
+            "payment_id": "vp_icici",
+            "date": "2026-08-12",
+            "amount": "1000.00",
+            "reference_number": "622494425255",
+        }]
+
+        results = match_ledger_entries(
+            books_client=self.books_client,
+            bank_account_id="1094368000056644467",
+            vendor_id=self.vendor_id,
+        )
+
+        self.assertEqual(len(results["exact_matches"]), 1)
+        self.assertEqual(results["strong_matches"], [])
 
 from unittest.mock import patch
 from workflows.bank_reconciliation.matcher import (

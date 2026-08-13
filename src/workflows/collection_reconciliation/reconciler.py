@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..core.exceptions import ReconciliationError
-from ..core.matching import parse_date
+from ..core.matching import get_bank_reference, parse_date
 from .schema import (
     AUDIT_FIELD_REQUIREMENTS,
     COLLECTION_FIELD_REQUIREMENTS,
@@ -256,7 +256,7 @@ class CollectionReconciler:
             if abs(abs(tx_amount) - abs(amount)) > Decimal(str(self.config.amount_tolerance)):
                 continue
             tx_reference = _normalized_reference(
-                transaction.get("reference_number") or transaction.get("reference")
+                get_bank_reference(transaction, self.config.bank_account_id)
             )
             narration = _normalized_reference(
                 transaction.get("description") or transaction.get("narration")
@@ -448,7 +448,9 @@ class CollectionReconciler:
             "Payment_Date": str(bank_transaction.get("date") or bank_transaction.get("transaction_date") or ""),
             "Amount": bank_transaction.get("amount"),
             "Payment_Mode": payment_mode,
-            "Reference_Number": str(bank_transaction.get("reference_number") or ""),
+            "Reference_Number": str(
+                get_bank_reference(bank_transaction, self.config.bank_account_id) or ""
+            ),
             "Customer_Name": customer_id,
             "Reconciliation_Status": "Pending",
         }

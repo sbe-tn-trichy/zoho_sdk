@@ -1,5 +1,18 @@
 # Knowledge Change Log
 
+## 2026-08-13
+
+- Added a live ICICI unmatched-transaction CSV export with raw and normalized reference audit columns.
+- Normalized ICICI UPI bank references from the leading 12-digit narration component for bank and collection reconciliation while preserving Zoho reference fallbacks.
+
+## 2026-08-12
+
+- Excluded non-payable document states, including void invoices with historical balances, from offset allocation.
+- Capped bill-specific offset payment references at the live Books limit of 50 characters.
+- Added explicit single-vendor scoping for controlled vendor-customer offset runs.
+- Split multi-bill vendor-customer offsets into one same-dated customer/vendor payment pair per participating vendor bill.
+- Added the vendor-customer offset workflow for unique-GSTIN linked contacts, oldest-due-first invoice and bill allocation, dry-run safety, and compensating rollback.
+
 ## 2026-08-11
 
 - Polycab vendor-credit creation now sends the configured location ID explicitly for single-credit and batch processing.

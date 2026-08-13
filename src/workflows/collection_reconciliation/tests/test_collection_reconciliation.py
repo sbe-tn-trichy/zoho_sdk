@@ -420,6 +420,31 @@ class TestCollectionReconciler(unittest.TestCase):
         self.assertIsNone(matched)
         self.assertIn("Multiple", reason)
 
+    def test_icici_upi_reference_is_extracted_from_bank_description(self):
+        record = {
+            "Record_ID": "creator-icici",
+            "Payment_Date": "2026-08-12",
+            "Amount": 1000,
+            "Reference_Number": "622494425255",
+        }
+        transaction = {
+            "transaction_id": "tx-icici",
+            "date": "2026-08-12",
+            "amount": 1000,
+            "reference_number": "S78528277",
+            "description": "UPI/622494425255/UPI/customer@bank/BANK/AXI123",
+        }
+        config = _config(bank_account_id="1094368000056644467")
+
+        matched, reason = CollectionReconciler(
+            self.creator,
+            self.books,
+            config,
+        )._find_transaction(record, [transaction], set())
+
+        self.assertIs(matched, transaction)
+        self.assertEqual(reason, "exact_reference_amount_date")
+
 
 class TestCollectionScopes(unittest.TestCase):
     def test_missing_oauth_scopes(self):

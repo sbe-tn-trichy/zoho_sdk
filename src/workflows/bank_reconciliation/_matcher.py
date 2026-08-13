@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional
 from datetime import date
 
-from ..core.matching import parse_date, get_abs_amount, ref_match
+from ..core.matching import get_bank_reference, parse_date, get_abs_amount, ref_match
 from ..vendor_ledger_reconciliation.cleaner import clean_ledger_file, get_ledger_metadata
 
 logger = logging.getLogger(__name__)
@@ -141,7 +141,7 @@ def match_ledger_entries(
             "id": tx.get("transaction_id") or tx.get("id"),
             "date": parse_date(tx.get("date")),
             "amount": get_abs_amount(tx),
-            "ref": tx.get("reference_number") or tx.get("reference") or tx.get("cheque_number"),
+            "ref": get_bank_reference(tx, bank_account_id),
             "raw": tx,
         }
         for tx in withdrawals
@@ -210,7 +210,7 @@ def match_bank_with_vendor_ledger(
             "id": tx.get("transaction_id") or tx.get("id"),
             "date": parse_date(tx.get("date")),
             "amount": get_abs_amount(tx),
-            "ref": tx.get("reference_number") or tx.get("reference") or tx.get("cheque_number"),
+            "ref": get_bank_reference(tx, bank_account_id),
             "raw": tx,
         }
         for tx in withdrawals
