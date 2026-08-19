@@ -112,6 +112,7 @@ Higher-level reconciliation and credit-memo operations are available under
 from workflows import (
     CollectionReconciliationConfig,
     GSTR1VerificationConfig,
+    import_polycab_rso_pdf,
     match_bank_with_vendor_ledger,
     process_polycab_credit_memos,
     reconcile_collections,
@@ -140,6 +141,18 @@ The workflow layer builds on the low-level clients and includes bank and vendor
 ledger reconciliation, Zeiss statement parsing, and Polycab credit memo
 processing. It is a standalone top-level package alongside `zoho`; workflow
 code should be imported directly from `workflows`.
+
+Import one machine-readable Polycab RSO PDF as a Books sales order and attach
+the source document:
+
+```bash
+python scripts/import_polycab_rso.py /path/to/RSO_262707003493.pdf
+```
+
+The parser reads only the first `ITEM DETAILS` table and stops at `Total Rs.`,
+so the repeated `LINE DETAILS` table is not imported. The customer and Sri
+Bharath Electricals location defaults can be overridden with `--customer-id`
+and `--location-id`.
 
 ### Creator collection reconciliation
 
@@ -190,3 +203,17 @@ pip install -e ".[workflows,test]"
 
 Architecture, configuration, and operational guidance is indexed in
 [`okf/index.md`](okf/index.md).
+
+### Duplicate customer-payment check
+
+Run a read-only Books API check for payments sharing the same customer ID,
+payment date, and amount:
+
+```bash
+python scripts/check_duplicate_customer_payments.py
+```
+
+Use `--from-date YYYY-MM-DD`, `--to-date YYYY-MM-DD`, or `--customer-id ID` to
+limit the report. A compact customer/date-grouped Markdown report is saved to
+`output/duplicate_customer_payments.md`. Pass `--output report.html` for the
+searchable HTML table.

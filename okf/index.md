@@ -13,6 +13,8 @@ okf_version: "0.2"
 
 * [Configuration Reference](configuration.md) - OAuth credentials, organization settings, environment variables, and CLI dry-run flags.
 * [Zoho Books Client](zoho-books.md) - Books resource access, pagination, and customer-only contact retrieval.
+* [Duplicate Customer Payment Check](duplicate-payment-check.md) - Read-only detection of customer payments sharing the same customer, date, and amount.
+* [Polycab RSO Import](polycab-rso-import.md) - Parse Polycab return-sales-order PDFs, create location-scoped Books sales orders, and attach the source PDF.
 * [Analytics Metadata Snapshots](analytics-metadata.md) - Complete workspace metadata collection, rate-limit handling, snapshot files, and relationship maps.
 * [Bank Reconciliation](bank-reconciliation.md) - Books bank-line matching and ICICI UPI reference normalization.
 * [Creator Collection Reconciliation](collection-reconciliation.md) - Creator collection matching, Books customer-payment categorization, Analytics exceptions, schema contracts, and audit safety.

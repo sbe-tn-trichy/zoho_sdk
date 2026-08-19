@@ -24,6 +24,19 @@ class SalesOrders(BaseResource, StatusMixin):
     def __init__(self, client: Any):
         super().__init__(client, 'salesorders')
 
+    def add_attachment(self, sales_order_id: str, file_path: str) -> Dict[str, Any]:
+        """Attach a local file to a sales order."""
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+        filename = os.path.basename(file_path)
+        with open(file_path, "rb") as handle:
+            files = {"attachment": (filename, handle, "application/pdf")}
+            return self.client.request(
+                "POST",
+                f"salesorders/{sales_order_id}/attachment",
+                files=files,
+            )
+
     def create_from_yaml(self, yaml_str: str, customer_id: str = "1094368000001317103", create_missing_items: bool = False) -> Dict[str, Any]:
         """
         Create a Sales Order in Zoho Books from a flat or standard invoice YAML string.

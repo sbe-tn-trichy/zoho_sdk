@@ -432,6 +432,25 @@ class TestGST(unittest.TestCase):
 
 
 class TestSalesOrders(unittest.TestCase):
+    @patch("zoho.books.resources.sales.open", new_callable=unittest.mock.mock_open)
+    @patch("zoho.books.resources.sales.os.path.isfile", return_value=True)
+    def test_add_attachment(self, mock_isfile, mock_open):
+        from zoho.books.resources.sales import SalesOrders
+
+        client = MagicMock()
+        sales_orders = SalesOrders(client)
+
+        sales_orders.add_attachment("so123", "/tmp/rso.pdf")
+
+        mock_isfile.assert_called_once_with("/tmp/rso.pdf")
+        client.request.assert_called_once()
+        request_args = client.request.call_args
+        self.assertEqual(request_args.args, ("POST", "salesorders/so123/attachment"))
+        self.assertEqual(
+            request_args.kwargs["files"]["attachment"][0:2],
+            ("rso.pdf", mock_open()),
+        )
+
     @patch("requests.request")
     def test_create_from_yaml(self, mock_request):
         from zoho.books.resources.sales import SalesOrders

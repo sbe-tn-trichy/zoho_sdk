@@ -1,5 +1,19 @@
 # Knowledge Change Log
 
+## 2026-08-17
+
+- Added Polycab RSO PDF parsing and idempotent Zoho Books sales-order import,
+  stopping at the first total, resolving existing SKUs, assigning the Sri
+  Bharath Electricals location, and attaching the source PDF.
+- Added approved Books SKU replacements for Polycab RSO codes `FTANSST033P`
+  and `FCEECST303M`, plus unavailable code `LDO0119012`.
+- Added a read-only Books API workflow and CLI report for exact duplicate
+  customer payments grouped by customer ID, payment date, and amount.
+- Made the duplicate-payment output a searchable, print-friendly HTML report
+  with summary cards and a row-level review table.
+- Changed the default duplicate-payment report to a compact Markdown layout
+  grouped by customer and date with reference-and-amount bullets.
+
 ## 2026-08-13
 
 - Added a live ICICI unmatched-transaction CSV export with raw and normalized reference audit columns.

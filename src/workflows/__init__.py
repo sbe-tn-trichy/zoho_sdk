@@ -26,6 +26,7 @@ from .polycab_credit_memos.processor import (
     upload_to_workdrive,
     upload_vendor_credit_attachment,
 )
+from .polycab_rso import import_polycab_rso_pdf, parse_polycab_rso_pdf
 from .vendor_ledger_reconciliation.cleaner import clean_ledger_file, get_ledger_metadata
 from .bank_reconciliation.matcher import (
     match_bank_with_vendor_ledger,
@@ -40,6 +41,7 @@ from .vendor_ledger_reconciliation.zeiss_pdf import (
     parse_zeiss_pdf_statement,
 )
 from .gstr1_verification import GSTR1VerificationConfig, GSTR1Verifier, verify_gstr1
+from .duplicate_payment_check import DuplicatePaymentChecker, check_duplicate_payments
 
 __all__ = [
     "fetch_access_tokens",
@@ -65,6 +67,8 @@ __all__ = [
     "upload_to_workdrive",
     "process_polycab_credit_memos",
     "check_vendor_credits_location",
+    "parse_polycab_rso_pdf",
+    "import_polycab_rso_pdf",
     "CollectionReconciler",
     "CollectionReconciliationConfig",
     "reconcile_collections",
@@ -73,4 +77,6 @@ __all__ = [
     "GSTR1VerificationConfig",
     "GSTR1Verifier",
     "verify_gstr1",
+    "DuplicatePaymentChecker",
+    "check_duplicate_payments",
 ]

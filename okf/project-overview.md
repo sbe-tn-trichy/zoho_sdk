@@ -27,6 +27,7 @@ The unified source tree contains two distinct layers:
 2. **High-Level Domain Workflows (`workflows`)**:
    - `workflows.bank_reconciliation`: Bank transaction and ledger matching.
    - `workflows.collection_reconciliation`: Incoming Creator collection matching, Books customer-payment categorization, Analytics-assisted exceptions, and Creator audit records.
+   - `workflows.duplicate_payment_check`: Read-only detection of exact duplicate Books customer payments by customer, date, and amount.
    - `workflows.gstr1_verification`: Read-only previous-month Books invoice and credit-note readiness checks for drafts, numbering, chronology, and e-invoice registration.
    - `workflows.vendor_ledger_reconciliation`: Vendor ledger cleaning, matching, and Zeiss statement parsing.
    - `workflows.vendor_customer_offset`: GSTIN-safe clearing of linked customer receivables and vendor payables using paired payments.

@@ -29,6 +29,7 @@ Runtime configuration is loaded via environment variables or a local `.env` file
 - `ZOHO_SCHEME_CN_ITEM_ID`: Books item ID used for scheme credit notes.
 - `ZOHO_GST0_TAX_ID`: Books tax ID used for out-of-scope credit notes.
 - `ZOHO_TAX_SETTINGS_ID`: Books tax-settings identifier.
+- `RSO_CUSTOMER_ID`: Default Books customer for imported Polycab RSO sales orders.
 - `EXPECTED_LOCATION_ID`: Default Zoho Books location / branch ID.
 - `EXPECTED_LOCATION_NAME`: Expected location display name.
 - `BANK_ACCOUNT_IDFC`, `BANK_ACCOUNT_HDFC`, `BANK_ACCOUNT_HDFC_AGENCIES`, and
@@ -44,6 +45,10 @@ Access tokens are retrieved dynamically at runtime from `TOKEN_URL` and are not 
 Polycab vendor-credit creation passes `EXPECTED_LOCATION_ID` explicitly in
 the Zoho Books payload. Callers may override the location for a single credit
 or a batch; the workflow does not rely on the Books organization default.
+
+Polycab RSO sales-order import uses `RSO_CUSTOMER_ID` and
+`EXPECTED_LOCATION_ID`. Both values are included explicitly in the creation
+payload and can be overridden per import.
 
 # Collection Reconciliation Configuration
 

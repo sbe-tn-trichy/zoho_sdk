@@ -9,6 +9,14 @@ description: Public resource access patterns for the Zoho Books client.
 Resources inherit standard CRUD operations and the paginated `list_all()` helper
 from `BaseResource`.
 
+## Sales order attachments
+
+`sales_orders.add_attachment(sales_order_id, file_path)` uploads a local file to
+`POST /salesorders/{salesorder_id}/attachment`. It validates that the local file
+exists before opening it and sends the file as the `attachment` multipart field.
+The [Polycab RSO import](polycab-rso-import.md) uses this operation immediately
+after creating a Books sales order.
+
 ## Customer contacts
 
 `contacts.list_customers(filters=None)` fetches every page of active contacts by
