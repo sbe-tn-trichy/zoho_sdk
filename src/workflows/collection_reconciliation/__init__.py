@@ -11,6 +11,7 @@ from .schema import (
     validate_creator_form_fields,
 )
 from .scopes import REQUIRED_OAUTH_SCOPES, missing_oauth_scopes
+from .review import OnlinePaymentReviewConfig, OnlinePaymentReviewService
 
 __all__ = [
     "CollectionReconciler",
@@ -23,4 +24,6 @@ __all__ = [
     "validate_creator_form_fields",
     "REQUIRED_OAUTH_SCOPES",
     "missing_oauth_scopes",
+    "OnlinePaymentReviewConfig",
+    "OnlinePaymentReviewService",
 ]

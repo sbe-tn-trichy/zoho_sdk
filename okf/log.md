@@ -1,5 +1,31 @@
 # Knowledge Change Log
 
+## 2026-08-27
+
+- Changed cheque reconciliation to use the uniquely joined
+  `All_Cheque_Details.Presented_Date` instead of the cheque issue date; cheques
+  without a unique presented-detail row are not eligible for matching.
+- Added a checkpointed repair utility for applying legacy customer-payment
+  unused credits to open invoices in place, with oldest-due-first allocation
+  and post-update verification.
+- Added oldest-due-first open-invoice allocation to reviewed customer payments,
+  including visible allocation previews, confirmation-time balance refresh,
+  excess-credit disclosure, and a no-open-invoice push block.
+- Added a persistent, loopback-only human review queue for the live Creator
+  `Online_Payments` report, with local rejection and individually confirmed,
+  checkpointed Books customer-payment creation and bank matching.
+- Added select-all and single-confirmation bulk acceptance with one shared live
+  bank snapshot and isolated sequential push results.
+- Combined HDFC, ICICI, and IDFC uncategorized transactions in one payment
+  review page with explicit bank labels and account-correct accepted pushes.
+- Included Creator `Cheques` beside `Online_Payments`, using cheque dates,
+  Books check-mode payments, source-report-aware Creator updates, and a visible
+  payment-type column.
+- Added automatic Books and Creator access-token refresh and one-time retry for
+  long-running review sessions.
+- Added a cheque-specific seven-day clearing-date tolerance while retaining
+  exact amount and reference requirements.
+
 ## 2026-08-17
 
 - Added Polycab RSO PDF parsing and idempotent Zoho Books sales-order import,

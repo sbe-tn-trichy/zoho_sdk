@@ -84,6 +84,73 @@ set to zero. JSON/CSV results and an atomic per-record checkpoint make runs
 auditable and restartable. Conflicting identifiers, missing payments, and
 ambiguous matches are never written automatically.
 
+# Online Payments Human Review
+
+`scripts/review_online_payments.py` serves a loopback-only review queue for the
+production Creator `Online_Payments` report. It maps `Payment_Amount`,
+`Reference`, and the `Customer_Name` lookup to reconciliation values, resolving
+the lookup through `All_Customers1.Customer_Id` before any Books payment is
+proposed.
+
+Only a unique date, amount, and reference match is eligible for acceptance.
+The browser UI presents Creator and bank values side by side. Rejection changes
+only the atomic local state file. `Accept & Push` revalidates that the bank line
+is still uncategorized and refreshes the customer's open Books invoices. The
+payment is allocated oldest-due-first before Books creation, then its ID is
+checkpointed, the bank line is matched, and the ID is written into Creator's
+`Books_Transaction_Id`. Repeated acceptance of a fully pushed entry is
+idempotent. Entries without a unique match or any open customer invoice cannot
+be accepted, preventing the entire amount from becoming unused credit.
+
+The review row shows the proposed invoice numbers, due dates, balances, and
+amounts applied. The preview reuses one invoice query per customer during a
+refresh, but acceptance always queries invoices again so it uses current Books
+balances. Allocation may span multiple invoices. When their total balance is
+less than the payment, Books receives all possible allocations and only the
+displayed excess remains unused credit.
+
+The HTTP server binds only to a loopback address and mutation requests require
+both an explicit confirmation body and a random per-process review token. The
+queue state is stored at
+`output/collection_reconciliation/online_payments_review.json` by default.
+The UI supports selecting every ready proposal and confirming one bulk action.
+Bulk acceptance fetches the current uncategorized bank set once, then processes
+the selected payments sequentially so failures remain isolated and Books API
+rate limits are respected.
+
+The default queue combines uncategorized transactions from the configured HDFC,
+ICICI, and IDFC Books accounts. Each proposal retains the originating bank name
+and account ID; the UI displays the bank in its own column, and an accepted
+payment is created and matched through that specific account. A transaction is
+never consumed by more than one Creator payment in the same refresh.
+
+The same queue combines Creator's `Online_Payments` and `Cheques` reports.
+Online rows use `Payment_Date` and Books mode `banktransfer`; cheque rows use
+`All_Cheque_Details.Presented_Date` and Books mode `check`. The detail row is
+joined to `Cheques` by normalized cheque number plus customer; the join must be
+unique and the presented date must be populated. This prevents a cheque that
+has not yet been presented from matching merely because its issue date is up
+to 90 days old. Each entry retains its source report so the final
+`Books_Transaction_Id` checkpoint is written through the correct Creator
+report. The UI shows the payment type separately from the bank name. Online
+matching remains same-day by default. Cheque matching allows a seven-day bank
+clearing window from the presented date while still requiring exact amount and
+reference.
+
+The long-running review server supplies Books and Creator token-refresh
+callbacks backed by the configured HTTP token broker. A 401 response refreshes
+the affected service token and retries the request once. Authorization failure
+during the pre-push bank snapshot creates no payment; an individually attempted
+entry is left retryable with no Books checkpoint.
+
+Legacy queue payments created before invoice allocation can be repaired with
+`scripts/repair_review_payment_allocations.py`. Dry-run is the default. Execute
+mode updates the existing Books payment rather than replacing it, preserves any
+existing invoice applications, allocates only the live `unused_amount`
+oldest-due-first, and reads the payment back after every update. An atomic JSON
+checkpoint records planned, repaired, already-allocated, no-open-invoice, and
+failed outcomes so the operation is safely repeatable.
+
 # Related Knowledge
 
 See [Package Architecture](architecture.md), [Configuration Reference](configuration.md), [Zoho Books Client](zoho-books.md), and [Development Runbook](development-runbook.md).

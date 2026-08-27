@@ -182,6 +182,42 @@ for manual exceptions. Set `dry_run=False` only after reviewing the validation
 and match output. Pass `create_missing_books_fields=True` to explicitly create
 missing Books fields; Creator form fields must be configured in Creator.
 
+For the production Creator `Online_Payments` report, launch the local human
+review queue instead:
+
+```bash
+python scripts/review_online_payments.py
+```
+
+Open `http://127.0.0.1:8765`. The queue maps the live `Payments` form fields and
+the `All_Customers1.Customer_Id` Books identifier, proposes unique
+date/amount/reference bank matches, and persists accept/reject decisions under
+`output/collection_reconciliation/`. Rejecting is local-only. `Accept & Push`
+revalidates the live bank line, refreshes the customer's open Books invoices,
+allocates the payment oldest-due-first, creates or reuses a checkpointed Books
+customer payment, matches it to the bank transaction, and writes the payment ID
+to the Creator `Books_Transaction_Id` field. Rows with no open invoice are
+blocked so the full payment cannot accidentally become unused credit. If open
+invoice balances are lower than the payment, the preview shows the exact excess
+that will remain unused. The server binds only to loopback and requires a
+per-process confirmation token for mutations.
+Use `Select all ready` followed by `Accept selected & Push` to approve every
+eligible match with one confirmation. The backend reuses one live bank snapshot
+and processes the selected pushes sequentially, returning isolated failures.
+By default the same page combines HDFC, ICICI, and IDFC proposals and displays
+the originating bank in a dedicated column. It also combines Creator's
+`Online_Payments` and `Cheques` reports, labels the payment type, and uses the
+`Presented_Date` from Creator's `All_Cheque_Details` report and Books `check`
+payment mode for cheque rows. Cheque details are joined uniquely by normalized
+cheque number and customer; an unpresented or ambiguous cheque is not eligible.
+
+To repair legacy queue-created payments whose amount was left as unused credit,
+run `python scripts/repair_review_payment_allocations.py` for a read-only plan,
+then add `--execute`. The repair updates each existing payment in place,
+preserves previous invoice allocations, applies only its live unused amount
+oldest-due-first, verifies the resulting unused balance, and writes an atomic
+checkpoint under `output/collection_reconciliation/`.
+
 To backfill the reciprocal Creator identifiers onto existing Books customer
 payments from Creator's `matched` report, run the guarded temporary script:
 

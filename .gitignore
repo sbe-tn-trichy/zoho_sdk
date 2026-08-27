@@ -20,7 +20,8 @@ logs/
 output/
 
 # Local project scripts
-/scripts/
+/scripts/*
+!/scripts/review_online_payments.py
 
 # IDE files
 .vscode/
