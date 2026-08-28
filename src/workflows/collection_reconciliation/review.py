@@ -67,7 +67,9 @@ class OnlinePaymentReviewConfig:
     payment_reports: Tuple[Tuple[str, str], ...] = ()
     cheque_detail_report_link_name: str = "All_Cheque_Details"
     customer_report_link_name: str = "All_Customers1"
+    creator_checkpoint_report_link_name: str = "All_Payments"
     creator_books_id_field: str = "Books_Transaction_Id"
+    creator_payment_number_field: str = "PaymentNo"
     date_tolerance_days: int = 0
     cheque_date_tolerance_days: int = 7
     amount_tolerance: Decimal = Decimal("0")
@@ -147,7 +149,9 @@ class OnlinePaymentReviewService:
                     for key in (
                         "decision",
                         "push_status",
+                        "retry_stage",
                         "books_payment_id",
+                        "books_payment_number",
                         "decision_at",
                         "pushed_at",
                         "error",
@@ -230,6 +234,14 @@ class OnlinePaymentReviewService:
             try:
                 self._push_entry(batch, entry, current_bank_by_id=current_bank_by_id)
             except Exception as exc:
+                stage = _text(entry.get("push_status"))
+                if stage in {
+                    "payment_created",
+                    "match_requested",
+                    "bank_matched",
+                    "creator_updated",
+                }:
+                    entry["retry_stage"] = stage
                 entry["push_status"] = "failed"
                 entry["error"] = str(exc)
                 self._save(batch)
@@ -279,6 +291,11 @@ class OnlinePaymentReviewService:
         entry: Dict[str, Any],
         current_bank_by_id: Optional[Mapping[str, Mapping[str, Any]]] = None,
     ) -> None:
+        stage = _text(
+            entry.get("retry_stage")
+            if entry.get("push_status") == "failed"
+            else entry.get("push_status")
+        )
         bank_id = _text(entry["bank"].get("transaction_id"))
         bank_account_id = _text(entry.get("bank_account_id"))
         if not bank_id:
@@ -288,7 +305,7 @@ class OnlinePaymentReviewService:
         if not _text(entry["creator"].get("books_customer_id")):
             raise ReconciliationError("The Creator customer has no Zoho Books Customer_Id.")
 
-        if entry.get("push_status") not in ("bank_matched", "creator_updated"):
+        if stage not in ("bank_matched", "creator_updated"):
             if current_bank_by_id is None:
                 current = self._current_bank_transaction(bank_id, bank_account_id)
             else:
@@ -300,6 +317,7 @@ class OnlinePaymentReviewService:
             self._require_same_match(entry, current)
 
         books_payment_id = _text(entry.get("books_payment_id"))
+        books_payment_number = _text(entry.get("books_payment_number"))
         if not books_payment_id:
             allocations, unallocated = self._invoice_allocations(
                 entry["creator"]["books_customer_id"],
@@ -333,15 +351,33 @@ class OnlinePaymentReviewService:
                 raise ReconciliationError(
                     "Books created a customer payment but returned no payment ID."
                 )
+            books_payment_number = _identifier(response, ("payment_number",)) or ""
             entry.update(
                 {
                     "books_payment_id": books_payment_id,
+                    "books_payment_number": books_payment_number,
                     "push_status": "payment_created",
                 }
             )
+            entry.pop("retry_stage", None)
+            stage = "payment_created"
             self._save(batch)
 
-        if entry.get("push_status") not in ("bank_matched", "creator_updated"):
+        if not books_payment_number:
+            payment_response = self.books.customer_payments.get(books_payment_id)
+            books_payment_number = _identifier(
+                payment_response,
+                ("payment_number",),
+            ) or ""
+            if not books_payment_number:
+                raise ReconciliationError(
+                    "Books returned no payment number for the created customer payment. "
+                    "The existing payment will be reused on retry."
+                )
+            entry["books_payment_number"] = books_payment_number
+            self._save(batch)
+
+        if stage not in ("bank_matched", "creator_updated"):
             matches = self.books.bank_transactions.get_matches(bank_id)
             rows = matches.get("matching_transactions", []) if isinstance(matches, dict) else []
             candidate = next(
@@ -372,20 +408,91 @@ class OnlinePaymentReviewService:
                 ],
             )
             entry["push_status"] = "bank_matched"
+            entry.pop("retry_stage", None)
+            stage = "bank_matched"
             self._save(batch)
 
-        if entry.get("push_status") != "creator_updated":
-            self.creator.update_records(
-                self.config.creator_app_link_name,
-                entry["source_report"],
-                {"data": {self.config.creator_books_id_field: books_payment_id}},
-                record_id=entry["id"],
+        if stage != "creator_updated":
+            self._checkpoint_creator(
+                entry,
+                books_payment_id,
+                books_payment_number,
             )
             entry["push_status"] = "creator_updated"
+            entry.pop("retry_stage", None)
             self._save(batch)
 
         entry.update({"push_status": "pushed", "pushed_at": _now(), "error": ""})
+        entry.pop("retry_stage", None)
         self._save(batch)
+
+    def _checkpoint_creator(
+        self,
+        entry: Mapping[str, Any],
+        books_payment_id: str,
+        books_payment_number: str,
+    ) -> None:
+        """Write and verify the Books payment checkpoint in Creator."""
+        record_id = _text(entry.get("id"))
+        report_name = self.config.creator_checkpoint_report_link_name
+        response = self.creator.update_records(
+            self.config.creator_app_link_name,
+            report_name,
+            {
+                "data": {
+                    self.config.creator_books_id_field: books_payment_id,
+                    self.config.creator_payment_number_field: books_payment_number,
+                }
+            },
+            record_id=record_id,
+        )
+        self._require_creator_update_success(response)
+
+        readback = self.creator.get_records(
+            self.config.creator_app_link_name,
+            report_name,
+            params={
+                "criteria": f"ID == {record_id}",
+                "field_config": "all",
+            },
+        )
+        rows = readback.get("data", []) if isinstance(readback, Mapping) else []
+        record = next(
+            (
+                row
+                for row in rows
+                if isinstance(row, Mapping) and _text(row.get("ID")) == record_id
+            ),
+            None,
+        )
+        actual = _text(record.get(self.config.creator_books_id_field)) if record else ""
+        actual_number = (
+            _text(record.get(self.config.creator_payment_number_field)) if record else ""
+        )
+        if actual != books_payment_id or actual_number != books_payment_number:
+            raise ReconciliationError(
+                "Creator checkpoint verification failed: Books_Transaction_Id and Payment# "
+                "were not both saved. The existing Books payment will be reused on retry."
+            )
+
+    @staticmethod
+    def _require_creator_update_success(response: Any) -> None:
+        if not isinstance(response, Mapping):
+            raise ReconciliationError("Creator returned an invalid update response.")
+        payloads: List[Mapping[str, Any]] = [response]
+        data = response.get("data")
+        if isinstance(data, Mapping):
+            payloads.append(data)
+        elif isinstance(data, list):
+            payloads.extend(row for row in data if isinstance(row, Mapping))
+        for payload in payloads:
+            code = payload.get("code")
+            if code is not None and _text(code) not in {"0", "3000"}:
+                message = _text(payload.get("message") or payload.get("description"))
+                raise ReconciliationError(
+                    f"Creator rejected the checkpoint update (code={code})"
+                    + (f": {message}" if message else ".")
+                )
 
     def _proposal(
         self,
@@ -450,6 +557,7 @@ class OnlinePaymentReviewService:
             "decision": "pending",
             "push_status": "not_started",
             "books_payment_id": "",
+            "books_payment_number": "",
             "error": "",
         }
 

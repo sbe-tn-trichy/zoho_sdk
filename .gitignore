@@ -21,6 +21,7 @@ output/
 
 # Local project scripts
 /scripts/*
+!/scripts/project_dashboard.py
 !/scripts/review_online_payments.py
 
 # IDE files

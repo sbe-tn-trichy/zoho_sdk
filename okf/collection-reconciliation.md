@@ -132,7 +132,13 @@ unique and the presented date must be populated. This prevents a cheque that
 has not yet been presented from matching merely because its issue date is up
 to 90 days old. Each entry retains its source report so the final
 `Books_Transaction_Id` checkpoint is written through the correct Creator
-report. The UI shows the payment type separately from the bank name. Online
+record via the canonical `All_Payments` report. The workflow validates the
+Creator response and reads the record back with all fields before marking the
+queue entry pushed. The checkpoint writes both the Books payment ID to
+`Books_Transaction_Id` and the human-readable Books payment number to the
+Creator `PaymentNo` (`Payment#`) field. A failed Creator checkpoint retains the completed
+`bank_matched` stage, so retry reuses the existing Books payment and only
+retries the Creator write. The UI shows the payment type separately from the bank name. Online
 matching remains same-day by default. Cheque matching allows a seven-day bank
 clearing window from the presented date while still requiring exact amount and
 reference.

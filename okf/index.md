@@ -25,3 +25,4 @@ okf_version: "0.2"
 ## Operations
 
 * [Development Runbook](development-runbook.md) - Local virtual environment setup, pytest runner execution, and safe workflow development guidelines.
+* [Project Operations Dashboard](project-dashboard.md) - Loopback-only numbered launcher for common safe-default workflows.

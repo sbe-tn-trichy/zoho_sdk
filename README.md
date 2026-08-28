@@ -108,6 +108,19 @@ timestamp changes but the metadata content does not.
 Higher-level reconciliation and credit-memo operations are available under
 `workflows`:
 
+### Local operations dashboard
+
+Launch the numbered startup page for frequently used, safe-default workflows:
+
+```bash
+python scripts/project_dashboard.py
+```
+
+Open `http://127.0.0.1:8750`, enter a workflow number, and press Enter. The
+dashboard runs only its fixed command allowlist, shows live status and recent
+output, and links to local workflow UIs when available. Commands that mutate
+Zoho are not exposed with their live execution flags.
+
 ```python
 from workflows import (
     CollectionReconciliationConfig,

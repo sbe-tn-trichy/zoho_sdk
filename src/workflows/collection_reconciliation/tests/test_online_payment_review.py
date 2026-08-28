@@ -58,6 +58,19 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             "status": "overdue",
         }
         self.books.invoices.list_all.return_value = [self.invoice]
+        self.creator.update_records.return_value = {
+            "code": 3000,
+            "data": {"ID": "creator-1"},
+        }
+        self.creator.get_records.return_value = {
+            "data": [
+                {
+                    "ID": "creator-1",
+                    "Books_Transaction_Id": "books-payment-1",
+                    "PaymentNo": "PAY-0001",
+                }
+            ]
+        }
 
     def _refresh(self):
         self.creator.get_all_records.side_effect = [
@@ -98,7 +111,10 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self._refresh()
         self.books.bank_transactions.list_all.return_value = [self.bank]
         self.books.customer_payments.create.return_value = {
-            "payment": {"payment_id": "books-payment-1"}
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+            }
         }
         self.books.bank_transactions.get_matches.return_value = {
             "matching_transactions": [
@@ -114,6 +130,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
 
         self.assertEqual(pushed["push_status"], "pushed")
         self.assertEqual(pushed_again["books_payment_id"], "books-payment-1")
+        self.assertEqual(pushed_again["books_payment_number"], "PAY-0001")
         create_payload = self.books.customer_payments.create.call_args.args[0]
         self.assertEqual(create_payload["customer_id"], "books-customer-1")
         self.assertEqual(create_payload["amount"], 1250.0)
@@ -133,17 +150,131 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         )
         self.creator.update_records.assert_called_once_with(
             "app",
-            "Online_Payments",
-            {"data": {"Books_Transaction_Id": "books-payment-1"}},
+            "All_Payments",
+            {
+                "data": {
+                    "Books_Transaction_Id": "books-payment-1",
+                    "PaymentNo": "PAY-0001",
+                }
+            },
             record_id="creator-1",
         )
+        self.creator.get_records.assert_called_once_with(
+            "app",
+            "All_Payments",
+            params={"criteria": "ID == creator-1", "field_config": "all"},
+        )
+
+    def test_missing_create_payment_number_is_loaded_before_creator_checkpoint(self):
+        self._refresh()
+        self.books.bank_transactions.list_all.return_value = [self.bank]
+        self.books.customer_payments.create.return_value = {
+            "payment": {"payment_id": "books-payment-1"}
+        }
+        self.books.customer_payments.get.return_value = {
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+            }
+        }
+        self.books.bank_transactions.get_matches.return_value = {
+            "matching_transactions": [
+                {
+                    "transaction_id": "books-payment-1",
+                    "transaction_type": "customerpayment",
+                }
+            ]
+        }
+
+        pushed = self.service.accept_and_push("creator-1")
+
+        self.assertEqual(pushed["books_payment_number"], "PAY-0001")
+        self.books.customer_payments.get.assert_called_once_with("books-payment-1")
+
+    def test_creator_checkpoint_failure_retries_without_duplicate_books_payment(self):
+        self._refresh()
+        self.books.bank_transactions.list_all.return_value = [self.bank]
+        self.books.customer_payments.create.return_value = {
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+            }
+        }
+        self.books.bank_transactions.get_matches.return_value = {
+            "matching_transactions": [
+                {
+                    "transaction_id": "books-payment-1",
+                    "transaction_type": "customerpayment",
+                }
+            ]
+        }
+        self.creator.get_records.return_value = {"data": [{"ID": "creator-1"}]}
+
+        with self.assertRaisesRegex(
+            ReconciliationError, "Creator checkpoint verification failed"
+        ):
+            self.service.accept_and_push("creator-1")
+
+        failed = self.service.load()["entries"][0]
+        self.assertEqual(failed["push_status"], "failed")
+        self.assertEqual(failed["retry_stage"], "bank_matched")
+        self.assertEqual(failed["books_payment_id"], "books-payment-1")
+
+        self.creator.get_records.return_value = {
+            "data": [
+                {
+                    "ID": "creator-1",
+                    "Books_Transaction_Id": "books-payment-1",
+                    "PaymentNo": "PAY-0001",
+                }
+            ]
+        }
+        pushed = self.service.accept_and_push("creator-1")
+
+        self.assertEqual(pushed["push_status"], "pushed")
+        self.books.customer_payments.create.assert_called_once()
+        self.books.bank_transactions.match.assert_called_once()
+        self.assertEqual(self.creator.update_records.call_count, 2)
+
+    def test_creator_application_error_is_not_marked_pushed(self):
+        self._refresh()
+        self.books.bank_transactions.list_all.return_value = [self.bank]
+        self.books.customer_payments.create.return_value = {
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+            }
+        }
+        self.books.bank_transactions.get_matches.return_value = {
+            "matching_transactions": [
+                {
+                    "transaction_id": "books-payment-1",
+                    "transaction_type": "customerpayment",
+                }
+            ]
+        }
+        self.creator.update_records.return_value = {
+            "code": 3001,
+            "message": "Field validation failed",
+        }
+
+        with self.assertRaisesRegex(ReconciliationError, "code=3001"):
+            self.service.accept_and_push("creator-1")
+
+        failed = self.service.load()["entries"][0]
+        self.assertEqual(failed["push_status"], "failed")
+        self.assertEqual(failed["retry_stage"], "bank_matched")
+        self.creator.get_records.assert_not_called()
 
     def test_accept_many_uses_one_live_bank_snapshot(self):
         self._refresh()
         self.books.bank_transactions.list_all.reset_mock()
         self.books.bank_transactions.list_all.return_value = [self.bank]
         self.books.customer_payments.create.return_value = {
-            "payment": {"payment_id": "books-payment-1"}
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+            }
         }
         self.books.bank_transactions.get_matches.return_value = {
             "matching_transactions": [
@@ -203,7 +334,10 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             ["invoice-old", "invoice-new"],
         )
         self.books.customer_payments.create.return_value = {
-            "payment": {"payment_id": "books-payment-1"}
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+            }
         }
         self.books.bank_transactions.get_matches.return_value = {
             "matching_transactions": [
@@ -349,7 +483,10 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertEqual(entry["creator"]["date"], "2026-07-12")
 
         self.books.customer_payments.create.return_value = {
-            "payment": {"payment_id": "books-payment-1"}
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+            }
         }
         self.books.bank_transactions.get_matches.return_value = {
             "matching_transactions": [
@@ -365,8 +502,13 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertEqual(payload["payment_mode"], "check")
         self.creator.update_records.assert_called_once_with(
             "app",
-            "Cheques",
-            {"data": {"Books_Transaction_Id": "books-payment-1"}},
+            "All_Payments",
+            {
+                "data": {
+                    "Books_Transaction_Id": "books-payment-1",
+                    "PaymentNo": "PAY-0001",
+                }
+            },
             record_id="creator-1",
         )
 
