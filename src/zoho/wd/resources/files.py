@@ -5,6 +5,7 @@ import logging
 import os
 import sys
 import re
+from zoho.security import resolve_output_path, sanitize_filename
 
 # Logger setup
 
@@ -45,10 +46,7 @@ class Files(BaseResource):
 
     def download(self, file_id: str, save_path: str, source_folder_id: str = None) -> None:
         """Download a file and save it to the specified path."""
-        if not os.path.isabs(save_path):
-            save_path = os.path.join("output", save_path)
-            save_path = os.path.abspath(save_path)
-
+        save_path = resolve_output_path(save_path)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         app_logger.info(f"Downloading file {file_id} to {save_path}")
         download_url = f"https://download.zoho.{self.client.domain}/v1/workdrive/download/{file_id}"
@@ -60,12 +58,7 @@ class Files(BaseResource):
 
     def _safe_download_name(self, name: Optional[str], fallback: str) -> str:
         """Return a filesystem-safe filename while keeping it readable."""
-        candidate = (name or fallback or "unnamed").strip()
-        candidate = _UNSAFE_FILENAME_CHARS.sub("_", candidate)
-        candidate = candidate.rstrip(" .")
-        if candidate in {"", ".", ".."}:
-            return fallback or "unnamed"
-        return candidate
+        return sanitize_filename(name, fallback=fallback)
 
     def _is_folder_item(self, item: Dict[str, Any]) -> bool:
         """Detect folder records across the shapes returned by WorkDrive APIs."""
@@ -106,10 +99,9 @@ class Files(BaseResource):
         dry_run: bool = False,
     ) -> List[Path]:
         """Recursively download all files from a Zoho WorkDrive folder."""
-        dest_path = Path(destination)
-        if not dest_path.is_absolute():
-            dest_path = Path("output") / dest_path
+        dest_path = Path(resolve_output_path(str(destination)))
         root = dest_path.expanduser().resolve()
+
         downloaded: List[Path] = []
         reserved_paths: set[Path] = set()
 

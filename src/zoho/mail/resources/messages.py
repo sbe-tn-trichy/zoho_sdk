@@ -1,6 +1,8 @@
 from ..base import BaseResource
 from typing import Any, Dict, Optional, List
 import os
+from pathlib import Path
+from zoho.security import sanitize_filename, resolve_output_path
 
 class Messages(BaseResource):
     def __init__(self, client, account_id: str):
@@ -80,8 +82,7 @@ class Messages(BaseResource):
         Download attachment and save to specified path.
         Returns the final file path (handles duplicates if needed, though here it just writes).
         """
-        if not os.path.isabs(download_path):
-            download_path = os.path.join("output", download_path)
+        download_path = resolve_output_path(download_path)
         content = self.get_attachment_content(folder_id, message_id, attachment_id)
         os.makedirs(os.path.dirname(download_path), exist_ok=True)
         with open(download_path, "wb") as f:
@@ -126,17 +127,19 @@ class Messages(BaseResource):
 
     def resolve_download_path(self, download_dir: str, attachment_name: str, sequence_index: Optional[int] = None) -> str:
         """Return a collision-safe path for an attachment in the target directory."""
-        base_name, extension = os.path.splitext(attachment_name)
+        safe_name = sanitize_filename(attachment_name, fallback="attachment")
+        base_name, extension = os.path.splitext(safe_name)
         if sequence_index:
-            attachment_name = f"{base_name}_{sequence_index}{extension}"
-            base_name, extension = os.path.splitext(attachment_name)
+            safe_name = f"{base_name}_{sequence_index}{extension}"
+            base_name, extension = os.path.splitext(safe_name)
 
-        target_path = os.path.join(download_dir, attachment_name)
+        target_dir = Path(resolve_output_path(download_dir))
+        target_path = target_dir / safe_name
         counter = 1
-        while os.path.exists(target_path):
-            target_path = os.path.join(download_dir, f"{base_name}_{counter}{extension}")
+        while target_path.exists():
+            target_path = target_dir / f"{base_name}_{counter}{extension}"
             counter += 1
-        return target_path
+        return str(target_path)
 
     def download_folder_attachments(self, folder_id: str, download_dir: str, filename: Optional[str] = None) -> List[str]:
         """
@@ -147,8 +150,7 @@ class Messages(BaseResource):
         :param filename: Optional local filename to use instead of Zoho attachment names.
         :return: A list of absolute paths to the downloaded files.
         """
-        if not os.path.isabs(download_dir):
-            download_dir = os.path.join("output", download_dir)
+        download_dir = resolve_output_path(download_dir)
         os.makedirs(download_dir, exist_ok=True)
         downloaded_paths = []
         override_index = 0
@@ -181,3 +183,4 @@ class Messages(BaseResource):
                 downloaded_paths.append(os.path.abspath(final_path))
         
         return downloaded_paths
+

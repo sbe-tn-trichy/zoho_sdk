@@ -1,0 +1,23 @@
+{
+  "active_profile": "production",
+  "profiles": {
+    "production": {
+      "token_url": "http://localhost:3000/server/new/tokens",
+      "org_id": "<your-zoho-organization-id>",
+      "domain": "in",
+      "polycab_folder_id": "<workdrive-folder-id>",
+      "polycab_vendor_id": "<vendor-contact-id>",
+      "rso_customer_id": "<customer-contact-id>",
+      "expected_location_id": "<location-id>",
+      "expected_location_name": "<branch-name>",
+      "bank_account_hdfc": "<bank-account-id>",
+      "bank_account_icici": "<bank-account-id>",
+      "bank_account_idfc": "<bank-account-id>"
+    },
+    "sandbox": {
+      "token_url": "http://localhost:3000/server/new/tokens",
+      "org_id": "<sandbox-organization-id>",
+      "domain": "in"
+    }
+  }
+}

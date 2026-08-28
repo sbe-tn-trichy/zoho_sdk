@@ -1,5 +1,12 @@
 # Knowledge Change Log
 
+## 2026-08-28
+
+- Added `zoho.security` with `sanitize_filename()` and `resolve_output_path()` to neutralize path traversal attacks across Mail attachments, WorkDrive files, Books contact/vendor statements, and GST report downloads.
+- Removed hardcoded tenant entity IDs and accounts from library defaults.
+- Implemented multi-tier configuration loading in `workflows.core.config` supporting process environment variables, local `.env`, project `zoho_config.json`, and user home configuration (`~/.config/zoho/config.json`).
+- Added `zoho_config.example.json` configuration template and ignored `.zoho_cache.json` in `.gitignore`.
+
 ## 2026-08-27
 
 - Changed cheque reconciliation to use the uniquely joined

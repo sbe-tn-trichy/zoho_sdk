@@ -37,12 +37,21 @@ class SalesOrders(BaseResource, StatusMixin):
                 files=files,
             )
 
-    def create_from_yaml(self, yaml_str: str, customer_id: str = "1094368000001317103", create_missing_items: bool = False) -> Dict[str, Any]:
+    def create_from_yaml(
+        self,
+        yaml_str: str,
+        customer_id: str,
+        create_missing_items: bool = False,
+        default_accounts: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
         """
         Create a Sales Order in Zoho Books from a flat or standard invoice YAML string.
         Resolves items by SKU (optionally creating them if missing when create_missing_items=True).
         """
         from datetime import datetime
+
+        if not customer_id:
+            raise ValueError("customer_id is required to create a sales order.")
         
         # 1. Custom line-by-line YAML parser to handle flat formats
         data = {
@@ -110,13 +119,6 @@ class SalesOrders(BaseResource, StatusMixin):
             
         so_number = f"SO-{data['inv']['no']}"
         
-        # Default accounts configuration for Polycab Fan
-        default_accounts = {
-            "account_id": "1094368000035080815",
-            "purchase_account_id": "1094368000035990257",
-            "inventory_account_id": "1094368000035130337"
-        }
-        
         # 3. Resolve line items
         line_items = []
         for idx, item in enumerate(data['items']):
@@ -139,6 +141,10 @@ class SalesOrders(BaseResource, StatusMixin):
             else:
                 if not create_missing_items:
                     raise ValueError(f"Item with SKU '{sku}' not found in Zoho Books. Use create_missing_items=True to allow automatic creation.")
+                if not default_accounts or not default_accounts.get("account_id") or not default_accounts.get("purchase_account_id") or not default_accounts.get("inventory_account_id"):
+                    raise ValueError(
+                        "default_accounts (with account_id, purchase_account_id, inventory_account_id) is required to create missing items."
+                    )
                 # Determine HSN
                 sku_upper = sku.upper()
                 name_upper = name.upper()
@@ -167,6 +173,7 @@ class SalesOrders(BaseResource, StatusMixin):
                 new_item = new_item_res.get("item", {})
                 item_id = new_item.get("item_id")
                 item_name = new_item.get("name")
+
                 
             line_items.append({
                 "item_id": item_id,

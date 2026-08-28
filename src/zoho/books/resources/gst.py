@@ -5,6 +5,7 @@ import calendar
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor
+from zoho.security import resolve_output_path
 from ..base import BaseResource
 
 logger = logging.getLogger("zoho_books")
@@ -320,10 +321,7 @@ class GST(BaseResource):
         if 'accept' not in params:
             params['accept'] = 'xlsx'
 
-        if not os.path.isabs(save_path):
-            save_path = os.path.join("output", save_path)
-            save_path = os.path.abspath(save_path)
-
+        save_path = resolve_output_path(save_path)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         content = self.get_gstr_outward_supplies(params=params)
         with open(save_path, "wb") as f:
@@ -345,12 +343,10 @@ class GST(BaseResource):
         if 'accept' not in params:
             params['accept'] = 'xlsx'
 
-        if not os.path.isabs(save_path):
-            save_path = os.path.join("output", save_path)
-            save_path = os.path.abspath(save_path)
-
+        save_path = resolve_output_path(save_path)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         content = self.get_gstr_inward_supplies(params=params)
         with open(save_path, "wb") as f:
             f.write(content)
         return save_path
+

@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Any, Dict, List, Optional
+from zoho.security import resolve_output_path
 
 from ..base import BaseResource
 from ..mixins import ActiveInactiveMixin
@@ -55,15 +56,13 @@ class Contacts(BaseResource, ActiveInactiveMixin):
         if 'accept' not in params:
             params['accept'] = 'xls'
 
-        if not os.path.isabs(save_path):
-            save_path = os.path.join("output", save_path)
-            save_path = os.path.abspath(save_path)
-
+        save_path = resolve_output_path(save_path)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         content = self.get_statement(contact_id, params=params)
         with open(save_path, "wb") as f:
             f.write(content)
         return save_path
+
 
 class Organizations(BaseResource):
     def __init__(self, client: Any):
@@ -128,12 +127,10 @@ class Vendors(BaseResource, ActiveInactiveMixin):
         if 'accept' not in params:
             params['accept'] = 'xls'
 
-        if not os.path.isabs(save_path):
-            save_path = os.path.join("output", save_path)
-            save_path = os.path.abspath(save_path)
-
+        save_path = resolve_output_path(save_path)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         content = self.get_statement(vendor_id, params=params)
         with open(save_path, "wb") as f:
             f.write(content)
         return save_path
+

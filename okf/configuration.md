@@ -12,9 +12,18 @@ sources:
 status: active
 ---
 
-# Environment Variables
+# Configuration Hierarchy
 
-Runtime configuration is loaded via environment variables or a local `.env` file:
+Runtime configuration is loaded using a prioritized multi-tier hierarchy:
+
+1. **Environment Variables**: Explicit process environment variables (`os.environ`).
+2. **Project `.env` File**: Local `.env` in the repository root (not committed).
+3. **Project `zoho_config.json` File**: Local JSON configuration profile in the project root (ignored in `.gitignore`).
+4. **User Home Config (`~/.config/zoho/config.json` or `~/.zoho/config.json`)**: User-level global configuration profiles.
+
+A configuration template is provided in `zoho_config.example.json`.
+
+Supported configuration keys:
 
 - `TOKEN_URL`: HTTP URL for retrieving runtime OAuth access tokens.
 - `ORG_ID`: Zoho Books organization ID.
@@ -36,11 +45,13 @@ Runtime configuration is loaded via environment variables or a local `.env` file
   `BANK_ACCOUNT_ICICI`: Books bank-account identifiers.
 - `GSTIN_TO_VENDOR_ID`: JSON object mapping GSTIN values to vendor IDs.
 
-# Credential Safety
+# Credential Safety & Path Security
 
 Access tokens are retrieved dynamically at runtime from `TOKEN_URL` and are not persisted in source code, logs, or reports.
 
-`.env` is intended for local execution only and must not be committed. Prefer explicit environment configuration for deployed workloads. Treat organization, vendor, item, tax, bank-account, location, and WorkDrive folder IDs as deployment-specific values even where development defaults exist.
+All downloaded attachments, reports, and exported statements are automatically sanitized and strictly confined to the `output/` directory (or specified absolute paths) using `resolve_output_path()` and `sanitize_filename()` in `zoho.security` to prevent directory traversal and arbitrary file overwrite attacks.
+
+`.env` and `zoho_config.json` are intended for local execution only and must not be committed. Prefer explicit environment or user home (`~/.config/zoho/config.json`) configuration for deployed workloads. Treat organization, vendor, item, tax, bank-account, location, and WorkDrive folder IDs as deployment-specific values without hardcoding tenant defaults in library code.
 
 Polycab vendor-credit creation passes `EXPECTED_LOCATION_ID` explicitly in
 the Zoho Books payload. Callers may override the location for a single credit

@@ -34,6 +34,8 @@ output/
 .coverage
 htmlcov/
 
-# Local config
+# Local config & cache
 zoho_config.json
+.zoho_cache.json
+*.cache.json
 uv.lock
