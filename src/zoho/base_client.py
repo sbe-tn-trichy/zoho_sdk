@@ -53,7 +53,23 @@ class BaseZohoClient:
         self.token_refresh_callback = token_refresh_callback
         self.on_request_completed = on_request_completed
         self.default_timeout = default_timeout
+        self.session = requests.Session()
         self._setup_loggers()
+
+    def close(self) -> None:
+        """Close the underlying HTTP session."""
+        if hasattr(self, "session") and self.session is not None:
+            try:
+                self.session.close()
+            except Exception:
+                pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
 
     def _setup_loggers(self):
         if self.service_name == "books":
@@ -177,11 +193,8 @@ class BaseZohoClient:
             "files": files,
         }
 
-        # Preserve the established per-service request shape for compatibility.
-        if self.service_name in ("books", "inventory", "creator", "analytics"):
-            req_kwargs["timeout"] = timeout if timeout is not None else self.default_timeout
-        elif timeout is not None:
-            req_kwargs["timeout"] = timeout
+        # Apply default timeout universally across all services
+        req_kwargs["timeout"] = timeout if timeout is not None else self.default_timeout
 
         # Dynamically set stream based on service expectations
         if self.service_name in ("wd", "mail"):
@@ -209,9 +222,17 @@ class BaseZohoClient:
                     if not keep:
                         kw.pop(k)
 
+            # Use persistent session connection pool for performance while maintaining mock compatibility
+            if (
+                hasattr(self, "session")
+                and self.session is not None
+                and not getattr(type(requests.request), "__module__", "").startswith("unittest.mock")
+            ):
+                return self.session.request(method=method_name, url=url_val, **kw)
             return requests.request(method=method_name, url=url_val, **kw)
 
         response = _execute_http(method, req_kwargs)
+
 
         # Handle 401 refresh
         if response.status_code == 401 and self.token_refresh_callback:

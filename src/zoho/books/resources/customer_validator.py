@@ -172,22 +172,32 @@ class CustomerValidator(BaseResource):
             
         logger.info(f"Processing details for {len(contacts_list)} / {total_found} contacts...")
         
-        # Concurrently fetch detailed contact records
+        # Concurrently fetch detailed contact records with rate pacing and backoff
         def fetch_details(c: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             c_id = c.get('contact_id')
             if not c_id:
                 return None
-            try:
-                res = self.client.contacts.get(c_id)
-                return res.get('contact')
-            except Exception as e:
-                logger.error(f"Failed to fetch details for contact {c_id}: {e}")
-                return None
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    res = self.client.contacts.get(c_id)
+                    return res.get('contact')
+                except Exception as e:
+                    is_rate_limit = "429" in str(e) or "rate" in str(e).lower() or getattr(e, "status_code", None) == 429
+                    if is_rate_limit and attempt < max_retries - 1:
+                        import time
+                        time.sleep(1.0 * (2 ** attempt))
+                        continue
+                    logger.error(f"Failed to fetch details for contact {c_id}: {e}")
+                    return None
+            return None
 
-        with ThreadPoolExecutor(max_workers=15) as executor:
+        workers = min(5, len(contacts_list)) if contacts_list else 1
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             detailed_contacts = list(executor.map(fetch_details, contacts_list))
             
         detailed_contacts = [dc for dc in detailed_contacts if dc is not None]
+
         
         report = []
         compliant_count = 0

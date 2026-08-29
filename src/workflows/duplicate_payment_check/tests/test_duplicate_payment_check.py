@@ -47,9 +47,12 @@ class TestDuplicatePaymentChecker(unittest.TestCase):
 
         result = self.checker.run(customer_id="c1", from_date="2026-08-01", to_date="2026-08-31")
 
-        self.books.customer_payments.list_all.assert_called_once_with(params={"customer_id": "c1"})
+        self.books.customer_payments.list_all.assert_called_once_with(
+            params={"customer_id": "c1", "date_start": "2026-08-01", "date_end": "2026-08-31"}
+        )
         self.assertEqual(result["payments_considered"], 2)
         self.assertEqual(result["duplicate_group_count"], 1)
+
 
     def test_rejects_inverted_date_range(self):
         with self.assertRaisesRegex(ValueError, "cannot be later"):

@@ -21,6 +21,8 @@ output/
 
 # Local project scripts
 /scripts/*
+!/scripts/backfill_review_creator_checkpoints.py
+!/scripts/backfill_online_payment_creator_fields.py
 !/scripts/project_dashboard.py
 !/scripts/review_online_payments.py
 

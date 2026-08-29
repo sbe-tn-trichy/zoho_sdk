@@ -201,7 +201,7 @@ class GST(BaseResource):
         self, client_module: Any, docs: List[Dict[str, Any]], id_key: str, doc_key: str
     ) -> List[Dict[str, Any]]:
         """
-        Fetches full document details concurrently using ThreadPoolExecutor.
+        Fetches full document details concurrently using ThreadPoolExecutor with rate pacing.
         """
         if not docs:
             return []
@@ -210,18 +210,28 @@ class GST(BaseResource):
             doc_id = doc.get(id_key)
             if not doc_id:
                 return None
-            try:
-                res = client_module.get(doc_id)
-                return res.get(doc_key)
-            except Exception as e:
-                logger.error(f"Failed to fetch full details for {doc_key} {doc_id}: {e}")
-                return None
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    res = client_module.get(doc_id)
+                    return res.get(doc_key)
+                except Exception as e:
+                    is_rate_limit = "429" in str(e) or "rate" in str(e).lower() or getattr(e, "status_code", None) == 429
+                    if is_rate_limit and attempt < max_retries - 1:
+                        import time
+                        time.sleep(1.0 * (2 ** attempt))
+                        continue
+                    logger.error(f"Failed to fetch full details for {doc_key} {doc_id}: {e}")
+                    return None
+            return None
 
-        # Fetch using up to 10 threads
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        # Fetch using safe rate-paced thread count
+        workers = min(5, len(docs))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             results = list(executor.map(fetch_one, docs))
             
         return [r for r in results if r is not None]
+
 
     def _generate_tax_summary(
         self, detailed_invoices: List[Dict[str, Any]], detailed_credit_notes: List[Dict[str, Any]]

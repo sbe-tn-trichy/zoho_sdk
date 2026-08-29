@@ -1,5 +1,14 @@
 # Knowledge Change Log
 
+## 2026-08-29
+
+- Added HTTP connection pooling and persistent session reuse (`requests.Session`) to `BaseZohoClient` with universal timeout defaults across all services.
+- Added rate-limit pacing and 429 backoff retry handling to `GST._fetch_details_concurrently` and `CustomerValidator.validate_customer_data`.
+- Added in-memory SKU lookup caching in `SalesOrders.create_from_yaml` to prevent duplicate API calls per line item.
+- Added server-side date filter propagation (`date_start`, `date_end`) to `DuplicatePaymentChecker.run`.
+- Added an exact-match Online Payments discovery backfill that identifies existing Books customer payments, verifies both Creator Books checkpoint fields, and blocks Books payments already owned by another Creator record.
+- Added a checkpointed, verified backfill for populating Creator `Books_Transaction_Id` and `PaymentNo` from every historical payment-review Books checkpoint.
+
 ## 2026-08-28
 
 - Added the human-readable Books customer-payment number to the verified Creator checkpoint through the `PaymentNo` (`Payment#`) field.

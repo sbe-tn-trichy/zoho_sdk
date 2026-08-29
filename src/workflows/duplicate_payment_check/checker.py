@@ -66,11 +66,19 @@ class DuplicatePaymentChecker:
         if start and end and start > end:
             raise ValueError("from_date cannot be later than to_date.")
 
-        params = {"customer_id": customer_id} if customer_id else None
+        params: Dict[str, Any] = {}
+        if customer_id:
+            params["customer_id"] = customer_id
+        if from_date:
+            params["date_start"] = from_date
+        if to_date:
+            params["date_end"] = to_date
+
         # The live Books response uses the endpoint-shaped `customerpayments`
         # key (without an underscore), which is also BaseResource's default.
-        payments = self.books.customer_payments.list_all(params=params)
+        payments = self.books.customer_payments.list_all(params=params or None)
         return self.check(payments, from_date=start, to_date=end)
+
 
     def check(
         self,

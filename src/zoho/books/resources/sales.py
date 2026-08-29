@@ -121,6 +121,7 @@ class SalesOrders(BaseResource, StatusMixin):
         
         # 3. Resolve line items
         line_items = []
+        sku_cache = {}
         for idx, item in enumerate(data['items']):
             sku = item.get("sku")
             name = item.get("name")
@@ -130,51 +131,55 @@ class SalesOrders(BaseResource, StatusMixin):
             if not sku or not name:
                 continue
                 
-            # Search item in Zoho Books
-            res = self.client.items.list(params={"sku": sku})
-            items_list = res.get("items", [])
-            
-            if items_list:
-                item_obj = items_list[0]
-                item_id = item_obj.get("item_id")
-                item_name = item_obj.get("name")
+            if sku in sku_cache:
+                item_id, item_name = sku_cache[sku]
             else:
-                if not create_missing_items:
-                    raise ValueError(f"Item with SKU '{sku}' not found in Zoho Books. Use create_missing_items=True to allow automatic creation.")
-                if not default_accounts or not default_accounts.get("account_id") or not default_accounts.get("purchase_account_id") or not default_accounts.get("inventory_account_id"):
-                    raise ValueError(
-                        "default_accounts (with account_id, purchase_account_id, inventory_account_id) is required to create missing items."
-                    )
-                # Determine HSN
-                sku_upper = sku.upper()
-                name_upper = name.upper()
-                hsn = "8516" if ("HEATER" in name_upper or "HWH" in sku_upper) else "8414"
+                # Search item in Zoho Books
+                res = self.client.items.list(params={"sku": sku})
+                items_list = res.get("items", [])
                 
-                # Create item
-                item_payload = {
-                    "name": name,
-                    "sku": sku,
-                    "hsn_or_sac": hsn,
-                    "rate": rate,
-                    "purchase_rate": round(rate / 1.12, 2),
-                    "account_id": default_accounts["account_id"],
-                    "purchase_account_id": default_accounts["purchase_account_id"],
-                    "inventory_account_id": default_accounts["inventory_account_id"],
-                    "item_tax_preferences": [{"tax_name": "GST18", "tax_percentage": 18}],
-                    "is_taxable": True,
-                    "product_type": "goods",
-                    "unit": "NOS",
-                    "track_inventory": True,
-                    "inventory_valuation_method": "fifo",
-                    "can_be_sold": True,
-                    "can_be_purchased": True
-                }
-                new_item_res = self.client.items.create(item_payload)
-                new_item = new_item_res.get("item", {})
-                item_id = new_item.get("item_id")
-                item_name = new_item.get("name")
+                if items_list:
+                    item_obj = items_list[0]
+                    item_id = item_obj.get("item_id")
+                    item_name = item_obj.get("name")
+                else:
+                    if not create_missing_items:
+                        raise ValueError(f"Item with SKU '{sku}' not found in Zoho Books. Use create_missing_items=True to allow automatic creation.")
+                    if not default_accounts or not default_accounts.get("account_id") or not default_accounts.get("purchase_account_id") or not default_accounts.get("inventory_account_id"):
+                        raise ValueError(
+                            "default_accounts (with account_id, purchase_account_id, inventory_account_id) is required to create missing items."
+                        )
+                    # Determine HSN
+                    sku_upper = sku.upper()
+                    name_upper = name.upper()
+                    hsn = "8516" if ("HEATER" in name_upper or "HWH" in sku_upper) else "8414"
+                    
+                    # Create item
+                    item_payload = {
+                        "name": name,
+                        "sku": sku,
+                        "hsn_or_sac": hsn,
+                        "rate": rate,
+                        "purchase_rate": round(rate / 1.12, 2),
+                        "account_id": default_accounts["account_id"],
+                        "purchase_account_id": default_accounts["purchase_account_id"],
+                        "inventory_account_id": default_accounts["inventory_account_id"],
+                        "item_tax_preferences": [{"tax_name": "GST18", "tax_percentage": 18}],
+                        "is_taxable": True,
+                        "product_type": "goods",
+                        "unit": "NOS",
+                        "track_inventory": True,
+                        "inventory_valuation_method": "fifo",
+                        "can_be_sold": True,
+                        "can_be_purchased": True
+                    }
+                    new_item_res = self.client.items.create(item_payload)
+                    new_item = new_item_res.get("item", {})
+                    item_id = new_item.get("item_id")
+                    item_name = new_item.get("name")
 
-                
+                sku_cache[sku] = (item_id, item_name)
+
             line_items.append({
                 "item_id": item_id,
                 "name": item_name,
@@ -182,6 +187,7 @@ class SalesOrders(BaseResource, StatusMixin):
                 "rate": rate,
                 "description": name
             })
+
             
         # 4. Create Sales Order
         so_payload = {

@@ -143,6 +143,25 @@ matching remains same-day by default. Cheque matching allows a seven-day bank
 clearing window from the presented date while still requiring exact amount and
 reference.
 
+Historical review-tool payments can be repaired with
+`scripts/backfill_review_creator_checkpoints.py`. It resolves the Books payment
+number from each checkpointed Books payment ID, updates both Creator fields,
+reads the record back, and saves resumable per-record results. Dry-run is the
+default; live writes require `--execute` and are capped by `--max-writes` unless
+explicitly set to zero.
+
+`scripts/backfill_online_payment_creator_fields.py` discovers additional
+Creator `Online_Payments` records that already have a corresponding Books
+customer payment. It only accepts a unique exact customer-ID, date, amount, and
+reference match (or a consistent existing Books identifier), then writes and
+verifies `Books_Transaction_Id` and `PaymentNo`. Missing, incomplete, and
+ambiguous records are reported without mutation. Canonical all-field Creator
+records are used so hidden checkpoint columns remain visible to the matcher,
+and ownership is checked across the full `All_Payments` dataset so a Books
+payment already linked to another Creator record is never reused even when the
+owner has disappeared from the filtered `Online_Payments` report.
+Dry-run is the default.
+
 The long-running review server supplies Books and Creator token-refresh
 callbacks backed by the configured HTTP token broker. A 401 response refreshes
 the affected service token and retries the request once. Authorization failure
