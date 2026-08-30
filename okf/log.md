@@ -59,6 +59,10 @@
 - Changed the default duplicate-payment report to a compact Markdown layout
   grouped by customer and date with reference-and-amount bullets.
 
+## 2026-08-15
+
+- Added `workflows.creator_customer_delete_sync` workflow for unidirectional deletion reconciliation of Zoho Creator customer records missing from Zoho Books, including `Customer_Id` field linkage, case-insensitive key resolution, dry-run safety, deletion limits, soft-delete option, and audit JSON output.
+
 ## 2026-08-13
 
 - Added a live ICICI unmatched-transaction CSV export with raw and normalized reference audit columns.

@@ -44,6 +44,11 @@ from .vendor_ledger_reconciliation.zeiss_pdf import (
 )
 from .gstr1_verification import GSTR1VerificationConfig, GSTR1Verifier, verify_gstr1
 from .duplicate_payment_check import DuplicatePaymentChecker, check_duplicate_payments
+from .creator_customer_delete_sync import (
+    CreatorCustomerDeleteSyncConfig,
+    CreatorCustomerDeleteSyncer,
+    sync_creator_customer_deletions,
+)
 
 __all__ = [
     "fetch_access_tokens",
@@ -83,4 +88,7 @@ __all__ = [
     "verify_gstr1",
     "DuplicatePaymentChecker",
     "check_duplicate_payments",
+    "CreatorCustomerDeleteSyncConfig",
+    "CreatorCustomerDeleteSyncer",
+    "sync_creator_customer_deletions",
 ]
