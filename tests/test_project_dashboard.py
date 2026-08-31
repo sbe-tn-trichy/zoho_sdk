@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts import open_homepage
 from scripts.project_dashboard import WorkflowRunner, WorkflowSpec
 
 
@@ -44,3 +45,45 @@ def test_registry_exposes_only_safe_default_commands():
     assert commands
     assert all("--execute" not in command for command in commands)
     assert all("--allow-batch" not in command for command in commands)
+
+
+def test_payment_preview_uses_production_review_refresh():
+    runner = WorkflowRunner()
+
+    preview = next(
+        workflow for workflow in runner.list_workflows() if workflow["number"] == 2
+    )
+
+    assert preview["name"] == "Payment reconciliation preview"
+    assert "review_online_payments.py --refresh-only" in preview["command"]
+
+
+def test_homepage_launcher_reuses_running_dashboard(monkeypatch):
+    opened = []
+    monkeypatch.setattr(open_homepage, "dashboard_is_running", lambda: True)
+    monkeypatch.setattr(
+        open_homepage,
+        "start_dashboard",
+        lambda: pytest.fail("an existing dashboard should be reused"),
+    )
+    monkeypatch.setattr(open_homepage.webbrowser, "open", opened.append)
+
+    assert open_homepage.main([]) == 0
+    assert opened == [open_homepage.DASHBOARD_URL]
+
+
+def test_homepage_launcher_starts_and_waits_for_dashboard(monkeypatch):
+    health_checks = iter((False, False, True))
+
+    class Process:
+        @staticmethod
+        def poll():
+            return None
+
+    monkeypatch.setattr(
+        open_homepage, "dashboard_is_running", lambda: next(health_checks)
+    )
+    monkeypatch.setattr(open_homepage, "start_dashboard", Process)
+    monkeypatch.setattr(open_homepage.time, "sleep", lambda _seconds: None)
+
+    assert open_homepage.main(["--no-browser"]) == 0

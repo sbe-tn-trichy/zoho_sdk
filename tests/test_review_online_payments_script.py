@@ -1,7 +1,11 @@
+import io
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from scripts.review_online_payments import _clients
+from scripts.review_online_payments import _clients, main
 
 
 class TestReviewOnlinePaymentsScript(unittest.TestCase):
@@ -29,6 +33,30 @@ class TestReviewOnlinePaymentsScript(unittest.TestCase):
         self.assertEqual(books_kwargs["access_token"], "books-old")
         self.assertEqual(creator_kwargs["token_refresh_callback"](), "creator-new")
         self.assertEqual(books_kwargs["token_refresh_callback"](), "books-newer")
+
+    @patch("scripts.review_online_payments.OnlinePaymentReviewService")
+    @patch("scripts.review_online_payments._clients")
+    def test_refresh_only_updates_preview_and_exits(self, clients, service_class):
+        clients.return_value = (MagicMock(), MagicMock())
+        service_class.return_value.refresh.return_value = {
+            "entries": [
+                {"reviewable": True, "push_status": "not_started"},
+                {"reviewable": False, "push_status": "not_started"},
+            ]
+        }
+
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "sys.stdout", new_callable=io.StringIO
+        ) as stdout:
+            state = Path(directory) / "review.json"
+            result = main(["--refresh-only", "--state", str(state)])
+
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            json.loads(stdout.getvalue()),
+            {"entries": 2, "ready": 1, "state": str(state)},
+        )
+        service_class.return_value.refresh.assert_called_once_with()
 
 
 if __name__ == "__main__":

@@ -45,9 +45,9 @@ WORKFLOWS = (
     ),
     WorkflowSpec(
         2,
-        "Collection reconciliation preview",
-        "Match pending Creator collections without writing to Books or Creator.",
-        (sys.executable, "scripts/run_collection_reconciliation.py"),
+        "Payment reconciliation preview",
+        "Refresh production online and cheque payment matches without writing to Zoho.",
+        (sys.executable, "scripts/review_online_payments.py", "--refresh-only"),
         "Collections",
     ),
     WorkflowSpec(

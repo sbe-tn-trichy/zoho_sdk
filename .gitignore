@@ -25,6 +25,7 @@ output/
 !/scripts/backfill_online_payment_creator_fields.py
 !/scripts/project_dashboard.py
 !/scripts/review_online_payments.py
+!/scripts/open_homepage.py
 
 # IDE files
 .vscode/

@@ -246,6 +246,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("output/collection_reconciliation/online_payments_review.json"),
     )
     parser.add_argument("--no-refresh", action="store_true")
+    parser.add_argument(
+        "--refresh-only",
+        action="store_true",
+        help="Refresh the read-only reconciliation preview and exit without serving the UI.",
+    )
     return parser
 
 
@@ -280,6 +285,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not args.no_refresh or not args.state.exists():
         batch = service.refresh()
         logging.info("Loaded %s Creator payment review entries", len(batch["entries"]))
+    else:
+        batch = service.load()
+    if args.refresh_only:
+        entries = batch.get("entries", [])
+        in_progress = {
+            "payment_created",
+            "match_requested",
+            "bank_matched",
+            "creator_updated",
+        }
+        ready = sum(
+            1
+            for entry in entries
+            if entry.get("reviewable")
+            and entry.get("push_status") != "pushed"
+            and entry.get("push_status") not in in_progress
+        )
+        print(
+            json.dumps(
+                {
+                    "entries": len(entries),
+                    "ready": ready,
+                    "state": str(args.state),
+                },
+                indent=2,
+            ),
+            flush=True,
+        )
+        return 0
     review_token = secrets.token_urlsafe(24)
     server = ThreadingHTTPServer((args.host, args.port), make_handler(service, review_token))
     print(f"Review UI: http://{args.host}:{args.port}", flush=True)

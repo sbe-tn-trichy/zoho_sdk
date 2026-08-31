@@ -113,6 +113,9 @@ The HTTP server binds only to a loopback address and mutation requests require
 both an explicit confirmation body and a random per-process review token. The
 queue state is stored at
 `output/collection_reconciliation/online_payments_review.json` by default.
+Pass `--refresh-only` to rebuild that production review state and print its
+entry counts without starting the HTTP server or writing to Zoho. This is the
+read-only payment preview exposed by the project dashboard.
 The UI supports selecting every ready proposal and confirming one bulk action.
 Bulk acceptance fetches the current uncategorized bank set once, then processes
 the selected payments sequentially so failures remain isolated and Books API
