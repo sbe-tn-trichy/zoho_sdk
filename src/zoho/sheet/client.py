@@ -28,7 +28,7 @@ class ZohoSheetAPI(BaseZohoClient):
         res = self.request("GET", "workbooks", params=params)
         return res.get('workbooks', [])
 
-    def list_sheets(self, workbook_id: str) -> List[Dict[str, Any]]:
+    def list_sheets(self, workbook_id: str) -> List[str]:
         """Lists all worksheets in a workbook."""
         params = {"method": "worksheet.list"}
         res = self.request("POST", workbook_id, params=params)
@@ -43,11 +43,23 @@ class ZohoSheetAPI(BaseZohoClient):
         }
         try:
             res = self.request("GET", workbook_id, params=params)
-            return res.get('records', [])
+            if isinstance(res, dict):
+                error_code = res.get("error_code")
+                if error_code == 2884:
+                    return []
+                if error_code or res.get("status") == "error":
+                    from zoho.exceptions import ZohoSheetError
+                    raise ZohoSheetError(
+                        res.get("error_message") or res.get("message") or f"Sheet Error (code={error_code})",
+                        error_code=error_code,
+                        response_data=res
+                    )
+            return res.get('records', []) if isinstance(res, dict) else []
         except Exception as e:
             if "2884" in str(e):
                 return []
             raise
+
 
     def set_content(self, workbook_id: str, sheet_name: str, range_addr: str, data: List[List[Any]]) -> Dict[str, Any]:
         """

@@ -1,6 +1,26 @@
+from typing import Any, Optional, Union
+
+
 class ZohoError(Exception):
     """Base exception class for all Zoho SDK errors."""
-    pass
+
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        error_code: Optional[Union[str, int]] = None,
+        response_data: Optional[Any] = None,
+        endpoint: Optional[str] = None,
+        retry_after: Optional[Union[str, int]] = None,
+    ):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.error_code = error_code
+        self.response_data = response_data
+        self.endpoint = endpoint
+        self.retry_after = retry_after
+
 
 class ZohoAuthError(ZohoError):
     """Authentication or token-provider failure."""

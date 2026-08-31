@@ -8,7 +8,7 @@ from .creator import ZohoCreatorAPI, ZohoCreatorError
 from .analytics import ZohoAnalyticsAPI, ZohoAnalyticsError
 from .auth import ZohoOAuth2Manager, CatalystAuth, HttpTokenProvider
 from .exceptions import ZohoError, ZohoAuthError, ZohoCliqError, ZohoSheetError
-from .security import sanitize_filename, resolve_output_path
+from .security import sanitize_filename, resolve_output_path, mask_sensitive_value, sanitize_log_params
 __all__ = [
     'ZohoBooksAPI',
     'ZohoBooksError',
@@ -32,4 +32,7 @@ __all__ = [
     'ZohoSheetError',
     'sanitize_filename',
     'resolve_output_path',
+    'mask_sensitive_value',
+    'sanitize_log_params',
 ]
+

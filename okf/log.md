@@ -1,5 +1,15 @@
 # Knowledge Change Log
 
+## 2026-08-31
+
+- Added sensitive parameter log redaction preserving last 4 characters (`mask_sensitive_value`, `sanitize_log_params`) in `src/zoho/security.py` and `BaseZohoClient`.
+- Added thread-safe token refresh synchronization with `threading.Lock` across worker threads in `BaseZohoClient`.
+- Added structured attributes (`status_code`, `error_code`, `response_data`, `endpoint`, `retry_after`) to `ZohoError` and sanitized raw HTML gateway responses.
+- Added generator-based pagination (`list_iter`) across Books and Inventory `BaseResource` to stream records page-by-page.
+- Implemented direct-to-disk chunked binary streaming across WorkDrive, Mail attachments, Books statements, and GSTR reports.
+- Fixed `Bills.update` to allow partial payload updates (`check_required=False`).
+- Added `raise_on_error` option to `ZohoCliqAPI.send_notification` and typed error handling in `ZohoSheetAPI`.
+
 ## 2026-08-29
 
 - Added HTTP connection pooling and persistent session reuse (`requests.Session`) to `BaseZohoClient` with universal timeout defaults across all services.

@@ -1,8 +1,10 @@
 import logging
 import collections.abc
+import threading
 import requests
 from typing import Any, Dict, Optional
 from zoho.logging import configure_logger
+from zoho.security import sanitize_log_params
 from zoho.exceptions import (
     ZohoError,
     ZohoBooksError,
@@ -54,7 +56,9 @@ class BaseZohoClient:
         self.on_request_completed = on_request_completed
         self.default_timeout = default_timeout
         self.session = requests.Session()
+        self._token_lock = threading.Lock()
         self._setup_loggers()
+
 
     def close(self) -> None:
         """Close the underlying HTTP session."""
@@ -104,37 +108,42 @@ class BaseZohoClient:
             return method_upper in ("POST", "PUT", "PATCH", "DELETE")
         return False
 
-    def _raise_for_status(self, response: requests.Response):
+    def _raise_for_status(self, response: requests.Response, endpoint: Optional[str] = None):
         if response.status_code >= 400:
             err_class = _ERROR_MAP.get(self.service_name, ZohoError)
-            
-            # Creator specific error parsing
-            if self.service_name == "creator":
-                try:
-                    err_data = response.json()
-                    msg = err_data.get("message") or err_data.get("description") or response.text
-                    code = err_data.get("code")
-                    raise err_class(f"API Error (code={code}): {msg}")
-                except Exception as e:
-                    if isinstance(e, ZohoError):
-                        raise
-                    raise err_class(f"HTTP Error {response.status_code}: {response.text}") from e
+            err_data = None
+            code = None
+            msg = None
 
-            # Sheet specific error parsing
-            if self.service_name == "sheet":
-                try:
-                    err_data = response.json()
-                    code = err_data.get("error_code")
-                    if code:
-                        raise err_class(f"API Error (code={code}): {err_data.get('error_message') or err_data.get('message') or response.text}")
-                except Exception as e:
-                    if isinstance(e, ZohoError):
-                        raise
+            try:
+                err_data = response.json()
+                if isinstance(err_data, dict):
+                    msg = err_data.get("message") or err_data.get("description") or err_data.get("error_message")
+                    code = err_data.get("code") or err_data.get("error_code")
+            except Exception:
+                pass
 
-            error = err_class(f"HTTP Error: {response.status_code} - {response.text}")
-            error.status_code = response.status_code
+            if not msg:
+                raw_text = (response.text or "").strip()
+                # Sanitize HTML / server error pages to avoid leaking gateway traces
+                if "<html" in raw_text.lower() or "<!doctype" in raw_text.lower():
+                    msg = f"HTTP {response.status_code} ({response.reason or 'Server Error'})"
+                else:
+                    msg = raw_text or f"HTTP {response.status_code}"
+
+            error_msg = f"API Error (code={code}): {msg}" if code is not None else f"HTTP Error: {response.status_code} - {msg}"
+            retry_after = None
             if hasattr(response, "headers") and isinstance(response.headers, collections.abc.Mapping):
-                error.retry_after = response.headers.get("Retry-After")
+                retry_after = response.headers.get("Retry-After")
+
+            error = err_class(
+                error_msg,
+                status_code=response.status_code,
+                error_code=code,
+                response_data=err_data,
+                endpoint=endpoint,
+                retry_after=retry_after
+            )
             raise error
 
     def request(
@@ -180,8 +189,9 @@ class BaseZohoClient:
 
         req_timeout = timeout if timeout is not None else self.default_timeout
 
-        # Log Request
-        self.logger.info(f"Request: {method} {url} | Params: {params or {}}")
+        # Log Request with sensitive query parameters masked (preserving last 4 chars)
+        logged_params = sanitize_log_params(params) if params else {}
+        self.logger.info(f"Request: {method} {url} | Params: {logged_params}")
 
         req_kwargs = {
             "method": method,
@@ -233,22 +243,22 @@ class BaseZohoClient:
 
         response = _execute_http(method, req_kwargs)
 
-
-        # Handle 401 refresh
+        # Handle 401 refresh with thread lock
         if response.status_code == 401 and self.token_refresh_callback:
-            self.logger.warning(f"{self.service_name.capitalize()} request returned 401; refreshing token and retrying.")
-            self.access_token = self.token_refresh_callback()
-            
-            token = self.access_token
-            if hasattr(token, "get_token_for_request"):
-                token = token.get_token_for_request(actual_is_mutation)
-            else:
-                token = str(token)
-            req_headers["Authorization"] = f"Zoho-oauthtoken {token}"
-            
-            retry_kwargs = {**req_kwargs}
-            retry_kwargs["headers"] = req_headers
-            response = _execute_http(method, retry_kwargs)
+            with self._token_lock:
+                self.logger.warning(f"{self.service_name.capitalize()} request returned 401; refreshing token and retrying.")
+                self.access_token = self.token_refresh_callback()
+                
+                token = self.access_token
+                if hasattr(token, "get_token_for_request"):
+                    token = token.get_token_for_request(actual_is_mutation)
+                else:
+                    token = str(token)
+                req_headers["Authorization"] = f"Zoho-oauthtoken {token}"
+                
+                retry_kwargs = {**req_kwargs}
+                retry_kwargs["headers"] = req_headers
+                response = _execute_http(method, retry_kwargs)
 
         self.logger.info(f"Response: {response.status_code}")
 
@@ -262,8 +272,9 @@ class BaseZohoClient:
         # Stream response
         if stream:
             if response.status_code >= 400:
-                self._raise_for_status(response)
+                self._raise_for_status(response, endpoint=endpoint)
             return response
+
 
         # Empty body response handling
         if response.status_code == 204 or not response.text:

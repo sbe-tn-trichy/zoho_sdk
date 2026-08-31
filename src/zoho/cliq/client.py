@@ -18,10 +18,18 @@ class ZohoCliqAPI(BaseZohoClient):
             service_name="cliq"
         )
 
-    def send_notification(self, message: str, channel: str = None) -> Optional[Dict[str, Any]]:
+    def send_notification(
+        self,
+        message: str,
+        channel: Optional[str] = None,
+        raise_on_error: bool = False,
+    ) -> Optional[Dict[str, Any]]:
         """Sends a summary message via direct Zoho Cliq API (v2)."""
         if not self.access_token:
             logger.warning("Cliq Access Token not provided. Skipping notification.")
+            if raise_on_error:
+                from zoho.exceptions import ZohoCliqError
+                raise ZohoCliqError("Cliq Access Token not provided.")
             return None
         
         if channel:
@@ -37,4 +45,7 @@ class ZohoCliqAPI(BaseZohoClient):
             return self.request("POST", endpoint, json=payload, timeout=10)
         except Exception as e:
             logger.error(f"Failed to send Cliq notification via API: {e}")
+            if raise_on_error:
+                raise
             return None
+

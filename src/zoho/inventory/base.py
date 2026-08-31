@@ -1,5 +1,6 @@
-from typing import Any, Dict, Optional, List, Union
+from typing import Any, Dict, Optional, List, Union, Iterator
 from .exceptions import ZohoInventoryError
+
 
 class BaseResource:
     """Base class for Zoho Inventory modules providing standard CRUD operations."""
@@ -51,26 +52,35 @@ class BaseResource:
     def list(self, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return self.client.request('GET', self.endpoint, params=params)
 
-    def list_all(self, params: Optional[Dict[str, Any]] = None, resource_key: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Helper to fetch all records across all pages."""
-        all_records = []
+    def list_iter(
+        self,
+        params: Optional[Dict[str, Any]] = None,
+        resource_key: Optional[str] = None,
+        per_page: int = 200,
+    ) -> Iterator[Dict[str, Any]]:
+        """Generator yielding records item-by-item across pages without buffering all in memory."""
         page = 1
         params = params or {}
-        
         key = resource_key or self.endpoint.split('/')[-1]
-        
+
         while True:
-            current_params = {**params, 'page': page, 'per_page': 200}
+            current_params = {**params, 'page': page, 'per_page': per_page}
             res = self.list(params=current_params)
             records = res.get(key, [])
-            all_records.extend(records)
-            
+            if not records:
+                break
+            for record in records:
+                yield record
+
             page_context = res.get('page_context', {})
             if not page_context.get('has_more_page', False):
                 break
             page += 1
-            
-        return all_records
+
+    def list_all(self, params: Optional[Dict[str, Any]] = None, resource_key: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Helper to fetch all records across all pages."""
+        return list(self.list_iter(params=params, resource_key=resource_key))
+
 
     def get(self, resource_id: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return self.client.request('GET', f"{self.endpoint}/{resource_id}", params=params)

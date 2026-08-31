@@ -333,9 +333,20 @@ class GST(BaseResource):
 
         save_path = resolve_output_path(save_path)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        content = self.get_gstr_outward_supplies(params=params)
-        with open(save_path, "wb") as f:
-            f.write(content)
+        response = self.client.request('GET', 'reports/gstroutwardsupplies', params=params, stream=True)
+        try:
+            with open(save_path, "wb") as f:
+                if hasattr(response, "iter_content"):
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                elif isinstance(response, bytes):
+                    f.write(response)
+                elif hasattr(response, "content"):
+                    f.write(response.content)
+        finally:
+            if hasattr(response, "close"):
+                response.close()
         return save_path
 
     def get_gstr_inward_supplies(self, params: Optional[Dict[str, Any]] = None) -> bytes:
@@ -355,8 +366,20 @@ class GST(BaseResource):
 
         save_path = resolve_output_path(save_path)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        content = self.get_gstr_inward_supplies(params=params)
-        with open(save_path, "wb") as f:
-            f.write(content)
+        response = self.client.request('GET', 'reports/gstrinwardsupplies', params=params, stream=True)
+        try:
+            with open(save_path, "wb") as f:
+                if hasattr(response, "iter_content"):
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                elif isinstance(response, bytes):
+                    f.write(response)
+                elif hasattr(response, "content"):
+                    f.write(response.content)
+        finally:
+            if hasattr(response, "close"):
+                response.close()
         return save_path
+
 

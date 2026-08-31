@@ -70,8 +70,9 @@ class Bills(BaseResource, StatusMixin, ApprovalMixin, CreditsMixin):
         Note: Zoho Books typically requires the full payload for updates.
         Missing fields may be reset to defaults or cleared.
         """
-        payload = self._prepare_payload(data)
+        payload = self._prepare_payload(data, check_required=False)
         return self.client.request('PUT', f"{self.endpoint}/{bill_id}", json=payload, params=params, files=files)
+
 
     def add_attachment(self, bill_id: str, file_content: Any, filename: str) -> Dict[str, Any]:
         """

@@ -51,10 +51,16 @@ class Files(BaseResource):
         app_logger.info(f"Downloading file {file_id} to {save_path}")
         download_url = f"https://download.zoho.{self.client.domain}/v1/workdrive/download/{file_id}"
         response = self.client.request('GET', '', stream=True, override_url=download_url)
-        with open(save_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk: f.write(chunk)
+        try:
+            with open(save_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        finally:
+            if hasattr(response, "close"):
+                response.close()
         app_logger.info(f"Successfully downloaded file {file_id}")
+
 
     def _safe_download_name(self, name: Optional[str], fallback: str) -> str:
         """Return a filesystem-safe filename while keeping it readable."""

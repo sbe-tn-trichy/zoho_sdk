@@ -79,15 +79,26 @@ class Messages(BaseResource):
 
     def download_attachment(self, folder_id: str, message_id: str, attachment_id: str, download_path: str) -> str:
         """
-        Download attachment and save to specified path.
-        Returns the final file path (handles duplicates if needed, though here it just writes).
+        Download attachment and save to specified path via direct chunked streaming.
+        Returns the final file path.
         """
         download_path = resolve_output_path(download_path)
-        content = self.get_attachment_content(folder_id, message_id, attachment_id)
+        endpoint = f"accounts/{self.account_id}/folders/{folder_id}/messages/{message_id}/attachments/{attachment_id}"
+        response = self.client.request('GET', endpoint, stream=True)
         os.makedirs(os.path.dirname(download_path), exist_ok=True)
-        with open(download_path, "wb") as f:
-            f.write(content)
+        try:
+            with open(download_path, "wb") as f:
+                if hasattr(response, "iter_content"):
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                elif hasattr(response, "content"):
+                    f.write(response.content)
+        finally:
+            if hasattr(response, "close"):
+                response.close()
         return download_path
+
 
     def list_iter(self, folder_id: Optional[str] = None, start: int = 1, limit: int = 50):
         """

@@ -121,6 +121,11 @@ All exports are declared in `src/zoho/__init__.py`.
 | `ZohoError` | Base exception | All services |
 | `ZohoCliqError` | Exception | Zoho Cliq |
 | `ZohoSheetError` | Exception | Zoho Sheet |
+| `sanitize_filename` | Security helper | Path sanitization |
+| `resolve_output_path` | Security helper | Output directory containment |
+| `mask_sensitive_value` | Security helper | Log parameter masking (last 4 chars) |
+| `sanitize_log_params` | Security helper | Recursive parameter dictionary sanitization |
+
 
 ---
 
