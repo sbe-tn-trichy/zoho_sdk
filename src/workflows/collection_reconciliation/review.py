@@ -37,6 +37,22 @@ def _identifier(payload: Any, keys: Sequence[str]) -> Optional[str]:
     return None
 
 
+def _identifiers(payload: Any, keys: Sequence[str]) -> set[str]:
+    """Return every scalar identifier stored under any of ``keys``."""
+    found: set[str] = set()
+    if isinstance(payload, Mapping):
+        for key in keys:
+            value = payload.get(key)
+            if value not in (None, "") and not isinstance(value, (dict, list)):
+                found.add(str(value))
+        for value in payload.values():
+            found.update(_identifiers(value, keys))
+    elif isinstance(payload, list):
+        for value in payload:
+            found.update(_identifiers(value, keys))
+    return found
+
+
 def _decimal(value: Any) -> Optional[Decimal]:
     try:
         return Decimal(str(value).replace(",", "").strip())
@@ -390,9 +406,27 @@ class OnlinePaymentReviewService:
                 None,
             )
             if not candidate:
+                # Books can expose the invoice-application ID rather than the
+                # parent payment ID for a single-invoice customer payment.
+                payment_response = self.books.customer_payments.get(books_payment_id)
+                application_ids = _identifiers(
+                    payment_response,
+                    ("invoice_payment_id",),
+                )
+                candidate = next(
+                    (
+                        row
+                        for row in rows
+                        if isinstance(row, dict)
+                        and _text(row.get("transaction_id")) in application_ids
+                    ),
+                    None,
+                )
+            if not candidate:
                 raise ReconciliationError(
                     "The created Books customer payment is not a bank match candidate."
                 )
+            match_transaction_id = _text(candidate.get("transaction_id"))
             transaction_type = _text(candidate.get("transaction_type"))
             if not transaction_type:
                 raise ReconciliationError("The Books match candidate has no transaction_type.")
@@ -402,7 +436,7 @@ class OnlinePaymentReviewService:
                 bank_id,
                 [
                     {
-                        "transaction_id": books_payment_id,
+                        "transaction_id": match_transaction_id,
                         "transaction_type": transaction_type,
                     }
                 ],

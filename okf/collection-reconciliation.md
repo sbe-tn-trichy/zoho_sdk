@@ -143,6 +143,13 @@ matching remains same-day by default. Cheque matching allows a seven-day bank
 clearing window from the presented date while still requiring exact amount and
 reference.
 
+Books can identify a single-invoice customer payment in the bank-match candidate
+response by its invoice-application ID rather than by the parent customer-payment
+ID. The review workflow verifies that application ID by reading the checkpointed
+parent payment, submits the candidate ID returned by Books for matching, and
+continues to store the parent payment ID in Creator. A retry reuses the existing
+parent payment and never creates a duplicate.
+
 Historical review-tool payments can be repaired with
 `scripts/backfill_review_creator_checkpoints.py`. It resolves the Books payment
 number from each checkpointed Books payment ID, updates both Creator fields,

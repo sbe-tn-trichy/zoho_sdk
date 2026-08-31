@@ -2,6 +2,7 @@
 
 ## 2026-08-31
 
+- Fixed payment-review bank matching for single-invoice customer payments when Books exposes the invoice-application ID instead of the parent payment ID, including duplicate-safe retries.
 - Added sensitive parameter log redaction preserving last 4 characters (`mask_sensitive_value`, `sanitize_log_params`) in `src/zoho/security.py` and `BaseZohoClient`.
 - Added thread-safe token refresh synchronization with `threading.Lock` across worker threads in `BaseZohoClient`.
 - Added structured attributes (`status_code`, `error_code`, `response_data`, `endpoint`, `retry_after`) to `ZohoError` and sanitized raw HTML gateway responses.

@@ -191,6 +191,90 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertEqual(pushed["books_payment_number"], "PAY-0001")
         self.books.customer_payments.get.assert_called_once_with("books-payment-1")
 
+    def test_accept_matches_single_invoice_application_candidate(self):
+        self._refresh()
+        self.books.bank_transactions.list_all.return_value = [self.bank]
+        self.books.customer_payments.create.return_value = {
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+            }
+        }
+        self.books.bank_transactions.get_matches.return_value = {
+            "matching_transactions": [
+                {
+                    "transaction_id": "invoice-payment-1",
+                    "transaction_type": "customer_payment",
+                }
+            ]
+        }
+        self.books.customer_payments.get.return_value = {
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+                "invoices": [{"invoice_payment_id": "invoice-payment-1"}],
+            }
+        }
+
+        pushed = self.service.accept_and_push("creator-1")
+
+        self.assertEqual(pushed["push_status"], "pushed")
+        self.books.bank_transactions.match.assert_called_once_with(
+            "bank-tx-1",
+            [
+                {
+                    "transaction_id": "invoice-payment-1",
+                    "transaction_type": "customer_payment",
+                }
+            ],
+        )
+        checkpoint = self.creator.update_records.call_args.args[2]["data"]
+        self.assertEqual(checkpoint["Books_Transaction_Id"], "books-payment-1")
+
+    def test_single_invoice_candidate_retry_reuses_existing_payment(self):
+        self._refresh()
+        batch = self.service.load()
+        batch["entries"][0].update(
+            {
+                "decision": "accepted",
+                "push_status": "failed",
+                "retry_stage": "payment_created",
+                "books_payment_id": "books-payment-1",
+                "books_payment_number": "PAY-0001",
+            }
+        )
+        self.service._save(batch)
+        self.books.bank_transactions.list_all.return_value = [self.bank]
+        self.books.bank_transactions.get_matches.return_value = {
+            "matching_transactions": [
+                {
+                    "transaction_id": "invoice-payment-1",
+                    "transaction_type": "customer_payment",
+                }
+            ]
+        }
+        self.books.customer_payments.get.return_value = {
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+                "invoices": [{"invoice_payment_id": "invoice-payment-1"}],
+            }
+        }
+
+        pushed = self.service.accept_and_push("creator-1")
+
+        self.assertEqual(pushed["push_status"], "pushed")
+        self.books.customer_payments.create.assert_not_called()
+        self.books.bank_transactions.match.assert_called_once_with(
+            "bank-tx-1",
+            [
+                {
+                    "transaction_id": "invoice-payment-1",
+                    "transaction_type": "customer_payment",
+                }
+            ],
+        )
+
     def test_creator_checkpoint_failure_retries_without_duplicate_books_payment(self):
         self._refresh()
         self.books.bank_transactions.list_all.return_value = [self.bank]
