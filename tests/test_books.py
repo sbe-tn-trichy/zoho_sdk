@@ -584,5 +584,23 @@ class TestContactsAndVendorsStatements(unittest.TestCase):
             mock_open.assert_called_once_with(save_path, "wb")
             mock_open().write.assert_called_once_with(b"xls_content")
 
+
+class TestBillsPartialUpdate(unittest.TestCase):
+    def test_bill_partial_update_does_not_require_creation_fields(self):
+        from zoho.books.resources.purchases import Bills
+        client = MagicMock()
+        bills = Bills(client)
+
+        bills.update("bill_123", {"adjustment": 50, "notes": "Updated note"})
+        client.request.assert_called_once_with(
+            "PUT",
+            "bills/bill_123",
+            json={"adjustment": 50, "notes": "Updated note"},
+            params=None,
+            files=None,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
+

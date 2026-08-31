@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest.mock import patch, MagicMock
 from zoho.base_client import BaseZohoClient
@@ -81,6 +82,46 @@ class TestGSTRatePacing(unittest.TestCase):
         self.assertEqual(len(details), 1)
         self.assertEqual(details[0]["invoice_id"], "inv_1")
         mock_sleep.assert_called_once()
+
+
+class TestStreamingAndPagination(unittest.TestCase):
+    def test_list_iter_yields_item_by_item(self):
+        from zoho.books.base import BaseResource
+        client = MagicMock()
+        resource = BaseResource(client, "invoices")
+
+        # Mock 2 pages of 2 items each
+        client.request.side_effect = [
+            {
+                "invoices": [{"invoice_id": "inv_1"}, {"invoice_id": "inv_2"}],
+                "page_context": {"has_more_page": True}
+            },
+            {
+                "invoices": [{"invoice_id": "inv_3"}],
+                "page_context": {"has_more_page": False}
+            }
+        ]
+
+        items = list(resource.list_iter(per_page=2))
+        self.assertEqual(len(items), 3)
+        self.assertEqual(items[0]["invoice_id"], "inv_1")
+        self.assertEqual(items[2]["invoice_id"], "inv_3")
+        self.assertEqual(client.request.call_count, 2)
+
+    def test_workdrive_download_closes_stream(self):
+        from zoho.wd.resources.files import Files
+        client = MagicMock()
+        client.domain = "com"
+        mock_response = MagicMock()
+        mock_response.iter_content.return_value = [b"chunk1", b"chunk2"]
+        client.request.return_value = mock_response
+
+        files = Files(client)
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = os.path.join(tmpdir, "file.txt")
+            files.download("file_123", target)
+            mock_response.close.assert_called_once()
 
 
 if __name__ == "__main__":

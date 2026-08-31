@@ -41,7 +41,8 @@ class TestZohoSheetAPI(unittest.TestCase):
         mock_request.return_value = mock_response
 
         res = self.client.list_sheets("wb1")
-        self.assertEqual(res, [{"name": "Sheet1"}])
+        self.assertEqual(res, ["Sheet1"])
+        self.assertIsInstance(res[0], str)
         mock_request.assert_called_once_with(
             method="POST",
             url="https://sheet.zoho.com/api/v2/wb1",
@@ -51,7 +52,6 @@ class TestZohoSheetAPI(unittest.TestCase):
 
     @patch("requests.request")
     def test_get_rows_success(self, mock_request):
-        mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"records": [{"col1": "val1"}]}
         mock_request.return_value = mock_response

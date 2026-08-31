@@ -21,6 +21,7 @@ okf_version: "0.2"
 * [GSTR-1 Verification](gstr1-verification.md) - Previous-month invoice and credit-note checks for drafts, number continuity, chronology, and e-invoice registration.
 * [Vendor-Customer Offset](vendor-customer-offset.md) - GSTIN-safe paired customer/vendor payments through a clearing bank account.
 * [Creator Customer Delete-Sync](creator-customer-delete-sync.md) - Unidirectional deletion reconciliation of Creator customer records absent from Books.
+* [SDK Audit Findings](sdk-audit-findings.md) - Security, performance, and usability review across core transport and service clients.
 * [OKF Maintenance](okf-maintenance.md) - Rules for maintaining concept documentation, YAML frontmatter, and change logs.
 
 ## Operations

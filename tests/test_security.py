@@ -47,6 +47,41 @@ class TestSecurityUtilities(unittest.TestCase):
             resolved = resolve_output_path(abs_target, base_dir="/other")
             self.assertEqual(resolved, str(Path(abs_target).resolve()))
 
+    def test_resolve_output_path_strict_containment(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Valid path inside base_dir with strict_containment=True
+            valid_path = os.path.join(tmpdir, "safe_report.xlsx")
+            self.assertEqual(
+                resolve_output_path(valid_path, base_dir=tmpdir, strict_containment=True),
+                str(Path(valid_path).resolve())
+            )
+
+            # Violation: absolute path outside base_dir
+            with self.assertRaises(ValueError) as ctx:
+                resolve_output_path("/etc/passwd", base_dir=tmpdir, strict_containment=True)
+            self.assertIn("Strict containment violation", str(ctx.exception))
+
+    def test_sanitize_log_params(self):
+        from zoho.security import sanitize_log_params
+
+        params = {
+            "authtoken": "1000.abcd1234efgh5678",
+            "email": "customer@example.com",
+            "gstin": "33AAAAA0000A1Z5",
+            "normal_param": "regular_value",
+            "nested": {
+                "password": "supersecretpassword",
+                "page": 1
+            }
+        }
+        sanitized = sanitize_log_params(params)
+        self.assertEqual(sanitized["authtoken"], "***5678")
+        self.assertEqual(sanitized["email"], "***.com")
+        self.assertEqual(sanitized["gstin"], "***A1Z5")
+        self.assertEqual(sanitized["normal_param"], "regular_value")
+        self.assertEqual(sanitized["nested"]["password"], "***word")
+        self.assertEqual(sanitized["nested"]["page"], 1)
+
 
 class TestMailSecurity(unittest.TestCase):
     def setUp(self):

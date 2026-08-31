@@ -76,5 +76,11 @@ class TestZohoCliqAPI(unittest.TestCase):
         res = self.client.send_notification("Hello Fail")
         self.assertIsNone(res)
 
+    @patch("requests.request")
+    def test_send_notification_raise_on_error(self, mock_request):
+        mock_request.side_effect = Exception("Network error")
+        with self.assertRaises(Exception):
+            self.client.send_notification("Hello Fail", raise_on_error=True)
+
 if __name__ == "__main__":
     unittest.main()
