@@ -4,7 +4,7 @@ import calendar
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from zoho.books.resources.gst import parse_doc_number
 
@@ -344,22 +344,35 @@ class GSTR1Verifier:
         target_docs: Sequence[Mapping[str, Any]],
         universe_docs: Sequence[Mapping[str, Any]],
     ) -> Dict[str, Any]:
-        target_ids = {doc.get("id") for doc in target_docs if doc.get("id") is not None}
+        active_target_docs = [
+            doc
+            for doc in target_docs
+            if str(doc.get("status") or "").strip().casefold() != "void"
+        ]
+        target_ids = {
+            doc.get("id") for doc in active_target_docs if doc.get("id") is not None
+        }
         target_numbers = {
-            doc.get("number") for doc in target_docs if doc.get("number") is not None
+            doc.get("number")
+            for doc in active_target_docs
+            if doc.get("number") is not None
         }
         unparseable = []
         invalid_dates = []
         groups: Dict[str, List[Dict[str, Any]]] = {}
+        occupied_sequences: Dict[str, Set[int]] = {}
 
         for doc in universe_docs:
             prefix, sequence, width = parse_doc_number(doc.get("number"))
-            parsed_date = _parse_date(doc.get("date"))
             in_target = doc.get("id") in target_ids or doc.get("number") in target_numbers
             if sequence <= 0:
                 if in_target:
                     unparseable.append(dict(doc))
                 continue
+            occupied_sequences.setdefault(prefix, set()).add(sequence)
+            if str(doc.get("status") or "").strip().casefold() == "void":
+                continue
+            parsed_date = _parse_date(doc.get("date"))
             if parsed_date is None:
                 if in_target:
                     invalid_dates.append(dict(doc))
@@ -383,10 +396,11 @@ class GSTR1Verifier:
             lower = min(item["sequence"] for item in target_items)
             upper = max(item["sequence"] for item in target_items)
             width = max(item["width"] for item in target_items)
+            occupied_values = occupied_sequences[prefix]
             missing_values = {
-                value for value in range(lower, upper + 1) if value not in by_sequence
+                value for value in range(lower, upper + 1) if value not in occupied_values
             }
-            ordered_values = sorted(by_sequence)
+            ordered_values = sorted(occupied_values)
             previous_values = [value for value in ordered_values if value < lower]
             next_values = [value for value in ordered_values if value > upper]
             if previous_values:

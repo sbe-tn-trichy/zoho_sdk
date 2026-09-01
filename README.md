@@ -145,7 +145,8 @@ report = verify_gstr1(
 
 The workflow reports draft invoices and credit notes, financial-year-aware
 number gaps and chronology errors, and applicable e-invoices that are not
-successfully registered with an IRN. Locations sharing a Books
+successfully registered with an IRN. Void documents reserve their document
+numbers but are excluded from sequence violations. Locations sharing a Books
 `tax_settings_id` are checked together as one GST registration; different GST
 registrations are never combined. Pass `month="YYYY-MM"` to audit an explicit
 month. The workflow never pushes or modifies Books transactions.

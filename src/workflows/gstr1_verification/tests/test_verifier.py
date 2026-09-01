@@ -165,6 +165,29 @@ class TestGSTR1Verifier(unittest.TestCase):
             ["INV-101", "INV-103"],
         )
 
+    def test_void_documents_reserve_numbers_but_do_not_affect_sequence_checks(self):
+        target = [
+            invoice("INV-002", "2026-07-01"),
+            invoice("INV-004", "2026-07-02"),
+        ]
+        universe = [
+            target[0],
+            invoice("INV-003", "2026-07-31", status="void"),
+            target[1],
+        ]
+        client = self.make_client(target_invoices=target, sequence_invoices=universe)
+
+        report = verify_gstr1(
+            client,
+            month="2026-07",
+            config=GSTR1VerificationConfig(e_invoice_applicable=False),
+        )
+
+        sequence = report["checks"]["number_sequence"]
+        self.assertEqual(sequence["missing"], [])
+        self.assertEqual(sequence["out_of_chronology"], [])
+        self.assertTrue(sequence["passed"])
+
     def test_checks_sequences_independently_by_gst_registration(self):
         target = [
             invoice("INV-001", "2026-07-01", invoice_id="a", location_id="loc-a"),

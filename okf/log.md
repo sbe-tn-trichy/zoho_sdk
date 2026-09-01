@@ -1,5 +1,10 @@
 # Knowledge Change Log
 
+## 2026-09-01
+
+- Excluded void invoices and credit notes from GSTR-1 sequence violations
+  while retaining their document numbers as occupied sequence positions.
+
 ## 2026-08-31
 
 - Fixed the dashboard payment reconciliation preview to refresh the production

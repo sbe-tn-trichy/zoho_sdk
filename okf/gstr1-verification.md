@@ -33,7 +33,9 @@ marked incomplete, and locations are never combined speculatively.
   separate explanatory list.
 - Invoice and credit-note number sequences are checked independently by prefix.
   Missing numbers, duplicates, date reversals, unparsable numbers, invalid
-  dates, and inconsistent numeric widths fail verification.
+  dates, and inconsistent numeric widths fail verification. Void documents do
+  not participate in chronology or other sequence violations, but their
+  numbers remain occupied so they are not incorrectly reported as gaps.
 - Sequence analysis loads the complete configured financial year, by default
   April through March, while reporting only groups and violations that touch
   the selected month. This prevents a backdated number outside the month from
