@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from scripts import open_homepage
-from scripts.project_dashboard import WorkflowRunner, WorkflowSpec
+from apps import open_homepage
+from apps.dashboard import WorkflowRunner, WorkflowSpec
 
 
 def test_runner_executes_allowlisted_workflow(tmp_path: Path):
@@ -55,7 +55,7 @@ def test_payment_preview_uses_production_review_refresh():
     )
 
     assert preview["name"] == "Payment reconciliation preview"
-    assert "review_online_payments.py --refresh-only" in preview["command"]
+    assert "payment_review.py --refresh-only" in preview["command"]
 
 
 def test_homepage_launcher_reuses_running_dashboard(monkeypatch):

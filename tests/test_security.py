@@ -41,6 +41,20 @@ class TestSecurityUtilities(unittest.TestCase):
             self.assertTrue(resolved_escape.startswith(str(Path(tmpdir).resolve())))
             self.assertEqual(os.path.basename(resolved_escape), "passwd")
 
+    def test_resolve_output_path_does_not_duplicate_existing_base_prefix(self):
+        self.assertEqual(
+            resolve_output_path("output/report.xlsx"),
+            str((Path.cwd() / "output" / "report.xlsx").resolve()),
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir) / "output"
+            prefixed = base / "reports" / "monthly.xlsx"
+            relative_to_cwd = os.path.relpath(prefixed, Path.cwd())
+
+            resolved = resolve_output_path(relative_to_cwd, base_dir=str(base))
+
+            self.assertEqual(resolved, str(prefixed.resolve()))
+
     def test_resolve_output_path_absolute(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             abs_target = os.path.join(tmpdir, "direct.pdf")

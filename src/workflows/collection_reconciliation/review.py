@@ -18,6 +18,13 @@ from ..core.matching import (
     to_decimal as _decimal,
     to_text as _text,
 )
+from .allocator import (
+    CLOSED_INVOICE_STATUSES as _CLOSED_INVOICE_STATUSES,
+    allocate_invoices_oldest_due_first,
+    fetch_open_invoices,
+)
+from .cheques import attach_presented_dates, normalize_cheque_number
+from .types import InvoiceAllocation, PaymentProposal
 
 
 def _now() -> str:
@@ -56,16 +63,6 @@ def _identifiers(payload: Any, keys: Sequence[str]) -> set[str]:
         for value in payload:
             found.update(_identifiers(value, keys))
     return found
-
-
-_CLOSED_INVOICE_STATUSES = {
-    "void",
-    "draft",
-    "paid",
-    "rejected",
-    "pending_approval",
-    "approval_overdue",
-}
 
 
 @dataclass(frozen=True)
@@ -715,17 +712,7 @@ class OnlinePaymentReviewService:
         }
 
     def _open_invoices(self, books_customer_id: str) -> List[Mapping[str, Any]]:
-        rows = self.books.invoices.list_all(
-            params={"customer_id": books_customer_id}
-        )
-        return [
-            row
-            for row in rows
-            if isinstance(row, Mapping)
-            and _text(row.get("status")).casefold() not in _CLOSED_INVOICE_STATUSES
-            and (_decimal(row.get("balance")) or Decimal("0")) > 0
-            and _text(row.get("invoice_id"))
-        ]
+        return fetch_open_invoices(self.books, books_customer_id)
 
     def _invoice_allocations(
         self,
@@ -733,38 +720,8 @@ class OnlinePaymentReviewService:
         payment_amount: Any,
         invoices: Optional[Sequence[Mapping[str, Any]]] = None,
     ) -> Tuple[List[Dict[str, Any]], Decimal]:
-        amount = _decimal(payment_amount)
-        if amount is None or amount == 0:
-            raise ReconciliationError("A non-zero payment amount is required.")
-        remaining = abs(amount)
-        open_invoices = list(invoices) if invoices is not None else self._open_invoices(
-            books_customer_id
-        )
-        open_invoices.sort(
-            key=lambda row: (
-                _text(row.get("due_date")) or "9999-12-31",
-                _text(row.get("date")) or "9999-12-31",
-                _text(row.get("invoice_id")),
-            )
-        )
-        allocations: List[Dict[str, Any]] = []
-        for invoice in open_invoices:
-            balance = _decimal(invoice.get("balance")) or Decimal("0")
-            if balance <= 0 or remaining <= 0:
-                continue
-            applied = min(balance, remaining)
-            allocations.append(
-                {
-                    "invoice_id": _text(invoice.get("invoice_id")),
-                    "invoice_number": _text(invoice.get("invoice_number")),
-                    "date": _text(invoice.get("date")),
-                    "due_date": _text(invoice.get("due_date")),
-                    "balance": float(balance),
-                    "amount_applied": float(applied),
-                }
-            )
-            remaining -= applied
-        return allocations, remaining
+        open_invoices = list(invoices) if invoices is not None else self._open_invoices(books_customer_id)
+        return allocate_invoices_oldest_due_first(payment_amount, open_invoices)
 
     def _attach_invoice_preview(
         self,
@@ -892,59 +849,14 @@ class OnlinePaymentReviewService:
 
     @staticmethod
     def _cheque_number(value: Any) -> str:
-        normalized = "".join(
-            character for character in _text(value).casefold() if character.isalnum()
-        )
-        return normalized.lstrip("0") or ("0" if normalized else "")
+        return normalize_cheque_number(value)
 
     def _attach_presented_dates(
         self,
         payments: Sequence[Dict[str, Any]],
         cheque_details: Sequence[Mapping[str, Any]],
     ) -> None:
-        details_by_key: Dict[Tuple[str, str], List[Mapping[str, Any]]] = {}
-        for detail in cheque_details:
-            lookup = (
-                detail.get("Payment_ID.Customer_Name")
-                if isinstance(detail.get("Payment_ID.Customer_Name"), Mapping)
-                else {}
-            )
-            key = (
-                self._cheque_number(detail.get("Cheque_Number")),
-                _text(lookup.get("ID")),
-            )
-            if all(key):
-                details_by_key.setdefault(key, []).append(detail)
-
-        for payment in payments:
-            if _text(payment.get("_review_payment_type")).casefold() != "cheque":
-                continue
-            lookup = (
-                payment.get("Customer_Name")
-                if isinstance(payment.get("Customer_Name"), Mapping)
-                else {}
-            )
-            key = (
-                self._cheque_number(payment.get("Reference")),
-                _text(lookup.get("ID")),
-            )
-            candidates = details_by_key.get(key, [])
-            if len(candidates) != 1:
-                payment["_review_presented_date"] = ""
-                payment["_review_presented_date_error"] = (
-                    "No presented cheque detail matched cheque number and customer"
-                    if not candidates
-                    else "Multiple presented cheque details matched cheque number and customer"
-                )
-                continue
-            presented_date = _text(candidates[0].get("Presented_Date"))
-            payment["_review_presented_date"] = presented_date
-            payment["_review_presented_date_error"] = (
-                "The matched cheque detail has no Presented_Date"
-                if not presented_date
-                else ""
-            )
-            payment["_review_cheque_detail_id"] = _text(candidates[0].get("ID"))
+        attach_presented_dates(payments, cheque_details)
 
     def _all_uncategorized_bank_transactions(self) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []

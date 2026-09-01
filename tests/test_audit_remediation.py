@@ -11,6 +11,7 @@ from zoho.security import (
 )
 from zoho.exceptions import (
     ZohoError,
+    ZohoAuthError,
     ZohoBooksError,
     ZohoCliqError,
     ZohoSheetError,
@@ -107,6 +108,24 @@ class TestStructuredErrors(unittest.TestCase):
         self.assertEqual(err.status_code, 502)
         self.assertNotIn("<h1>", str(err))
         self.assertIn("HTTP 502 (Bad Gateway)", str(err))
+
+    @patch("requests.Session.request")
+    def test_empty_refresh_token_preserves_existing_token(self, request):
+        response = MagicMock(status_code=401)
+        request.return_value = response
+        client = BaseZohoClient(
+            access_token="still-valid",
+            domain="in",
+            base_url="https://example.invalid",
+            service_name="books",
+            token_refresh_callback=lambda: "",
+        )
+
+        with self.assertRaises(ZohoAuthError):
+            client.request("GET", "items")
+
+        self.assertEqual(client.access_token, "still-valid")
+        response.close.assert_called_once_with()
 
 
 class TestUsabilityAndPerformance(unittest.TestCase):

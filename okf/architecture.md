@@ -38,7 +38,13 @@ zoho (API Clients & Auth) <-- workflows (Business Engines) <-- apps (Web UIs & C
 4. **Ephemeral Scripts (`scripts/`)**:
    - Reserved strictly for temporary, disposable scratch scripts (TTL < 24 hours).
 
-# Import Rules
+# Design Rules
 
-- **Rule 1**: Lower layers (`zoho`, `workflows`) MUST NEVER import from `apps` or `scripts`.
-- **Rule 2**: Subpackage encapsulation is maintained via `__init__.py` public exports (`__all__`).
+- Lower layers (`zoho`, `workflows`) never import from `apps` or `scripts`.
+- Public APIs are exported through the relevant package `__init__.py`.
+- UI templates live in `apps/static/`, not in Python string literals.
+- Books and Inventory resources reuse `zoho.base_resource.BaseResource`; workflow
+  conversions reuse `workflows.core.matching` when their semantics fit.
+- Public signatures use explicit typed parameters, and stable structured records
+  crossing workflow boundaries use `TypedDict` or dataclasses.
+- Applications obtain clients from `workflows.core.auth` factories.

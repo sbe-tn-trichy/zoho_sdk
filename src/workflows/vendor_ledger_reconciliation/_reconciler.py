@@ -8,10 +8,16 @@ Public functions:
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from ..core.matching import parse_date
+from ..core.matching import parse_date, reconcile_rows, to_decimal
 from .cleaner import clean_ledger_file, get_ledger_metadata
 
 logger = logging.getLogger(__name__)
+
+
+def _within_date_range(row: Dict[str, Any], start_date: Any, end_date: Any) -> bool:
+    """Keep invalid dates for unmatched reporting; filter only valid dates."""
+    parsed = parse_date(row.get("date"))
+    return parsed is None or start_date <= parsed <= end_date
 
 
 # ---------------------------------------------------------------------------
@@ -90,62 +96,39 @@ def reconcile_document_group(
         for l in ledger_entries
     ]
 
-    matched_books_ids: set = set()
-    matched_ledger_ids: set = set()
-    matches: list = []
-
-    # Pass 1 — Exact: ref + amount + date
-    for b in parsed_books:
-        if not b["date"] or not b["id"]:
-            continue
-        for l in parsed_ledger:
-            if l["id"] in matched_ledger_ids or not l["date"]:
-                continue
-            if not ref_match_fn(b["raw"], l["raw"]):
-                continue
-            if abs(b["amount"] - l["amount"]) > 1e-9:
-                continue
-            if abs((b["date"] - l["date"]).days) <= date_tolerance_days:
-                matches.append((b["raw"], l["raw"]))
-                matched_books_ids.add(b["id"])
-                matched_ledger_ids.add(l["id"])
-                break
-
-    # Pass 2 — Strong: amount + date (no ref required)
-    for b in parsed_books:
-        if b["id"] in matched_books_ids or not b["date"]:
-            continue
-        for l in parsed_ledger:
-            if l["id"] in matched_ledger_ids or not l["date"]:
-                continue
-            if abs(b["amount"] - l["amount"]) > 1e-9:
-                continue
-            if abs((b["date"] - l["date"]).days) <= date_tolerance_days:
-                matches.append((b["raw"], l["raw"]))
-                matched_books_ids.add(b["id"])
-                matched_ledger_ids.add(l["id"])
-                break
-
-    # Pass 3 — Weak: amount within tolerance + date
-    if amount_tolerance > 0.0:
-        for b in parsed_books:
-            if b["id"] in matched_books_ids or not b["date"]:
-                continue
-            for l in parsed_ledger:
-                if l["id"] in matched_ledger_ids or not l["date"]:
-                    continue
-                if abs(b["amount"] - l["amount"]) > amount_tolerance:
-                    continue
-                if abs((b["date"] - l["date"]).days) <= date_tolerance_days:
-                    matches.append((b["raw"], l["raw"]))
-                    matched_books_ids.add(b["id"])
-                    matched_ledger_ids.add(l["id"])
-                    break
-
+    outcome = reconcile_rows(
+        parsed_books,
+        parsed_ledger,
+        reference_matches=lambda books, ledger: ref_match_fn(
+            books["raw"], ledger["raw"]
+        ),
+        date_tolerance_days=date_tolerance_days,
+        amount_tolerance=amount_tolerance,
+    )
+    classified_books = (
+        outcome["matched_left_indices"] | outcome["ambiguous_left_indices"]
+    )
+    classified_ledger = (
+        outcome["matched_right_indices"] | outcome["ambiguous_right_indices"]
+    )
     return {
-        "matches": matches,
-        "unmatched_books": [b["raw"] for b in parsed_books if b["id"] not in matched_books_ids],
-        "unmatched_ledger": [l["raw"] for l in parsed_ledger if l["id"] not in matched_ledger_ids],
+        "matches": (
+            outcome["exact_matches"]
+            + outcome["strong_matches"]
+            + outcome["weak_matches"]
+        ),
+        "exact_matches": outcome["exact_matches"],
+        "strong_matches": outcome["strong_matches"],
+        "weak_matches": outcome["weak_matches"],
+        "ambiguous_matches": outcome["ambiguous_matches"],
+        "unmatched_books": [
+            row["raw"] for index, row in enumerate(parsed_books)
+            if index not in classified_books
+        ],
+        "unmatched_ledger": [
+            row["raw"] for index, row in enumerate(parsed_ledger)
+            if index not in classified_ledger
+        ],
     }
 
 
@@ -159,6 +142,7 @@ def reconcile_vendor_account(
     vendor_ledger_path: str,
     date_tolerance_days: int = 7,
     amount_tolerance: float = 0.0,
+    skip_vendor_credits: bool = False,
 ) -> Dict[str, Any]:
     """
     Full 4-way reconciliation of a vendor account:
@@ -167,12 +151,14 @@ def reconcile_vendor_account(
     metadata = get_ledger_metadata(vendor_ledger_path)
     start_date = parse_date(metadata.get("start_date"))
     end_date = parse_date(metadata.get("end_date"))
+    if start_date and end_date and start_date > end_date:
+        raise ValueError("ledger start_date cannot be after end_date")
 
     ledger_entries = clean_ledger_file(vendor_ledger_path)
     if start_date and end_date:
         ledger_entries = [
             e for e in ledger_entries
-            if e.get("date") and start_date <= parse_date(e["date"]) <= end_date
+            if _within_date_range(e, start_date, end_date)
         ]
 
     def _ledger_by_type(doc_type: str) -> List[Dict[str, Any]]:
@@ -198,7 +184,7 @@ def reconcile_vendor_account(
     if start_date and end_date:
         zoho_bills = [
             b for b in zoho_bills
-            if b.get("date") and start_date <= parse_date(b["date"]) <= end_date
+            if _within_date_range(b, start_date, end_date)
         ]
 
     books_sales_invoices: List[Dict[str, Any]] = []
@@ -219,16 +205,16 @@ def reconcile_vendor_account(
     if start_date and end_date:
         zoho_payments = [
             p for p in zoho_payments
-            if p.get("date") and start_date <= parse_date(p["date"]) <= end_date
+            if _within_date_range(p, start_date, end_date)
         ]
 
-    zoho_vendor_credits = fetch_vendor_credits(
+    zoho_vendor_credits = [] if skip_vendor_credits else fetch_vendor_credits(
         books_client, {"vendor_id": vendor_id, **date_params}
     )
     if start_date and end_date:
         zoho_vendor_credits = [
             vc for vc in zoho_vendor_credits
-            if vc.get("date") and start_date <= parse_date(vc["date"]) <= end_date
+            if _within_date_range(vc, start_date, end_date)
         ]
 
     # --- reconcile each document group ---
@@ -241,10 +227,10 @@ def reconcile_vendor_account(
         ledger_entries=ledger_sales_invoices,
         books_id_fn=lambda b: b.get("bill_id") or b.get("id"),
         books_date_fn=lambda b: parse_date(b.get("date")),
-        books_amount_fn=lambda b: float(b.get("total") or b.get("amount") or 0.0),
+        books_amount_fn=lambda b: to_decimal(b.get("total") or b.get("amount")),
         ledger_id_fn=ledger_id_fn,
         ledger_date_fn=ledger_date_fn,
-        ledger_amount_fn=lambda l: float(l.get("debit_amount") or 0.0),
+        ledger_amount_fn=lambda l: to_decimal(l.get("debit_amount")),
         ref_match_fn=check_bill_ref,
         **common,
     )
@@ -254,10 +240,10 @@ def reconcile_vendor_account(
         ledger_entries=ledger_receipts,
         books_id_fn=lambda p: p.get("payment_id") or p.get("id"),
         books_date_fn=lambda p: parse_date(p.get("date")),
-        books_amount_fn=lambda p: float(p.get("amount") or 0.0),
+        books_amount_fn=lambda p: to_decimal(p.get("amount")),
         ledger_id_fn=ledger_id_fn,
         ledger_date_fn=ledger_date_fn,
-        ledger_amount_fn=lambda l: float(l.get("credit_amount") or 0.0),
+        ledger_amount_fn=lambda l: to_decimal(l.get("credit_amount")),
         ref_match_fn=check_payment_ref,
         **common,
     )
@@ -267,10 +253,10 @@ def reconcile_vendor_account(
         ledger_entries=ledger_credit_memos,
         books_id_fn=lambda vc: vc.get("vendor_credit_id") or vc.get("id"),
         books_date_fn=lambda vc: parse_date(vc.get("date")),
-        books_amount_fn=lambda vc: float(vc.get("total") or vc.get("amount") or 0.0),
+        books_amount_fn=lambda vc: to_decimal(vc.get("total") or vc.get("amount")),
         ledger_id_fn=ledger_id_fn,
         ledger_date_fn=ledger_date_fn,
-        ledger_amount_fn=lambda l: float(l.get("credit_amount") or 0.0),
+        ledger_amount_fn=lambda l: to_decimal(l.get("credit_amount")),
         ref_match_fn=check_credit_ref,
         **common,
     )
@@ -280,10 +266,10 @@ def reconcile_vendor_account(
         ledger_entries=ledger_debit_memos,
         books_id_fn=lambda b: b.get("bill_id") or b.get("id"),
         books_date_fn=lambda b: parse_date(b.get("date")),
-        books_amount_fn=lambda b: abs(float(b.get("total") or b.get("amount") or 0.0)),
+        books_amount_fn=lambda b: abs(to_decimal(b.get("total") or b.get("amount")) or 0),
         ledger_id_fn=ledger_id_fn,
         ledger_date_fn=ledger_date_fn,
-        ledger_amount_fn=lambda l: float(l.get("debit_amount") or 0.0),
+        ledger_amount_fn=lambda l: to_decimal(l.get("debit_amount")),
         ref_match_fn=check_bill_ref,
         **common,
     )

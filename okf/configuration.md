@@ -49,7 +49,10 @@ Supported configuration keys:
 
 Access tokens are retrieved dynamically at runtime from `TOKEN_URL` and are not persisted in source code, logs, or reports.
 
-All downloaded attachments, reports, and exported statements are automatically sanitized and strictly confined to the `output/` directory (or specified absolute paths) using `resolve_output_path()` and `sanitize_filename()` in `zoho.security` to prevent directory traversal and arbitrary file overwrite attacks.
+Downloaded attachments, reports, and exports default to the `output/` directory.
+Documented APIs may honor an explicit absolute caller path. In both cases,
+`resolve_output_path()` and `sanitize_filename()` prevent directory traversal and
+unsafe derived filenames.
 
 `.env` and `zoho_config.json` are intended for local execution only and must not be committed. Prefer explicit environment or user home (`~/.config/zoho/config.json`) configuration for deployed workloads. Treat organization, vendor, item, tax, bank-account, location, and WorkDrive folder IDs as deployment-specific values without hardcoding tenant defaults in library code.
 

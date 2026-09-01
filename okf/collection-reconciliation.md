@@ -71,18 +71,17 @@ policy, concurrency, and organization selection remain deployment-controlled.
 
 # Existing Payment Link Backfill
 
-`scripts/backfill_creator_matched_payments.py` traverses Creator's `matched`
+`apps/backfill_creator_matched_payments.py` traverses Creator's `matched`
 payment report and resolves an existing Books customer payment by native Books
 payment ID/number or by an exact unique date, amount, reference, and customer
 combination. It then populates the unique `Creator Record ID` and `Creator
 Payment ID` custom fields on that existing payment.
 
-The script never creates customer payments and never changes bank-transaction
-matches. Dry-run is the default. Writes require `--execute`; multi-record writes
-also require `--allow-batch` and are capped by `--max-writes` unless explicitly
-set to zero. JSON/CSV results and an atomic per-record checkpoint make runs
-auditable and restartable. Conflicting identifiers, missing payments, and
-ambiguous matches are never written automatically.
+The application never creates customer payments and never changes
+bank-transaction matches. Dry-run is the default. Writes require `--execute`;
+multi-record writes also require `--allow-batch`. An atomic JSON checkpoint
+makes runs auditable and restartable. Conflicting identifiers, missing
+payments, and ambiguous matches are never written automatically.
 
 # Online Payments Human Review
 
@@ -153,24 +152,12 @@ parent payment, submits the candidate ID returned by Books for matching, and
 continues to store the parent payment ID in Creator. A retry reuses the existing
 parent payment and never creates a duplicate.
 
-Historical review-tool payments can be repaired with
-`scripts/backfill_review_creator_checkpoints.py`. It resolves the Books payment
-number from each checkpointed Books payment ID, updates both Creator fields,
-reads the record back, and saves resumable per-record results. Dry-run is the
-default; live writes require `--execute` and are capped by `--max-writes` unless
-explicitly set to zero.
-
-`scripts/backfill_online_payment_creator_fields.py` discovers additional
+`apps/backfill_online_payment_creator_fields.py` discovers additional
 Creator `Online_Payments` records that already have a corresponding Books
 customer payment. It only accepts a unique exact customer-ID, date, amount, and
-reference match (or a consistent existing Books identifier), then writes and
-verifies `Books_Transaction_Id` and `PaymentNo`. Missing, incomplete, and
-ambiguous records are reported without mutation. Canonical all-field Creator
-records are used so hidden checkpoint columns remain visible to the matcher,
-and ownership is checked across the full `All_Payments` dataset so a Books
-payment already linked to another Creator record is never reused even when the
-owner has disappeared from the filtered `Online_Payments` report.
-Dry-run is the default.
+reference match (or a consistent existing Books identifier), then can write
+`Books_Transaction_Id` and `PaymentNo`. Missing, incomplete, and ambiguous
+records are reported without mutation. Dry-run is the default.
 
 The long-running review server supplies Books and Creator token-refresh
 callbacks backed by the configured HTTP token broker. A 401 response refreshes
@@ -179,12 +166,13 @@ during the pre-push bank snapshot creates no payment; an individually attempted
 entry is left retryable with no Books checkpoint.
 
 Legacy queue payments created before invoice allocation can be repaired with
-`scripts/repair_review_payment_allocations.py`. Dry-run is the default. Execute
+`apps/repair_review_payment_allocations.py`. Dry-run is the default. Execute
 mode updates the existing Books payment rather than replacing it, preserves any
 existing invoice applications, allocates only the live `unused_amount`
 oldest-due-first, and reads the payment back after every update. An atomic JSON
 checkpoint records planned, repaired, already-allocated, no-open-invoice, and
-failed outcomes so the operation is safely repeatable.
+incomplete-checkpoint outcomes so the operation is safely repeatable. A failed
+Books update aborts the run without recording a successful repair.
 
 # Related Knowledge
 

@@ -1,14 +1,8 @@
-import importlib.util
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
-
-SCRIPT = Path(__file__).parents[1] / "scripts" / "repair_review_payment_allocations.py"
-SPEC = importlib.util.spec_from_file_location("repair_review_payment_allocations", SCRIPT)
-MODULE = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader
-SPEC.loader.exec_module(MODULE)
+from apps import repair_review_payment_allocations as MODULE
 
 
 def _state():

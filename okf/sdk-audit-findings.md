@@ -24,6 +24,10 @@ A comprehensive code audit across all `zoho_sdk` service clients identified key 
 * **Sensitive Parameter Redaction**: `sanitize_log_params()` masks sensitive query parameters (e.g. auth tokens, secrets, emails, GST numbers, PAN) in `BaseZohoClient` before logging.
 * **Strict Output Path Confinement**: `resolve_output_path(strict_containment=True)` prevents path traversal and verifies destination paths remain within the designated output tree.
 * **Thread-Safe Token Refresh**: Added `_token_lock` (`threading.Lock`) in `BaseZohoClient` to prevent concurrent 401 token refresh race conditions.
+* **Fail-Closed Refresh**: Token-broker failures and empty refresh results raise
+  sanitized authentication errors without replacing the active token. WorkDrive
+  clients created through the workflow factory receive the same refresh support
+  as Books, Creator, and Analytics clients.
 * **Sanitized Error Payloads**: Removed raw HTML error page formatting from exceptions to prevent internal gateway leakage.
 * **Mutation Token Routing**: `POST`, `PUT`, `PATCH`, and `DELETE` use the mutation-token path by default. Semantically read-only requests that happen to use POST must explicitly pass `is_mutation=False`; Zoho Sheet worksheet listing is the current exception.
 
@@ -40,6 +44,8 @@ A comprehensive code audit across all `zoho_sdk` service clients identified key 
 * **Structured Exception Fields**: `ZohoError` exposes `status_code`, `error_code`, `response_data`, and `endpoint`.
 * **Uniform Request Contract**: Every concrete service client forwards the base transport options for form data, headers, files, streaming, URL overrides, mutation classification, and timeouts. Books and Inventory continue to add organization IDs without mutating caller-owned parameter dictionaries.
 * **Portable Filenames**: Untrusted download names normalize both POSIX and Windows separators before basename extraction.
+* **Stable Output Roots**: Relative paths that already begin with the configured
+  output root are not prefixed a second time.
 * **Python 3.8 Compatibility**: Runtime-evaluated WorkDrive annotations use `typing.Union` and `typing.Set`, matching the minimum version declared in `pyproject.toml`.
 
 ## Request Contract

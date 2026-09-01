@@ -25,7 +25,7 @@ The unified source tree contains three distinct layers:
    - Authentication managers (`ZohoOAuth2Manager`, `CatalystAuth`, `HttpTokenProvider`).
 
 2. **High-Level Domain Workflows (`workflows`)**:
-   - `workflows.bank_reconciliation`: Bank transaction and ledger matching.
+   - `workflows.bank_vendor_ledger_matching`: Bank-withdrawal matching against Books vendor payments or external vendor-ledger receipts.
    - `workflows.collection_reconciliation`: Incoming Creator collection matching, Books customer-payment categorization, Analytics-assisted exceptions, and Creator audit records.
    - `workflows.duplicate_payment_check`: Read-only detection of exact duplicate Books customer payments by customer, date, and amount.
    - `workflows.gstr1_verification`: Read-only previous-month Books invoice and credit-note readiness checks for drafts, numbering, chronology, and e-invoice registration.

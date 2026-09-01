@@ -1,14 +1,15 @@
 # zoho_sdk — Code Index
 
-> **AI AGENT INSTRUCTION**: Read this file first before opening any source file.
-> It maps the entire codebase. Only open source files when you need implementation details beyond what is here.
+> **Navigation reference:** This index summarizes the public SDK surface. Code
+> and tests are authoritative; see `AGENTS.md` and `okf/index.md` for current
+> repository policy and architecture.
 
 ---
 
 ## Project Purpose
 
-Low-level Python SDK providing typed clients for multiple Zoho API services.
-Install as `pip install -e .` and import directly; no business logic included.
+Python project providing typed Zoho API clients, reusable domain workflows, and
+application entry points. Install the packages with `pip install -e .`.
 
 Supported services:
 1. **Zoho Books** — Accounting: invoices, bills, contacts, banking, GST, projects
@@ -79,8 +80,12 @@ zoho_sdk/
 │           ├── picklists.py         # Picklists
 │           ├── bins.py              # Bins
 │           └── batches.py           # Batches
-├── src/workflows/                   # Multi-service business workflows
-│   └── collection_reconciliation/   # Creator ↔ Books collections + Analytics exceptions
+├── src/workflows/                   # Multi-service domain workflows
+│   ├── bank_vendor_ledger_matching/
+│   ├── collection_reconciliation/
+│   ├── duplicate_payment_check/
+│   ├── gstr1_verification/
+│   └── vendor_ledger_reconciliation/ # Additional workflows are indexed in OKF
 ├── apps/                            # Permanent web servers, dashboards & CLI runners
 ├── scripts/                         # Ephemeral scratch scripts (< 24h lifespan)
 ├── tests/                           # Pytest tests
@@ -93,7 +98,7 @@ zoho_sdk/
 │   ├── test_sheet.py
 │   └── test_wd.py
 ├── logs/                            # Runtime log files
-└── pyproject.toml                   # Package metadata (name: zoho-sdk, version: 0.1.0)
+└── pyproject.toml                   # Package metadata (name: zoho-sdk, version: 0.2.0)
 ```
 
 ---

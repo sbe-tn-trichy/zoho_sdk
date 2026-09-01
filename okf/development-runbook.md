@@ -63,8 +63,15 @@ postponed annotations; the validation matrix should include Python 3.8.
 - Keep every concrete service `request()` override compatible with the full `BaseZohoClient.request()` signature and forward transport options unchanged.
 - Treat `POST`, `PUT`, `PATCH`, and `DELETE` as mutations. Mark a semantically read-only POST explicitly with `is_mutation=False` and cover the exception with a test.
 - Never commit tokens, `.env` files, generated reports, logs, or `.codex` artifacts.
-- Keep workflow imports under the standalone `workflows` package; no legacy package alias is maintained.
+- Use canonical `workflows` package names. Retain a compatibility alias only when
+  it is explicit, documented, and covered by tests.
 - All files placed in `scripts/` are strictly temporary with a 24-hour retention lifespan. Permanent user-facing tools, web servers, and CLI runners belong in `apps/`.
+- Never inline HTML/CSS/JS in Python files; save web templates under `apps/static/`.
+- Subclass `zoho.base_resource.BaseResource` for all Books and Inventory resources to prevent duplicate CRUD and pagination logic.
+- Declare explicit type annotations (PEP 484) on all public function signatures instead of untyped `*args, **kwargs`.
+- Use `workflows.core.auth` client factories for all SDK client instantiations.
+- Save generated project artifacts under `output/` by default. A documented API
+  may honor an explicit absolute caller path after safe validation.
 
 # Safe Workflow Execution
 
@@ -76,7 +83,7 @@ Run the read-only export below to create an all-items catalog and a smaller
 review list for NeoSeal Books items that do not yet have an `alias_name`:
 
 ```bash
-PYTHONPATH=src .venv/bin/python scripts/export_neoseal_items.py \
+PYTHONPATH=src .venv/bin/python apps/export_neoseal_items.py \
   --purchase-account-id "$NEOSEAL_PURCHASE_ACCOUNT_ID"
 ```
 

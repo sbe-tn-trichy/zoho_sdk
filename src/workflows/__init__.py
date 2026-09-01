@@ -30,7 +30,7 @@ from .polycab_credit_memos.processor import (
 )
 from .polycab_rso import import_polycab_rso_pdf, parse_polycab_rso_pdf
 from .vendor_ledger_reconciliation.cleaner import clean_ledger_file, get_ledger_metadata
-from .bank_reconciliation.matcher import (
+from .bank_vendor_ledger_matching.matcher import (
     match_bank_with_vendor_ledger,
     match_ledger_entries,
 )

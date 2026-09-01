@@ -35,9 +35,20 @@ def get_token_for(service_key: str, fallback_key: str = "", token_url: str = Con
     """Helper to fetch a fresh token with fallback for a given service."""
     try:
         tokens = HttpTokenProvider(token_url, timeout=30).get_tokens()
-        return tokens.get(service_key) or (tokens.get(fallback_key) if fallback_key else "") or ""
-    except Exception:
-        return ""
+        token = tokens.get(service_key) or (
+            tokens.get(fallback_key) if fallback_key else None
+        )
+        if not token:
+            raise ZohoAuthError(
+                f"Token service did not return a token for {service_key!r}."
+            )
+        return token
+    except ZohoAuthError:
+        raise
+    except Exception as exc:
+        raise ZohoAuthError(
+            f"Unable to retrieve the {service_key!r} token from the configured service."
+        ) from exc
 
 
 def get_books_client(
@@ -108,10 +119,20 @@ def get_workdrive_client(
     token: Optional[str] = None,
     domain: str = Config.DOMAIN,
     token_url: str = Config.TOKEN_URL,
+    token_refresh_callback: Optional[Callable[[], str]] = None,
 ) -> ZohoWorkdriveAPI:
-    """Create an authenticated Zoho WorkDrive client."""
+    """Create an authenticated Zoho WorkDrive client with token refresh support."""
     if not token:
         token = get_token_for("workdrive", "zoho_workdrive_conn", token_url=token_url)
     if not token:
         raise ZohoAuthError("No Zoho WorkDrive access token available.")
-    return ZohoWorkdriveAPI(access_token=token, domain=domain)
+    refresh_cb = token_refresh_callback or (
+        lambda: get_token_for(
+            "workdrive", "zoho_workdrive_conn", token_url=token_url
+        )
+    )
+    return ZohoWorkdriveAPI(
+        access_token=token,
+        domain=domain,
+        token_refresh_callback=refresh_cb,
+    )

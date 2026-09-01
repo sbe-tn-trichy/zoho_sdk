@@ -176,6 +176,37 @@ class TestReconcileVendorAccount(unittest.TestCase):
         self.assertEqual(len(debit_memo["unmatched_books"]), 0)
         self.assertEqual(len(debit_memo["unmatched_ledger"]), 0)
 
+    @patch("workflows.vendor_ledger_reconciliation._reconciler.get_ledger_metadata")
+    @patch("workflows.vendor_ledger_reconciliation._reconciler.clean_ledger_file")
+    def test_skip_vendor_credits_avoids_api_call(self, mock_clean, mock_metadata):
+        mock_metadata.return_value = {
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-31",
+        }
+        mock_clean.return_value = [
+            {
+                "date": "invalid-date",
+                "document_type": "Credit Memo",
+                "transaction_no": "VC-1",
+                "credit_amount": "10.00",
+            }
+        ]
+        self.books_client.bills.list_all.return_value = []
+        self.books_client.vendor_payments.list_all.return_value = []
+
+        result = reconcile_vendor_account(
+            self.books_client,
+            self.vendor_id,
+            self.ledger_path,
+            skip_vendor_credits=True,
+        )
+
+        self.books_client.vendor_credits.list_all.assert_not_called()
+        self.assertEqual(
+            result["credit_memo"]["unmatched_ledger"][0]["transaction_no"],
+            "VC-1",
+        )
+
 class TestReconcileVendor(unittest.TestCase):
     def setUp(self):
         self.books_client = MagicMock()

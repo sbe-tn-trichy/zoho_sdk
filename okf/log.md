@@ -2,6 +2,17 @@
 
 ## 2026-09-01
 
+- Restored permanent operational utilities under `apps/`, repaired package-safe
+  application imports, made reconciliation identity-safe and ambiguity-aware,
+  added vendor-credit skipping and malformed-date handling, hardened token
+  refresh and output paths, and restored workflow subpackage exports.
+- Consolidated repository policy in `AGENTS.md`, made `GEMINI.md` defer to it,
+  and reconciled guidance for documentation authority, tests, compatibility
+  aliases, typed workflow contracts, and safe output paths; refreshed the stale
+  scope and version at the top of `INDEX.md`.
+- Extracted web templates from Python scripts to `apps/static/` (`dashboard.html`, `payment_review.html`) and standardized application bootstrap via `apps/_bootstrap.py`.
+- Added explicit PEP 484 parameter signatures across matching wrappers (`bank_vendor_ledger_matching` and `vendor_ledger_reconciliation`), added `TypedDict` data contracts in `collection_reconciliation.types`, and decomposed invoice allocation and cheque joining logic into `allocator.py` and `cheques.py`.
+- Renamed the bank-withdrawal workflow to Bank–Vendor Ledger Matching under `workflows.bank_vendor_ledger_matching`, retained `workflows.bank_reconciliation` as a deprecated compatibility alias, and renamed its default output directory and OKF concept.
 - Extracted a shared `BaseResource` base class (`src/zoho/base_resource.py`) eliminating duplicate CRUD and streaming pagination implementations across Books and Inventory.
 - Centralized client factory instantiation across `apps/` through `workflows.core.auth`, and unified string/decimal conversion helpers (`to_decimal`, `to_text`) in `workflows.core.matching`.
 - Reorganized project entry points into a dedicated `apps/` layer for web servers, dashboards, and CLI runners (`dashboard.py`, `payment_review.py`, `run_collection_reconciliation.py`, `check_duplicate_payments.py`, `export_icici_unmatched.py`, `import_polycab_rso.py`, `register_customer.py`), keeping `src/workflows/` strictly as pure domain libraries.

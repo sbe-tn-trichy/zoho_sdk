@@ -10,9 +10,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Sequence
 
-_SRC = Path(__file__).resolve().parent.parent / "src"
-if str(_SRC) not in sys.path:
-    sys.path.insert(0, str(_SRC))
+try:
+    from . import _bootstrap  # noqa: F401
+except ImportError:  # Direct script execution.
+    import _bootstrap  # type: ignore[no-redef]  # noqa: F401
 
 from workflows.core.auth import get_books_client
 from workflows.core.config import Config

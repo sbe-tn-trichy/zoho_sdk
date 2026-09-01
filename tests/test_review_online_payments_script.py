@@ -5,37 +5,26 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from scripts.review_online_payments import _clients, main
+from apps.payment_review import _clients, main
 
 
 class TestReviewOnlinePaymentsScript(unittest.TestCase):
-    @patch("scripts.review_online_payments.ZohoBooksAPI")
-    @patch("scripts.review_online_payments.ZohoCreatorAPI")
-    @patch("scripts.review_online_payments.HttpTokenProvider")
-    def test_clients_refresh_expired_service_tokens(
-        self, provider_class, creator_class, books_class
-    ):
-        provider = MagicMock()
-        provider.get_tokens.side_effect = [
-            {"creator": "creator-old", "books": "books-old"},
-            {"creator": "creator-new", "books": "books-new"},
-            {"creator": "creator-newer", "books": "books-newer"},
-        ]
-        provider_class.return_value = provider
-
+    @patch("apps.payment_review.get_books_client")
+    @patch("apps.payment_review.get_creator_client")
+    def test_clients_use_centralized_factories(self, creator_factory, books_factory):
         creator, books = _clients("http://token", "owner", "org", "in")
 
-        self.assertIs(creator, creator_class.return_value)
-        self.assertIs(books, books_class.return_value)
-        creator_kwargs = creator_class.call_args.kwargs
-        books_kwargs = books_class.call_args.kwargs
-        self.assertEqual(creator_kwargs["access_token"], "creator-old")
-        self.assertEqual(books_kwargs["access_token"], "books-old")
-        self.assertEqual(creator_kwargs["token_refresh_callback"](), "creator-new")
-        self.assertEqual(books_kwargs["token_refresh_callback"](), "books-newer")
+        self.assertIs(creator, creator_factory.return_value)
+        self.assertIs(books, books_factory.return_value)
+        creator_factory.assert_called_once_with(
+            owner_name="owner", domain="in", token_url="http://token"
+        )
+        books_factory.assert_called_once_with(
+            org_id="org", domain="in", token_url="http://token"
+        )
 
-    @patch("scripts.review_online_payments.OnlinePaymentReviewService")
-    @patch("scripts.review_online_payments._clients")
+    @patch("apps.payment_review.OnlinePaymentReviewService")
+    @patch("apps.payment_review._clients")
     def test_refresh_only_updates_preview_and_exits(self, clients, service_class):
         clients.return_value = (MagicMock(), MagicMock())
         service_class.return_value.refresh.return_value = {

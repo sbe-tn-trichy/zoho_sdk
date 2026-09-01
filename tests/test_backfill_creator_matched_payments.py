@@ -6,7 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from scripts.backfill_creator_matched_payments import (
+from apps.backfill_creator_matched_payments import (
     BackfillConfig,
     CreatorBooksPaymentLinkBackfill,
     build_native_payment_indexes,

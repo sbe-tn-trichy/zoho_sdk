@@ -1,4 +1,4 @@
-from scripts.export_neoseal_items import build_parser, export_row
+from apps.export_neoseal_items import build_parser, export_row
 
 
 def test_purchase_account_id_is_required() -> None:

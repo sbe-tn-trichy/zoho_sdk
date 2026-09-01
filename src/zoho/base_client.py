@@ -7,6 +7,7 @@ from zoho.logging import configure_logger
 from zoho.security import sanitize_log_params
 from zoho.exceptions import (
     ZohoError,
+    ZohoAuthError,
     ZohoBooksError,
     ZohoInventoryError,
     ZohoWorkdriveError,
@@ -238,7 +239,13 @@ class BaseZohoClient:
         if response.status_code == 401 and self.token_refresh_callback:
             with self._token_lock:
                 self.logger.warning(f"{self.service_name.capitalize()} request returned 401; refreshing token and retrying.")
-                self.access_token = self.token_refresh_callback()
+                response.close()
+                refreshed_token = self.token_refresh_callback()
+                if not refreshed_token:
+                    raise ZohoAuthError(
+                        f"{self.service_name.capitalize()} token refresh returned an empty token."
+                    )
+                self.access_token = refreshed_token
                 
                 token = self.access_token
                 if hasattr(token, "get_token_for_request"):

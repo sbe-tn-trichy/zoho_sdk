@@ -16,7 +16,7 @@ okf_version: "0.2"
 * [Duplicate Customer Payment Check](duplicate-payment-check.md) - Read-only detection of customer payments sharing the same customer, date, and amount.
 * [Polycab RSO Import](polycab-rso-import.md) - Parse Polycab return-sales-order PDFs, create location-scoped Books sales orders, and attach the source PDF.
 * [Analytics Metadata Snapshots](analytics-metadata.md) - Complete workspace metadata collection, rate-limit handling, snapshot files, and relationship maps.
-* [Bank Reconciliation](bank-reconciliation.md) - Books bank-line matching and ICICI UPI reference normalization.
+* [Bank–Vendor Ledger Matching](bank-vendor-ledger-matching.md) - Books bank-withdrawal matching and ICICI UPI reference normalization.
 * [Creator Collection Reconciliation](collection-reconciliation.md) - Creator collection matching, Books customer-payment categorization, Analytics exceptions, schema contracts, and audit safety.
 * [GSTR-1 Verification](gstr1-verification.md) - Previous-month invoice and credit-note checks for drafts, number continuity, chronology, and e-invoice registration.
 * [Vendor-Customer Offset](vendor-customer-offset.md) - GSTIN-safe paired customer/vendor payments through a clearing bank account.

@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from scripts.backfill_online_payment_creator_fields import find_books_payment
+from apps.backfill_online_payment_creator_fields import find_books_payment
 
 
 def _values(**overrides):

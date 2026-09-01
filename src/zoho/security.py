@@ -135,8 +135,14 @@ def resolve_output_path(
     target_path = Path(save_path).expanduser()
 
     if not target_path.is_absolute():
-        # If relative, anchor to base_dir
-        resolved = (base_path / target_path).resolve()
+        # Preserve a caller path that already names the configured output root;
+        # otherwise treat it as relative to that root.
+        direct = target_path.resolve()
+        try:
+            direct.relative_to(base_path)
+            resolved = direct
+        except ValueError:
+            resolved = (base_path / target_path).resolve()
     else:
         resolved = target_path.resolve()
 

@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 from datetime import date
-from workflows.bank_reconciliation.matcher import (
+from workflows.bank_vendor_ledger_matching.matcher import (
     get_bank_reference,
     parse_date,
     get_abs_amount,
@@ -205,8 +205,69 @@ class TestMatchLedgerEntries(unittest.TestCase):
         self.assertEqual(len(results["exact_matches"]), 1)
         self.assertEqual(results["strong_matches"], [])
 
+    def test_duplicate_external_ids_do_not_hide_unmatched_rows(self):
+        self.books_client.bank_transactions.list_all.return_value = [
+            {"transaction_id": "duplicate", "date": "2026-01-01", "amount": "-100", "reference_number": "A", "debit_or_credit": "debit"},
+            {"transaction_id": "duplicate", "date": "2026-01-02", "amount": "-200", "reference_number": "B", "debit_or_credit": "debit"},
+        ]
+        self.books_client.vendor_payments.list_all.return_value = [
+            {"payment_id": "payment", "date": "2026-01-01", "amount": "100", "reference_number": "A"}
+        ]
+
+        results = match_ledger_entries(
+            self.books_client, self.bank_account_id, self.vendor_id
+        )
+
+        self.assertEqual(len(results["exact_matches"]), 1)
+        self.assertEqual(results["unmatched_bank_transactions"][0]["amount"], "-200")
+
+    def test_ambiguous_equal_amount_candidates_are_not_greedily_matched(self):
+        self.books_client.bank_transactions.list_all.return_value = [
+            {"transaction_id": "b1", "date": "2026-01-01", "amount": "-100", "debit_or_credit": "debit"},
+            {"transaction_id": "b2", "date": "2026-01-04", "amount": "-100", "debit_or_credit": "debit"},
+        ]
+        payments = [
+            {"payment_id": "p4", "date": "2026-01-04", "amount": "100"},
+            {"payment_id": "p1", "date": "2026-01-01", "amount": "100"},
+        ]
+        self.books_client.vendor_payments.list_all.return_value = payments
+
+        first = match_ledger_entries(
+            self.books_client, self.bank_account_id, self.vendor_id,
+            date_tolerance_days=3,
+        )
+        self.books_client.vendor_payments.list_all.return_value = list(reversed(payments))
+        second = match_ledger_entries(
+            self.books_client, self.bank_account_id, self.vendor_id,
+            date_tolerance_days=3,
+        )
+
+        self.assertEqual(first["strong_matches"], [])
+        self.assertEqual(second["strong_matches"], [])
+        self.assertEqual(len(first["ambiguous_matches"]), 2)
+        self.assertEqual(len(second["ambiguous_matches"]), 2)
+
+    def test_partial_date_filter_is_applied(self):
+        self.books_client.bank_transactions.list_all.return_value = []
+        self.books_client.vendor_payments.list_all.return_value = []
+
+        match_ledger_entries(
+            self.books_client,
+            self.bank_account_id,
+            self.vendor_id,
+            start_date=date(2026, 1, 10),
+            date_tolerance_days=2,
+        )
+
+        self.books_client.bank_transactions.list_all.assert_called_once_with(
+            params={"account_id": self.bank_account_id, "from_date": "2026-01-08"}
+        )
+        self.books_client.vendor_payments.list_all.assert_called_once_with(
+            params={"vendor_id": self.vendor_id, "from_date": "2026-01-10"}
+        )
+
 from unittest.mock import patch
-from workflows.bank_reconciliation.matcher import (
+from workflows.bank_vendor_ledger_matching.matcher import (
     match_bank_with_vendor_ledger
 )
 
@@ -217,8 +278,8 @@ class TestMatchBankWithVendorLedger(unittest.TestCase):
         self.ledger_path = "dummy_ledger.xls"
 
     @patch("os.path.exists")
-    @patch("workflows.bank_reconciliation._matcher.get_ledger_metadata")
-    @patch("workflows.bank_reconciliation._matcher.clean_ledger_file")
+    @patch("workflows.bank_vendor_ledger_matching._matcher.get_ledger_metadata")
+    @patch("workflows.bank_vendor_ledger_matching._matcher.clean_ledger_file")
     def test_match_bank_with_vendor_ledger(self, mock_clean, mock_metadata, mock_exists):
         mock_exists.return_value = True
         mock_metadata.return_value = {
