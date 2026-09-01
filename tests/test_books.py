@@ -1,5 +1,6 @@
 import json
 import unittest
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 from zoho.books import ZohoBooksAPI, ZohoBooksError
 from zoho.books.base import BaseResource
@@ -409,24 +410,34 @@ class TestGST(unittest.TestCase):
         client.request.assert_called_with('GET', 'reports/gstrinwardsupplies', params={"accept": "xlsx"})
 
     @patch("builtins.open", new_callable=unittest.mock.mock_open)
-    @patch("os.makedirs")
-    def test_download_gstr_outward_supplies(self, mock_makedirs, mock_open):
+    def test_download_gstr_outward_supplies(self, mock_open):
         client = MagicMock()
+        response = MagicMock()
+        response.iter_content.return_value = [b"outward_", b"report_content"]
+        client.request.return_value = response
         gst = GST(client)
-        gst.get_gstr_outward_supplies = MagicMock(return_value=b"outward_report_content")
         gst.download_gstr_outward_supplies("gstr1_report.xlsx", params={"accept": "xlsx"})
-        gst.get_gstr_outward_supplies.assert_called_once_with(params={"accept": "xlsx"})
+        client.request.assert_called_once_with(
+            'GET', 'reports/gstroutwardsupplies',
+            params={"accept": "xlsx"}, stream=True,
+        )
         mock_open.assert_called_once()
-        mock_open().write.assert_called_once_with(b"outward_report_content")
+        self.assertEqual(
+            mock_open().write.call_args_list,
+            [unittest.mock.call(b"outward_"), unittest.mock.call(b"report_content")],
+        )
+        response.close.assert_called_once()
 
     @patch("builtins.open", new_callable=unittest.mock.mock_open)
-    @patch("os.makedirs")
-    def test_download_gstr_inward_supplies(self, mock_makedirs, mock_open):
+    def test_download_gstr_inward_supplies(self, mock_open):
         client = MagicMock()
+        client.request.return_value = b"inward_report_content"
         gst = GST(client)
-        gst.get_gstr_inward_supplies = MagicMock(return_value=b"inward_report_content")
         gst.download_gstr_inward_supplies("gstr2_report.xlsx", params={"accept": "xlsx"})
-        gst.get_gstr_inward_supplies.assert_called_once_with(params={"accept": "xlsx"})
+        client.request.assert_called_once_with(
+            'GET', 'reports/gstrinwardsupplies',
+            params={"accept": "xlsx"}, stream=True,
+        )
         mock_open.assert_called_once()
         mock_open().write.assert_called_once_with(b"inward_report_content")
 
@@ -503,7 +514,7 @@ class TestProjectsAndTimeEntries(unittest.TestCase):
 class TestBooksCatalystAuth(unittest.TestCase):
     @patch("requests.request")
     @patch("requests.post")
-    def test_catalyst_auth_put_and_delete(self, mock_post, mock_request):
+    def test_catalyst_auth_all_mutations(self, mock_post, mock_request):
         mock_response_catalyst = MagicMock()
         mock_response_catalyst.status_code = 200
         mock_response_catalyst.json.return_value = {
@@ -535,10 +546,11 @@ class TestBooksCatalystAuth(unittest.TestCase):
 
         mock_request.reset_mock()
         client.request("POST", "invoices", json={})
-        mock_post.assert_not_called()
-        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
+        mock_post.assert_called_once()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_books_token")
 
         mock_request.reset_mock()
+        mock_post.reset_mock()
         client.request("PUT", "invoices/inv123", json={})
         mock_post.assert_called_once_with(
             "http://localhost:3000/server/new/tokens",
@@ -572,17 +584,22 @@ class TestContactsAndVendorsStatements(unittest.TestCase):
         self.client.request.assert_called_with('GET', 'vendors/v123/statements', params={"accept": "xls"}, json=None)
 
     @patch("builtins.open", new_callable=unittest.mock.mock_open)
-    @patch("os.makedirs")
-    def test_download_statement_contacts(self, mock_makedirs, mock_open):
-        self.contacts.get_statement = MagicMock(return_value=b"xls_content")
+    def test_download_statement_contacts(self, mock_open):
+        response = MagicMock()
+        response.iter_content.return_value = [b"xls_content"]
+        self.client.request.return_value = response
         import tempfile
         import os
         with tempfile.TemporaryDirectory() as tmpdir:
             save_path = os.path.join(tmpdir, "statement.xls")
             self.contacts.download_statement("c123", save_path)
-            self.contacts.get_statement.assert_called_once_with("c123", params={"accept": "xls"})
-            mock_open.assert_called_once_with(save_path, "wb")
+            self.client.request.assert_called_once_with(
+                "GET", "contacts/c123/statements",
+                params={"accept": "xls"}, stream=True,
+            )
+            mock_open.assert_called_once_with(str(Path(save_path).resolve()), "wb")
             mock_open().write.assert_called_once_with(b"xls_content")
+            response.close.assert_called_once()
 
 
 class TestBillsPartialUpdate(unittest.TestCase):
@@ -603,4 +620,3 @@ class TestBillsPartialUpdate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

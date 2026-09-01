@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from scripts.run_collection_reconciliation import run_collection_reconciliation
+from apps.run_collection_reconciliation import run_collection_reconciliation
 
 
 class TestRunCollectionReconciliation(unittest.TestCase):

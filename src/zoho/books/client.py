@@ -74,14 +74,19 @@ class ZohoBooksAPI(BaseZohoClient):
         method: str,
         endpoint: str,
         json: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
         files: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None
+        stream: bool = False,
+        override_url: Optional[str] = None,
+        is_mutation: Optional[bool] = None,
+        timeout: Optional[int] = None,
     ) -> Any:
         """
         Internal HTTP request handler with logging.
         """
-        params = params or {}
+        params = dict(params or {})
         if 'organization_id' not in params:
             params['organization_id'] = self.organization_id
             
@@ -91,5 +96,10 @@ class ZohoBooksAPI(BaseZohoClient):
             json=json,
             data=data,
             params=params,
-            files=files
+            headers=headers,
+            files=files,
+            stream=stream,
+            override_url=override_url,
+            is_mutation=is_mutation,
+            timeout=timeout,
         )

@@ -59,7 +59,10 @@ class TestSecurityAuditRemediation(unittest.TestCase):
 
             # Absolute path inside base_dir is allowed
             abs_inside = str(Path(tmpdir) / "inside.pdf")
-            self.assertEqual(resolve_output_path(abs_inside, base_dir=tmpdir, strict_containment=True), abs_inside)
+            self.assertEqual(
+                Path(resolve_output_path(abs_inside, base_dir=tmpdir, strict_containment=True)),
+                Path(abs_inside).resolve(),
+            )
 
             # Absolute path outside base_dir raises ValueError when strict_containment=True
             abs_outside = "/etc/passwd"

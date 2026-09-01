@@ -192,7 +192,7 @@ class TestItemGroups(unittest.TestCase):
 class TestInventoryCatalystAuth(unittest.TestCase):
     @patch("requests.request")
     @patch("requests.post")
-    def test_catalyst_auth_put_and_delete(self, mock_post, mock_request):
+    def test_catalyst_auth_all_mutations(self, mock_post, mock_request):
         mock_response_catalyst = MagicMock()
         mock_response_catalyst.status_code = 200
         # In Zoho Inventory, the key used is "books" as fallback
@@ -225,10 +225,11 @@ class TestInventoryCatalystAuth(unittest.TestCase):
 
         mock_request.reset_mock()
         client.request("POST", "items", json={})
-        mock_post.assert_not_called()
-        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
+        mock_post.assert_called_once()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_inventory_books_token")
 
         mock_request.reset_mock()
+        mock_post.reset_mock()
         client.request("PUT", "items/item123", json={})
         mock_post.assert_called_once_with(
             "http://localhost:3000/server/new/tokens",

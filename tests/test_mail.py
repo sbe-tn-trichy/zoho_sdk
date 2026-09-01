@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import os
 import tempfile
+from pathlib import Path
 from zoho.mail import ZohoMailAPI, ZohoMailError
 
 class TestZohoMailAPI(unittest.TestCase):
@@ -33,6 +34,7 @@ class TestZohoMailAPI(unittest.TestCase):
             params=None,
             json=None,
             files=None,
+            timeout=30,
             stream=False
         )
 
@@ -218,14 +220,14 @@ class TestMessages(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             file_name = "test.txt"
             path = self.messages.resolve_download_path(tmpdir, file_name)
-            self.assertEqual(path, os.path.join(tmpdir, file_name))
+            self.assertEqual(path, str(Path(tmpdir).resolve() / file_name))
 
             # Create file to cause collision
             with open(path, "w") as f:
                 f.write("exist")
             
             path2 = self.messages.resolve_download_path(tmpdir, file_name)
-            self.assertEqual(path2, os.path.join(tmpdir, "test_1.txt"))
+            self.assertEqual(path2, str(Path(tmpdir).resolve() / "test_1.txt"))
 
     def test_download_folder_attachments(self):
         # Mock list_iter to return one message with attachments
@@ -239,8 +241,12 @@ class TestMessages(unittest.TestCase):
             "data": [{"attachmentId": "att1", "attachmentName": "file1.png"}]
         })
         
-        # Mock get_attachment_content
-        self.messages.get_attachment_content = MagicMock(return_value=b"fake_png_data")
+        def download_attachment(folder_id, message_id, attachment_id, path):
+            with open(path, "wb") as output:
+                output.write(b"fake_png_data")
+            return path
+
+        self.messages.download_attachment = MagicMock(side_effect=download_attachment)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = self.messages.download_folder_attachments("f123", tmpdir)
@@ -249,6 +255,9 @@ class TestMessages(unittest.TestCase):
             self.assertEqual(os.path.basename(paths[0]), "file1.png")
             with open(paths[0], "rb") as f:
                 self.assertEqual(f.read(), b"fake_png_data")
+            self.messages.download_attachment.assert_called_once_with(
+                "f123", "m1", "att1", paths[0]
+            )
 
 class TestMailCatalystAuth(unittest.TestCase):
     @patch("requests.request")
@@ -284,14 +293,15 @@ class TestMailCatalystAuth(unittest.TestCase):
         mock_post.assert_not_called()
         self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
 
-        # POST request should not use Catalyst
+        # POST request should use Catalyst
         mock_request.reset_mock()
         client.request("POST", "accounts", json={})
-        mock_post.assert_not_called()
-        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
+        mock_post.assert_called_once()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_mail_token")
 
         # PUT request should use Catalyst
         mock_request.reset_mock()
+        mock_post.reset_mock()
         client.request("PUT", "accounts/acc123", json={})
         mock_post.assert_called_once_with(
             "http://localhost:3000/server/new/tokens",
@@ -311,4 +321,3 @@ class TestMailCatalystAuth(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

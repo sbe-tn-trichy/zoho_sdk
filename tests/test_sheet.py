@@ -30,7 +30,8 @@ class TestZohoSheetAPI(unittest.TestCase):
             method="GET",
             url="https://sheet.zoho.com/api/v2/workbooks",
             headers=self.client._get_headers(),
-            params={"method": "workbook.list"}
+            params={"method": "workbook.list"},
+            timeout=30,
         )
 
     @patch("requests.request")
@@ -47,11 +48,13 @@ class TestZohoSheetAPI(unittest.TestCase):
             method="POST",
             url="https://sheet.zoho.com/api/v2/wb1",
             headers=self.client._get_headers(),
-            params={"method": "worksheet.list"}
+            params={"method": "worksheet.list"},
+            timeout=30,
         )
 
     @patch("requests.request")
     def test_get_rows_success(self, mock_request):
+        mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"records": [{"col1": "val1"}]}
         mock_request.return_value = mock_response
@@ -66,7 +69,8 @@ class TestZohoSheetAPI(unittest.TestCase):
                 "method": "worksheet.records.fetch",
                 "worksheet_name": "Sheet1",
                 "limit": 10
-            }
+            },
+            timeout=30,
         )
 
     @patch("requests.request")
@@ -98,7 +102,8 @@ class TestZohoSheetAPI(unittest.TestCase):
                 "worksheet_name": "Sheet1",
                 "range": "A1:B1",
                 "json_data": json.dumps(data)
-            }
+            },
+            timeout=30,
         )
 
     @patch("requests.request")
@@ -120,7 +125,8 @@ class TestZohoSheetAPI(unittest.TestCase):
                 "row": 1,
                 "column": 1,
                 "content": "Hello"
-            }
+            },
+            timeout=30,
         )
 
     @patch("requests.request")
@@ -139,7 +145,8 @@ class TestZohoSheetAPI(unittest.TestCase):
             params={"method": "worksheet.add"},
             data={
                 "worksheet_name": "NewSheet"
-            }
+            },
+            timeout=30,
         )
 
     @patch("requests.request")
@@ -161,7 +168,8 @@ class TestZohoSheetAPI(unittest.TestCase):
                 "worksheet_name": "Sheet1",
                 "json_data": json.dumps(rows_data),
                 "header_row": 2
-            }
+            },
+            timeout=30,
         )
 
     @patch("requests.request")
@@ -183,7 +191,8 @@ class TestZohoSheetAPI(unittest.TestCase):
                 "worksheet_name": "Sheet1",
                 "criteria": "Name='John'",
                 "json_data": json.dumps(rows_data)
-            }
+            },
+            timeout=30,
         )
 
     @patch("requests.request")
@@ -203,7 +212,8 @@ class TestZohoSheetAPI(unittest.TestCase):
             data={
                 "worksheet_name": "Sheet1",
                 "criteria": "(row_index != 0)"
-            }
+            },
+            timeout=30,
         )
 
 class TestSheetCatalystAuth(unittest.TestCase):
@@ -232,13 +242,20 @@ class TestSheetCatalystAuth(unittest.TestCase):
             domain="in"
         )
 
-        # 1. Non-mutating header check
-        headers_non_mut = client._get_headers()
-        self.assertEqual(headers_non_mut["Authorization"], "Zoho-oauthtoken direct_token")
+        # 1. Semantically read-only POST stays on the direct token.
+        api_response.json.return_value = {"worksheet_names": ["Sheet1"]}
+        self.assertEqual(client.list_sheets("wb123"), ["Sheet1"])
+        mock_post.assert_not_called()
+        self.assertEqual(
+            mock_request.call_args.kwargs["headers"]["Authorization"],
+            "Zoho-oauthtoken direct_token",
+        )
 
         # 2. Call a mutating method and verify the Authorization header passed
         # set_cell is a mutating method
         mock_post.reset_mock()
+        mock_request.reset_mock()
+        api_response.json.return_value = {"status": "success"}
         res = client.set_cell("wb123", "Sheet1", 1, 1, "hello")
         self.assertEqual(res, {"status": "success"})
         
@@ -253,4 +270,3 @@ class TestSheetCatalystAuth(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

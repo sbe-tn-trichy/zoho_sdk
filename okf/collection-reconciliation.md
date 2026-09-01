@@ -86,7 +86,7 @@ ambiguous matches are never written automatically.
 
 # Online Payments Human Review
 
-`scripts/review_online_payments.py` serves a loopback-only review queue for the
+`apps/payment_review.py` serves a loopback-only review queue for the
 production Creator `Online_Payments` report. It maps `Payment_Amount`,
 `Reference`, and the `Customer_Name` lookup to reconciliation values, resolving
 the lookup through `All_Customers1.Customer_Id` before any Books payment is

@@ -1,11 +1,11 @@
 from pathlib import Path
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional, Set, Union
 from ..base import BaseResource
 import logging
 import os
-import sys
 import re
 from zoho.security import resolve_output_path, sanitize_filename
+from zoho.downloads import write_response_to_file
 
 # Logger setup
 
@@ -47,18 +47,10 @@ class Files(BaseResource):
     def download(self, file_id: str, save_path: str, source_folder_id: str = None) -> None:
         """Download a file and save it to the specified path."""
         save_path = resolve_output_path(save_path)
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         app_logger.info(f"Downloading file {file_id} to {save_path}")
         download_url = f"https://download.zoho.{self.client.domain}/v1/workdrive/download/{file_id}"
         response = self.client.request('GET', '', stream=True, override_url=download_url)
-        try:
-            with open(save_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-        finally:
-            if hasattr(response, "close"):
-                response.close()
+        write_response_to_file(response, save_path)
         app_logger.info(f"Successfully downloaded file {file_id}")
 
 
@@ -80,7 +72,7 @@ class Files(BaseResource):
         attrs = item.get("attributes") or {}
         return str(attrs.get("name") or item.get("name") or item.get("id") or "unnamed")
 
-    def _next_available_download_path(self, path: Path, reserved_paths: set[Path]) -> Path:
+    def _next_available_download_path(self, path: Path, reserved_paths: Set[Path]) -> Path:
         """Avoid duplicate source names in one run while keeping reruns idempotent."""
         if path not in reserved_paths:
             reserved_paths.add(path)
@@ -100,7 +92,7 @@ class Files(BaseResource):
     def download_folder(
         self,
         folder_id: str,
-        destination: os.PathLike[str] | str,
+        destination: Union[os.PathLike, str],
         *,
         dry_run: bool = False,
     ) -> List[Path]:
@@ -109,7 +101,7 @@ class Files(BaseResource):
         root = dest_path.expanduser().resolve()
 
         downloaded: List[Path] = []
-        reserved_paths: set[Path] = set()
+        reserved_paths: Set[Path] = set()
 
         def walk(current_folder_id: str, current_local_dir: Path) -> None:
             app_logger.info(f"Listing WorkDrive folder {current_folder_id}")

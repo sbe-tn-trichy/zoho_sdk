@@ -58,9 +58,14 @@ class ZohoAnalyticsAPI(BaseZohoClient):
         method: str,
         endpoint: str,
         json: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, Any]] = None,
+        files: Optional[Dict[str, Any]] = None,
+        stream: bool = False,
         override_url: Optional[str] = None,
+        is_mutation: Optional[bool] = None,
+        timeout: Optional[int] = None,
     ) -> Any:
         request_headers = {"ZANALYTICS-ORGID": self.organization_id}
         if headers:
@@ -69,7 +74,12 @@ class ZohoAnalyticsAPI(BaseZohoClient):
             method=method,
             endpoint=endpoint,
             json=json,
+            data=data,
             params=params,
             headers=request_headers,
+            files=files,
+            stream=stream,
             override_url=override_url,
+            is_mutation=is_mutation,
+            timeout=timeout,
         )

@@ -36,8 +36,14 @@ class ZohoCreatorAPI(BaseZohoClient):
         method: str,
         endpoint: str,
         json: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, Any]] = None
+        headers: Optional[Dict[str, Any]] = None,
+        files: Optional[Dict[str, Any]] = None,
+        stream: bool = False,
+        override_url: Optional[str] = None,
+        is_mutation: Optional[bool] = None,
+        timeout: Optional[int] = None,
     ) -> Any:
         req_headers = {}
         if self.send_environment_header:
@@ -48,8 +54,14 @@ class ZohoCreatorAPI(BaseZohoClient):
             method=method,
             endpoint=endpoint,
             json=json,
+            data=data,
             params=params,
-            headers=req_headers
+            headers=req_headers,
+            files=files,
+            stream=stream,
+            override_url=override_url,
+            is_mutation=is_mutation,
+            timeout=timeout,
         )
 
     # ==========================================

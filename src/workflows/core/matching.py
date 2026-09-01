@@ -1,7 +1,7 @@
-"""Low-level, pure helpers shared by matching workflows."""
 import logging
 import re
 from datetime import datetime, date
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
 
 from .config import Config
@@ -9,6 +9,23 @@ from .config import Config
 logger = logging.getLogger(__name__)
 
 _ICICI_UPI_REFERENCE = re.compile(r"^\s*UPI/(\d{12})(?:/|$)", re.IGNORECASE)
+
+
+def to_decimal(value: Any) -> Optional[Decimal]:
+    """Safely coerce an arbitrary value or numeric string to a Decimal."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value).replace(",", "").strip())
+    except (InvalidOperation, AttributeError, ValueError):
+        return None
+
+
+def to_text(value: Any) -> str:
+    """Return a clean, stripped string representation of any value."""
+    return str(value or "").strip()
 
 
 def parse_date(date_str: Any) -> Optional[date]:

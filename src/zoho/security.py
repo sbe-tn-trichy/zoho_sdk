@@ -107,8 +107,9 @@ def sanitize_filename(name: Optional[str], fallback: str = "unnamed") -> str:
     if not name:
         return fallback
 
-    # Extract base filename to neutralize path traversal sequences (e.g., ../ or C:\)
-    candidate = os.path.basename(str(name).strip())
+    # Normalize both separator styles before extracting the basename. API-provided
+    # filenames can originate on a different operating system than the caller.
+    candidate = os.path.basename(str(name).strip().replace("\\", "/"))
     # Strip dangerous/invalid characters
     candidate = _UNSAFE_FILENAME_CHARS.sub("_", candidate)
     # Strip trailing spaces or dots (problematic on Windows/POSIX)
@@ -157,4 +158,3 @@ def resolve_output_path(
             resolved = base_path / safe_name
 
     return str(resolved)
-

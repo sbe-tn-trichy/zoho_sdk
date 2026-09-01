@@ -23,7 +23,7 @@ list item does not contain its customer ID, the checker retrieves that payment's
 detail before evaluating it. Missing or invalid records are returned in the
 `skipped` collection rather than silently matched.
 
-Use `scripts/check_duplicate_customer_payments.py` to run the check through the
+Use `apps/check_duplicate_payments.py` to run the check through the
 configured token broker. Optional customer and inclusive local date filters are
 available. The Markdown report defaults to
 `output/duplicate_customer_payments.md` and groups each duplicate set under its

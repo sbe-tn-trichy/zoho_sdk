@@ -1,7 +1,10 @@
 import os
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from zoho.base_client import BaseZohoClient
+from zoho.downloads import write_response_to_file
+from zoho.books import ZohoBooksAPI
 from zoho.books.resources.sales import SalesOrders
 from zoho.books.resources.gst import GST
 from workflows.duplicate_payment_check import DuplicatePaymentChecker
@@ -31,6 +34,78 @@ class TestBaseClientPerformance(unittest.TestCase):
                 default_timeout=45
             )
             self.assertEqual(client.default_timeout, 45)
+
+    def test_concrete_books_client_forwards_stream_and_timeout(self):
+        client = ZohoBooksAPI("token", "org-1")
+        response = MagicMock(status_code=200)
+        client.session.request = MagicMock(return_value=response)
+
+        self.assertIs(
+            client.request("GET", "reports/test", stream=True, timeout=12),
+            response,
+        )
+        client.session.request.assert_called_once_with(
+            method="GET",
+            url="https://www.zohoapis.com/books/v3/reports/test",
+            headers={
+                "Authorization": "Zoho-oauthtoken token",
+                "Content-Type": "application/json",
+            },
+            params={"organization_id": "org-1"},
+            json=None,
+            files=None,
+            timeout=12,
+            stream=True,
+        )
+
+    def test_stream_callback_does_not_materialize_response_body(self):
+        callback = MagicMock()
+        client = BaseZohoClient(
+            access_token="token",
+            domain="com",
+            base_url="https://example.invalid",
+            service_name="books",
+            on_request_completed=callback,
+        )
+
+        class StreamingResponse:
+            status_code = 200
+            headers = {}
+
+            @property
+            def text(self):
+                raise AssertionError("streaming response body was materialized")
+
+        response = StreamingResponse()
+        client.session.request = MagicMock(return_value=response)
+        self.assertIs(client.request("GET", "download", stream=True), response)
+        callback.assert_called_once_with("GET", "download", None, 200, None)
+
+
+class TestDownloadWriter(unittest.TestCase):
+    def test_unsupported_response_is_rejected_and_closed(self):
+        response = MagicMock(spec=[])
+        response.close = MagicMock()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = os.path.join(tmpdir, "download.bin")
+            with self.assertRaises(TypeError):
+                write_response_to_file(response, destination)
+            self.assertFalse(os.path.exists(destination))
+        response.close.assert_called_once()
+
+    def test_interrupted_stream_propagates_and_closes(self):
+        response = MagicMock()
+
+        def chunks(chunk_size):
+            yield b"partial"
+            raise OSError("connection lost")
+
+        response.iter_content.side_effect = chunks
+        with tempfile.TemporaryDirectory() as tmpdir:
+            destination = os.path.join(tmpdir, "download.bin")
+            with self.assertRaisesRegex(OSError, "connection lost"):
+                write_response_to_file(response, destination)
+        response.close.assert_called_once()
 
 
 class TestSalesOrdersSKUCaching(unittest.TestCase):

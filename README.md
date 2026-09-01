@@ -113,7 +113,7 @@ Higher-level reconciliation and credit-memo operations are available under
 Launch the numbered startup page for frequently used, safe-default workflows:
 
 ```bash
-python scripts/project_dashboard.py
+python apps/dashboard.py
 ```
 
 Open `http://127.0.0.1:8750`, enter a workflow number, and press Enter. The
@@ -160,7 +160,7 @@ Import one machine-readable Polycab RSO PDF as a Books sales order and attach
 the source document:
 
 ```bash
-python scripts/import_polycab_rso.py /path/to/RSO_262707003493.pdf
+python apps/import_polycab_rso.py /path/to/RSO_262707003493.pdf
 ```
 
 The parser reads only the first `ITEM DETAILS` table and stops at `Total Rs.`,
@@ -200,7 +200,7 @@ For the production Creator `Online_Payments` report, launch the local human
 review queue instead:
 
 ```bash
-python scripts/review_online_payments.py
+python apps/payment_review.py
 ```
 
 Open `http://127.0.0.1:8765`. The queue maps the live `Payments` form fields and
@@ -225,26 +225,6 @@ the originating bank in a dedicated column. It also combines Creator's
 payment mode for cheque rows. Cheque details are joined uniquely by normalized
 cheque number and customer; an unpresented or ambiguous cheque is not eligible.
 
-To repair legacy queue-created payments whose amount was left as unused credit,
-run `python scripts/repair_review_payment_allocations.py` for a read-only plan,
-then add `--execute`. The repair updates each existing payment in place,
-preserves previous invoice allocations, applies only its live unused amount
-oldest-due-first, verifies the resulting unused balance, and writes an atomic
-checkpoint under `output/collection_reconciliation/`.
-
-To backfill the reciprocal Creator identifiers onto existing Books customer
-payments from Creator's `matched` report, run the guarded temporary script:
-
-```bash
-python scripts/backfill_creator_matched_payments.py
-```
-
-The default is read-only and writes JSON/CSV assessment files under `output/`.
-A write run must use `--execute` with either `--creator-record-id ID` for one
-payment or the additional `--allow-batch` flag. The script only updates the
-`Creator Record ID` and `Creator Payment ID` custom fields; it never creates a
-payment or changes a bank match. Incremental checkpoints support safe restart.
-
 Install workflow and test dependencies with:
 
 ```bash
@@ -260,7 +240,7 @@ Run a read-only Books API check for payments sharing the same customer ID,
 payment date, and amount:
 
 ```bash
-python scripts/check_duplicate_customer_payments.py
+python apps/check_duplicate_payments.py
 ```
 
 Use `--from-date YYYY-MM-DD`, `--to-date YYYY-MM-DD`, or `--customer-id ID` to

@@ -9,6 +9,8 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from ..core.matching import to_decimal
+
 
 GSTIN_PATTERN = re.compile(
     r"[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]"
@@ -39,10 +41,7 @@ class VendorCustomerOffsetConfig:
 
 
 def _decimal(value: Any) -> Decimal:
-    try:
-        return Decimal(str(value or 0))
-    except (InvalidOperation, ValueError, TypeError):
-        return Decimal("0")
+    return to_decimal(value) or Decimal("0")
 
 
 def _money(value: Decimal) -> Decimal:

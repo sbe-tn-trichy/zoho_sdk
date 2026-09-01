@@ -42,7 +42,7 @@ matches pending collections and creates manual-resolution collection records.
 
 # ICICI Unmatched Export
 
-Run `scripts/export_icici_unmatched_csv.py` to fetch the configured ICICI
+Run `apps/export_icici_unmatched.py` to fetch the configured ICICI
 account's current `Status.Uncategorized` transactions and write
 `output/bank_reconciliation/icici_unmatched_transactions.csv`. The audit CSV
 includes both the raw Books `reference_number` and the normalized

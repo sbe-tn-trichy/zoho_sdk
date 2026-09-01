@@ -51,10 +51,14 @@ class ZohoWorkdriveAPI(BaseZohoClient):
         method: str,
         endpoint: str,
         json: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
         stream: bool = False,
         override_url: Optional[str] = None,
-        files: Optional[Dict[str, Any]] = None
+        files: Optional[Dict[str, Any]] = None,
+        is_mutation: Optional[bool] = None,
+        timeout: Optional[int] = None,
     ) -> Any:
         """
         Internal HTTP request handler.
@@ -63,8 +67,12 @@ class ZohoWorkdriveAPI(BaseZohoClient):
             method=method,
             endpoint=endpoint,
             json=json,
+            data=data,
             params=params,
+            headers=headers,
             stream=stream,
             override_url=override_url,
-            files=files
+            files=files,
+            is_mutation=is_mutation,
+            timeout=timeout,
         )

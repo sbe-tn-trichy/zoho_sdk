@@ -2,6 +2,16 @@
 
 ## 2026-09-01
 
+- Extracted a shared `BaseResource` base class (`src/zoho/base_resource.py`) eliminating duplicate CRUD and streaming pagination implementations across Books and Inventory.
+- Centralized client factory instantiation across `apps/` through `workflows.core.auth`, and unified string/decimal conversion helpers (`to_decimal`, `to_text`) in `workflows.core.matching`.
+- Reorganized project entry points into a dedicated `apps/` layer for web servers, dashboards, and CLI runners (`dashboard.py`, `payment_review.py`, `run_collection_reconciliation.py`, `check_duplicate_payments.py`, `export_icici_unmatched.py`, `import_polycab_rso.py`, `register_customer.py`), keeping `src/workflows/` strictly as pure domain libraries.
+- Established an ephemeral 24-hour retention lifespan for `scripts/` and cleaned up legacy one-off backfill scripts.
+- Added a read-only purchase-account-scoped NeoSeal Books catalog export and a
+  filtered missing-alias CSV so vendor item names can be recorded in native item
+  aliases before future import matching.
+- Repaired the shared request contract across all concrete clients, routed POST mutations through Catalyst mutation authentication, preserved an explicit read-only Sheet POST exception, and added regression coverage.
+- Consolidated binary downloads behind a close-safe streaming writer, prevented completion callbacks from materializing streamed bodies, normalized cross-platform filenames, and restored declared Python 3.8-compatible WorkDrive annotations.
+- Repaired stale HTTP/path tests and the Sheet test fixture, and normalized worksheet metadata responses to the documented list of names.
 - Excluded void invoices and credit notes from GSTR-1 sequence violations
   while retaining their document numbers as occupied sequence positions.
 

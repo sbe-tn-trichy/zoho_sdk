@@ -8,14 +8,14 @@ status: active
 
 # Project Operations Dashboard
 
-`scripts/project_dashboard.py` serves a local startup page at
+`apps/dashboard.py` serves a local startup page at
 `http://127.0.0.1:8750`. Each frequently used operation has a stable number and
 can be launched from its card or by entering that number and pressing Enter.
 The page displays process state and a bounded recent-output log. Workflows that
 serve their own local interface expose an Open link after launch.
 
 The numbered payment reconciliation preview uses
-`scripts/review_online_payments.py --refresh-only`. It reads the production
+`apps/payment_review.py --refresh-only`. It reads the production
 Creator `Online_Payments` and `Cheques` reports, rebuilds the local review
 state, prints a compact entry summary, and exits without writing to Zoho. The
 generic `Collection_Records` schema workflow is not registered because that
@@ -36,14 +36,8 @@ its own token-protected review interface.
 From the repository root:
 
 ```bash
-python scripts/project_dashboard.py
+python apps/dashboard.py
 ```
-
-When the repository is opened as the VS Code workspace folder, the automatic
-`Open Project Homepage` task runs `scripts/open_homepage.py`. The helper reuses
-an existing healthy dashboard or starts a detached dashboard process, waits for
-its state endpoint, and opens `http://127.0.0.1:8750` in the default browser.
-VS Code automatic tasks are enabled by `.vscode/settings.json`.
 
 See [Development Runbook](development-runbook.md) and
 [Creator Collection Reconciliation](collection-reconciliation.md).

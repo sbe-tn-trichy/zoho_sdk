@@ -1,6 +1,6 @@
 import json
-import os
 from typing import Any, Dict, List, Optional
+from zoho.downloads import write_response_to_file
 from zoho.security import resolve_output_path
 
 from ..base import BaseResource
@@ -57,23 +57,9 @@ class Contacts(BaseResource, ActiveInactiveMixin):
             params['accept'] = 'xls'
 
         save_path = resolve_output_path(save_path)
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         url = f"{self.endpoint}/{contact_id}/statements"
         response = self.client.request('GET', url, params=params, stream=True)
-        try:
-            with open(save_path, "wb") as f:
-                if hasattr(response, "iter_content"):
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                elif isinstance(response, bytes):
-                    f.write(response)
-                elif hasattr(response, "content"):
-                    f.write(response.content)
-        finally:
-            if hasattr(response, "close"):
-                response.close()
-        return save_path
+        return write_response_to_file(response, save_path)
 
 
 class Organizations(BaseResource):
@@ -141,20 +127,6 @@ class Vendors(BaseResource, ActiveInactiveMixin):
             params['accept'] = 'xls'
 
         save_path = resolve_output_path(save_path)
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         url = f"{self.endpoint}/{vendor_id}/statements"
         response = self.client.request('GET', url, params=params, stream=True)
-        try:
-            with open(save_path, "wb") as f:
-                if hasattr(response, "iter_content"):
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                elif isinstance(response, bytes):
-                    f.write(response)
-                elif hasattr(response, "content"):
-                    f.write(response.content)
-        finally:
-            if hasattr(response, "close"):
-                response.close()
-        return save_path
+        return write_response_to_file(response, save_path)

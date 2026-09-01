@@ -51,17 +51,40 @@ Confirm the SDK and standalone workflow packages import successfully:
 python -c "import zoho; import workflows"
 ```
 
+The package currently supports Python 3.8 and newer. Avoid runtime-evaluated
+PEP 604 unions and built-in collection generics unless the module uses
+postponed annotations; the validation matrix should include Python 3.8.
+
 # Development Rules
 
 - Keep generic HTTP and service-client behavior below `workflows`.
 - Inject low-level clients into workflows instead of importing workflow code from client packages.
 - Mock network calls in unit tests. Live verification must use runtime credentials and read-only operations unless a mutation is explicitly intended.
+- Keep every concrete service `request()` override compatible with the full `BaseZohoClient.request()` signature and forward transport options unchanged.
+- Treat `POST`, `PUT`, `PATCH`, and `DELETE` as mutations. Mark a semantically read-only POST explicitly with `is_mutation=False` and cover the exception with a test.
 - Never commit tokens, `.env` files, generated reports, logs, or `.codex` artifacts.
 - Keep workflow imports under the standalone `workflows` package; no legacy package alias is maintained.
+- All files placed in `scripts/` are strictly temporary with a 24-hour retention lifespan. Permanent user-facing tools, web servers, and CLI runners belong in `apps/`.
 
 # Safe Workflow Execution
 
 Use dry-run options where a workflow provides them. Verify organization, domain, vendor, location, and destination identifiers before running mutations. Token values and authorization headers must never be logged.
+
+## NeoSeal item alias review
+
+Run the read-only export below to create an all-items catalog and a smaller
+review list for NeoSeal Books items that do not yet have an `alias_name`:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/export_neoseal_items.py \
+  --purchase-account-id "$NEOSEAL_PURCHASE_ACCOUNT_ID"
+```
+
+The default outputs are `output/neoseal_items.csv` and
+`output/neoseal_items_missing_alias.csv`. The latter is the working list for
+recording the vendor's exact supplied item name in Books `alias_name`; the
+script scopes the catalog by the dedicated NeoSeal purchase account rather than
+by a free-text manufacturer value, and never creates or updates Books items.
 
 # Related Knowledge
 

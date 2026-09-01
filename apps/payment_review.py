@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve a local accept/reject queue for Creator Online_Payments matches."""
+"""Serve a local accept/reject queue for Creator Online and Cheque payment matches."""
 
 from __future__ import annotations
 
@@ -13,12 +13,16 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 from urllib.parse import unquote, urlparse
 
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
 from workflows.collection_reconciliation import (
     OnlinePaymentReviewConfig,
     OnlinePaymentReviewService,
 )
+from workflows.core.auth import get_books_client, get_creator_client
 from workflows.core.config import Config
-from zoho import HttpTokenProvider, ZohoBooksAPI, ZohoCreatorAPI
 
 
 HTML = r"""<!doctype html>
@@ -128,26 +132,8 @@ load().catch(e=>notify(e.message,true));
 
 
 def _clients(token_url: str, owner: str, org_id: str, domain: str):
-    provider = HttpTokenProvider(token_url, timeout=30)
-
-    def token_for(primary: str, fallback: str) -> str:
-        current = provider.get_tokens()
-        return current.get(primary) or current.get(fallback) or ""
-
-    tokens = provider.get_tokens()
-    creator = ZohoCreatorAPI(
-        access_token=tokens.get("creator") or tokens.get("zoho_creator_conn") or "",
-        account_owner_name=owner,
-        domain=domain,
-        send_environment_header=False,
-        token_refresh_callback=lambda: token_for("creator", "zoho_creator_conn"),
-    )
-    books = ZohoBooksAPI(
-        access_token=tokens.get("books") or tokens.get("zoho_books_conn") or "",
-        organization_id=org_id,
-        domain=domain,
-        token_refresh_callback=lambda: token_for("books", "zoho_books_conn"),
-    )
+    creator = get_creator_client(owner_name=owner, domain=domain, token_url=token_url)
+    books = get_books_client(org_id=org_id, domain=domain, token_url=token_url)
     return creator, books
 
 

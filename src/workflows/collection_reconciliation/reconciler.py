@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..core.exceptions import ReconciliationError
-from ..core.matching import get_bank_reference, parse_date
+from ..core.matching import get_bank_reference, parse_date, to_decimal as _decimal
 from .schema import (
     AUDIT_FIELD_REQUIREMENTS,
     COLLECTION_FIELD_REQUIREMENTS,
@@ -59,13 +59,6 @@ class CollectionReconciliationConfig:
             raise ValueError("date_tolerance_days cannot be negative.")
         if Decimal(str(self.amount_tolerance)) < 0:
             raise ValueError("amount_tolerance cannot be negative.")
-
-
-def _decimal(value: Any) -> Optional[Decimal]:
-    try:
-        return Decimal(str(value).replace(",", "").strip())
-    except (InvalidOperation, AttributeError, ValueError):
-        return None
 
 
 def _identifier(payload: Any, keys: Sequence[str]) -> Optional[str]:

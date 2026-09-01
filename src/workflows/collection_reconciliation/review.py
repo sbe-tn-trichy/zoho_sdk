@@ -12,7 +12,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..core.exceptions import ReconciliationError
-from ..core.matching import get_bank_reference, parse_date
+from ..core.matching import (
+    get_bank_reference,
+    parse_date,
+    to_decimal as _decimal,
+    to_text as _text,
+)
 
 
 def _now() -> str:
@@ -51,17 +56,6 @@ def _identifiers(payload: Any, keys: Sequence[str]) -> set[str]:
         for value in payload:
             found.update(_identifiers(value, keys))
     return found
-
-
-def _decimal(value: Any) -> Optional[Decimal]:
-    try:
-        return Decimal(str(value).replace(",", "").strip())
-    except (InvalidOperation, AttributeError, ValueError):
-        return None
-
-
-def _text(value: Any) -> str:
-    return str(value or "").strip()
 
 
 _CLOSED_INVOICE_STATUSES = {

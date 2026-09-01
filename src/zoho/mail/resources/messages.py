@@ -2,6 +2,7 @@ from ..base import BaseResource
 from typing import Any, Dict, Optional, List
 import os
 from pathlib import Path
+from zoho.downloads import write_response_to_file
 from zoho.security import sanitize_filename, resolve_output_path
 
 class Messages(BaseResource):
@@ -75,7 +76,11 @@ class Messages(BaseResource):
         """Get attachment content."""
         endpoint = f"accounts/{self.account_id}/folders/{folder_id}/messages/{message_id}/attachments/{attachment_id}"
         response = self.client.request('GET', endpoint, stream=True)
-        return response.content
+        try:
+            return response.content
+        finally:
+            if hasattr(response, "close"):
+                response.close()
 
     def download_attachment(self, folder_id: str, message_id: str, attachment_id: str, download_path: str) -> str:
         """
@@ -85,19 +90,7 @@ class Messages(BaseResource):
         download_path = resolve_output_path(download_path)
         endpoint = f"accounts/{self.account_id}/folders/{folder_id}/messages/{message_id}/attachments/{attachment_id}"
         response = self.client.request('GET', endpoint, stream=True)
-        os.makedirs(os.path.dirname(download_path), exist_ok=True)
-        try:
-            with open(download_path, "wb") as f:
-                if hasattr(response, "iter_content"):
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                elif hasattr(response, "content"):
-                    f.write(response.content)
-        finally:
-            if hasattr(response, "close"):
-                response.close()
-        return download_path
+        return write_response_to_file(response, download_path)
 
 
     def list_iter(self, folder_id: Optional[str] = None, start: int = 1, limit: int = 50):
@@ -194,4 +187,3 @@ class Messages(BaseResource):
                 downloaded_paths.append(os.path.abspath(final_path))
         
         return downloaded_paths
-

@@ -101,7 +101,7 @@ class TestWorkdriveFiles(unittest.TestCase):
         self.assertEqual(self.client.request.call_count, 2)
 
     def test_safe_download_name(self):
-        self.assertEqual(self.files._safe_download_name("hello/world.txt", "fallback"), "hello_world.txt")
+        self.assertEqual(self.files._safe_download_name("hello/world.txt", "fallback"), "world.txt")
         self.assertEqual(self.files._safe_download_name("", "fallback"), "fallback")
         self.assertEqual(self.files._safe_download_name("   ", "fallback"), "fallback")
         self.assertEqual(self.files._safe_download_name("..", "fallback"), "fallback")
@@ -139,7 +139,8 @@ class TestWorkdriveFiles(unittest.TestCase):
             self.client.request.assert_called_once_with(
                 'GET', '', stream=True, override_url="https://download.zoho.in/v1/workdrive/download/file123"
             )
-            mock_file.assert_called_once_with(os.path.abspath(save_path), 'wb')
+            mock_file.assert_called_once_with(str(Path(save_path).resolve()), 'wb')
+            mock_response.close.assert_called_once()
 
     def test_create_folder(self):
         self.files.create_folder("new_dir", "parent_id")
@@ -259,14 +260,15 @@ class TestWorkdriveCatalystAuth(unittest.TestCase):
         mock_post.assert_not_called()
         self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
 
-        # POST request should not use Catalyst
+        # POST request should use Catalyst
         mock_request.reset_mock()
         client.request("POST", "files", json={})
-        mock_post.assert_not_called()
-        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken direct_token")
+        mock_post.assert_called_once()
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_wd_token")
 
         # PUT request should use Catalyst
         mock_request.reset_mock()
+        mock_post.reset_mock()
         client.request("PUT", "files/some_id", json={})
         mock_post.assert_called_once_with(
             "http://localhost:3000/server/new/tokens",

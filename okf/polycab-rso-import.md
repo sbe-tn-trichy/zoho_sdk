@@ -43,4 +43,4 @@ eligible for import.
 
 If the order already exists, creation is skipped. A missing attachment is added;
 an attachment already reported by Books is left unchanged. The CLI entry point
-is `python scripts/import_polycab_rso.py <pdf-path>`.
+is `python apps/import_polycab_rso.py <pdf-path>`.

@@ -99,14 +99,7 @@ class BaseZohoClient:
     def _determine_is_mutation(self, method: str, is_mutation: Optional[bool] = None) -> bool:
         if is_mutation is not None:
             return is_mutation
-        method_upper = method.upper()
-        if self.service_name in ("books", "inventory", "mail"):
-            return method_upper in ("PUT", "DELETE")
-        elif self.service_name == "wd":
-            return method_upper in ("PUT", "PATCH", "DELETE")
-        elif self.service_name == "creator":
-            return method_upper in ("POST", "PUT", "PATCH", "DELETE")
-        return False
+        return method.upper() in ("POST", "PUT", "PATCH", "DELETE")
 
     def _raise_for_status(self, response: requests.Response, endpoint: Optional[str] = None):
         if response.status_code >= 400:
@@ -187,8 +180,6 @@ class BaseZohoClient:
             elif self.service_name != "sheet":
                 req_headers["Content-Type"] = "application/json"
 
-        req_timeout = timeout if timeout is not None else self.default_timeout
-
         # Log Request with sensitive query parameters masked (preserving last 4 chars)
         logged_params = sanitize_log_params(params) if params else {}
         self.logger.info(f"Request: {method} {url} | Params: {logged_params}")
@@ -265,7 +256,8 @@ class BaseZohoClient:
         # Trigger on_request_completed callback if registered
         if self.on_request_completed:
             try:
-                self.on_request_completed(method, endpoint, json, response.status_code, response.text)
+                response_body = None if stream else response.text
+                self.on_request_completed(method, endpoint, json, response.status_code, response_body)
             except Exception as e:
                 self.logger.error(f"Callback on_request_completed failed: {e}")
 

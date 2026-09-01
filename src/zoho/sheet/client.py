@@ -31,8 +31,13 @@ class ZohoSheetAPI(BaseZohoClient):
     def list_sheets(self, workbook_id: str) -> List[str]:
         """Lists all worksheets in a workbook."""
         params = {"method": "worksheet.list"}
-        res = self.request("POST", workbook_id, params=params)
-        return res.get('worksheet_names', [])
+        res = self.request("POST", workbook_id, params=params, is_mutation=False)
+        worksheets = res.get('worksheet_names', [])
+        return [
+            str(item.get("name")) if isinstance(item, dict) else str(item)
+            for item in worksheets
+            if not isinstance(item, dict) or item.get("name") is not None
+        ]
 
     def get_rows(self, workbook_id: str, sheet_name: str, limit: int = 1) -> List[Any]:
         """Fetches rows from a specific sheet. Returns empty list if sheet has no records."""

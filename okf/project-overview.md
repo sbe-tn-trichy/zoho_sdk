@@ -18,7 +18,7 @@ status: active
 
 # Architecture Scope
 
-The unified source tree contains two distinct layers:
+The unified source tree contains three distinct layers:
 
 1. **Low-Level API Clients (`zoho.books`, `zoho.creator`, `zoho.wd`, `zoho.analytics`, `zoho.inventory`, `zoho.sheet`, `zoho.cliq`, `zoho.mail`)**:
    - Generic REST wrappers around raw Zoho HTTP endpoints.
@@ -33,9 +33,15 @@ The unified source tree contains two distinct layers:
    - `workflows.vendor_customer_offset`: GSTIN-safe clearing of linked customer receivables and vendor payables using paired payments.
    - `workflows.polycab_credit_memos`: Polycab credit memo PDF extraction, Zoho Books creation, attachment uploads, and WorkDrive uploads.
 
+3. **Applications & User Interfaces (`apps/`)**:
+   - Web review servers, operations dashboard, and standalone CLI utilities.
+
+4. **Ephemeral Scripts (`scripts/`)**:
+   - Disposable scratch scripts subject to a 24-hour retention lifespan.
+
 # Package Layout
 
-`zoho` and `workflows` are independent top-level packages under `src/`. The former `zoho_sdk_advanced` compatibility package has been removed.
+`zoho` and `workflows` are independent top-level packages under `src/`. Applications reside in `apps/`.
 
 # Related Knowledge
 
