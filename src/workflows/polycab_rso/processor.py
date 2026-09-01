@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 import pdfplumber
 
+from zoho.helpers import find_transaction_by_number, unwrap_record
 from ..core.config import Config
 
 
@@ -146,16 +147,12 @@ def parse_polycab_rso_pdf(pdf_path: str) -> Dict[str, Any]:
 
 
 def _find_existing_sales_order(books_client: Any, rso_number: str) -> Optional[Dict[str, Any]]:
-    records = books_client.sales_orders.list_all(
-        params={"reference_number": rso_number},
+    return find_transaction_by_number(
+        books_client.sales_orders,
+        rso_number,
+        number_keys=("reference_number", "salesorder_number"),
         resource_key="salesorders",
     )
-    for record in records:
-        if str(record.get("reference_number") or "") == rso_number:
-            return record
-        if str(record.get("salesorder_number") or "") == rso_number:
-            return record
-    return None
 
 
 def _resolve_line_items(books_client: Any, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -244,7 +241,7 @@ def import_polycab_rso_pdf(
         payload.pop("salesorder_number", None)
         response = books_client.sales_orders.create(payload)
 
-    sales_order = response.get("salesorder", response.get("sales_order", response))
+    sales_order = unwrap_record(response, ("salesorder", "sales_order"))
     sales_order_id = sales_order.get("salesorder_id")
     if not sales_order_id:
         raise ValueError(f"Created sales order {rso_number} response has no ID.")

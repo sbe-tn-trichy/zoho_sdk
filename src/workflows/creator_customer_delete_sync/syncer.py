@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
 from zoho.exceptions import ZohoError
+from zoho.helpers import fetch_active_customers_map
 from ..core.exceptions import ReconciliationError
 from .config import CreatorCustomerDeleteSyncConfig
 
@@ -32,29 +33,12 @@ class CreatorCustomerDeleteSyncer:
         logger.info(
             f"Fetching Zoho Books customer contacts (status filter: {self.config.books_status_filter})..."
         )
-        params = {
-            "contact_type": "customer",
-            "status": self.config.books_status_filter,
-        }
-        contacts = self.books_client.contacts.list_all(params=params, resource_key="contacts")
-        
-        books_keys: Set[str] = set()
-        for contact in contacts:
-            if self.config.books_id_field == "contact_id":
-                val = contact.get("contact_id")
-            elif self.config.books_id_field in contact:
-                val = contact.get(self.config.books_id_field)
-            else:
-                # Check custom fields if configured
-                val = None
-                for cf in contact.get("custom_fields", []):
-                    if cf.get("api_name") == self.config.books_id_field or cf.get("label") == self.config.books_id_field:
-                        val = cf.get("value")
-                        break
-            
-            if val is not None and str(val).strip():
-                books_keys.add(str(val).strip())
-        
+        customer_map = fetch_active_customers_map(
+            self.books_client,
+            key_field=self.config.books_id_field,
+            status=self.config.books_status_filter,
+        )
+        books_keys = set(customer_map.keys())
         logger.info(f"Loaded {len(books_keys)} unique customer keys from Zoho Books.")
         return books_keys
 

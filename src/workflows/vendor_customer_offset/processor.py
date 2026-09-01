@@ -9,12 +9,13 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
-from ..core.matching import to_decimal
-
-
-GSTIN_PATTERN = re.compile(
-    r"[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]"
+from zoho.helpers import (
+    GSTIN_PATTERN,
+    find_bank_account_by_name,
+    is_valid_gstin,
+    normalize_gstin,
 )
+from ..core.matching import to_decimal
 
 
 class VendorCustomerOffsetError(RuntimeError):
@@ -48,10 +49,6 @@ def _money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"))
 
 
-def _normalize_gstin(value: Any) -> str:
-    return re.sub(r"[^0-9A-Z]", "", str(value or "").upper())
-
-
 def _contact_type(contact: Mapping[str, Any]) -> str:
     return str(contact.get("contact_type") or "").strip().lower()
 
@@ -64,7 +61,7 @@ def _unique_gstin_pairs(
 ]:
     grouped: Dict[str, List[Mapping[str, Any]]] = defaultdict(list)
     for contact in contacts:
-        gstin = _normalize_gstin(contact.get("gst_no"))
+        gstin = normalize_gstin(contact.get("gst_no"))
         if gstin:
             grouped[gstin].append(contact)
 
@@ -76,7 +73,7 @@ def _unique_gstin_pairs(
         if not customers or not vendors:
             continue
         if (
-            not GSTIN_PATTERN.fullmatch(gstin)
+            not is_valid_gstin(gstin)
             or len(matches) != 2
             or len(customers) != 1
             or len(vendors) != 1
@@ -98,19 +95,12 @@ def _resolve_bank_account_id(books_client: Any, config: VendorCustomerOffsetConf
     if config.bank_account_id:
         return config.bank_account_id
 
-    accounts = books_client.bank_accounts.list_all(resource_key="bankaccounts")
-    expected = config.bank_account_name.strip().casefold()
-    matches = [
-        account
-        for account in accounts
-        if str(account.get("account_name") or "").strip().casefold() == expected
-    ]
-    if len(matches) != 1:
+    account = find_bank_account_by_name(books_client, config.bank_account_name)
+    if not account:
         raise VendorCustomerOffsetError(
-            f"Expected exactly one bank account named {config.bank_account_name!r}; "
-            f"found {len(matches)}."
+            f"Expected exactly one bank account named {config.bank_account_name!r}; found 0."
         )
-    account_id = str(matches[0].get("account_id") or "")
+    account_id = str(account.get("account_id") or "")
     if not account_id:
         raise VendorCustomerOffsetError("The clearing bank account has no account_id.")
     return account_id

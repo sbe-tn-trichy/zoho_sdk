@@ -7,15 +7,14 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
+from zoho.helpers import parse_date, unwrap_record
+
 
 DuplicateKey = Tuple[str, date, Decimal]
 
 
 def _date(value: Any) -> Optional[date]:
-    try:
-        return date.fromisoformat(str(value or "").strip())
-    except ValueError:
-        return None
+    return parse_date(value)
 
 
 def _amount(value: Any) -> Optional[Decimal]:
@@ -111,7 +110,7 @@ class DuplicatePaymentChecker:
             if not customer_id and payment_id:
                 try:
                     response = self.books.customer_payments.get(payment_id)
-                    detail = response.get("payment") or response.get("customerpayment") or {}
+                    detail = unwrap_record(response, ("payment", "customerpayment"))
                     payment.update(detail)
                     customer_id = str(payment.get("customer_id") or "").strip()
                 except Exception as exc:

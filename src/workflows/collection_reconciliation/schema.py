@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
+from zoho.helpers import ensure_books_custom_fields
 from ..core.exceptions import SchemaValidationError
 
 
@@ -185,64 +186,12 @@ def ensure_books_customer_payment_fields(
     books_client: Any,
     create_missing: bool = False,
 ) -> Dict[str, Any]:
-    existing = books_client.custom_fields.list_for_entity("customer_payment")
-    existing_by_name: Dict[str, Dict[str, Any]] = {}
-    for field in existing:
-        if not isinstance(field, dict):
-            continue
-        label = str(field.get("label") or "")
-        api_name = str(field.get("api_name") or "")
-        if api_name.startswith("cf_"):
-            api_name = api_name[3:]
-        for name in (label, api_name):
-            normalized = _normalized_field_name(name)
-            if normalized:
-                existing_by_name[normalized] = field
-
-    missing: List[Dict[str, Any]] = []
-    misconfigured: List[Dict[str, Any]] = []
-    for requirement in BOOKS_CUSTOM_FIELD_REQUIREMENTS:
-        normalized = _normalized_field_name(requirement["label"])
-        field = existing_by_name.get(normalized)
-        if field is None:
-            missing.append(dict(requirement))
-            continue
-        problems: List[str] = []
-        if str(field.get("data_type") or "") != requirement["data_type"]:
-            problems.append(
-                f"data_type must be {requirement['data_type']!r}"
-            )
-        if requirement.get("is_unique") and field.get("is_unique") is not True:
-            problems.append("field must be unique")
-        required_values = {
-            str(row["name"])
-            for row in requirement.get("values", [])
-            if isinstance(row, dict) and row.get("name")
-        }
-        actual_values = {
-            str(row.get("name") or row.get("value") or "")
-            for row in field.get("values", [])
-            if isinstance(row, dict)
-        }
-        absent_values = sorted(required_values - actual_values)
-        if absent_values:
-            problems.append("missing dropdown values: " + ", ".join(absent_values))
-        if problems:
-            misconfigured.append(
-                {"field": requirement["label"], "problems": problems}
-            )
-
-    created: List[Dict[str, Any]] = []
-    if create_missing:
-        for requirement in missing:
-            created.append(books_client.custom_fields.create(requirement))
-        missing = []
-    return {
-        "valid": not missing and not misconfigured,
-        "missing": missing,
-        "misconfigured": misconfigured,
-        "created": created,
-    }
+    return ensure_books_custom_fields(
+        books_client,
+        entity="customer_payment",
+        requirements=BOOKS_CUSTOM_FIELD_REQUIREMENTS,
+        create_missing=create_missing,
+    )
 
 
 def require_valid_schema(report: Mapping[str, Any]) -> None:

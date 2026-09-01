@@ -22,9 +22,10 @@ zoho (API Clients & Auth) <-- workflows (Business Engines) <-- apps (Web UIs & C
 
 ## Layer Boundaries
 
-1. **Core / Client Layer (`zoho.books`, `zoho.wd`, `zoho.creator`, etc.)**:
-   - Generic REST endpoint wrappers and authentication helpers.
-   - Low-level clients do not import each other and do not import workflows or apps.
+1. **Core / Client Layer (`zoho.books`, `zoho.wd`, `zoho.creator`, `zoho.helpers`, etc.)**:
+   - Generic REST endpoint wrappers, authentication helpers, and reusable composite overlay helpers (`zoho.helpers`).
+   - `zoho.helpers` provides domain-agnostic composite functions (e.g. contact/item lookups, custom field extraction, WorkDrive upload-and-attach) reducing boilerplate in workflows.
+   - Low-level clients and helpers do not import workflows or apps.
 
 2. **Workflow Layer (`workflows`)**:
    - Multi-service domain engines and reconciliation algorithms.

@@ -2,6 +2,7 @@
 
 ## 2026-09-01
 
+- Expanded `zoho.helpers` higher-level composite overlay layer (`contacts`, `items`, `custom_fields`, `files`, `gst`, `dates`, `accounts`, `transactions`) and refactored multiple workflows (`vendor_customer_offset`, `duplicate_payment_check`, `gstr1_verification`, `polycab_rso`, `creator_customer_delete_sync`, `collection_reconciliation`) to eliminate duplicate GST normalization, bank account lookups, date parsing, custom field provisioning, and response unwrapping.
 - Restored permanent operational utilities under `apps/`, repaired package-safe
   application imports, made reconciliation identity-safe and ambiguity-aware,
   added vendor-credit skipping and malformed-date handling, hardened token

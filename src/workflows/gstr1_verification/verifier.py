@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from zoho.books.resources.gst import parse_doc_number
+from zoho.helpers import get_month_range, get_previous_month_range, parse_date
 
 
 _STATUS_TOKEN = re.compile(r"[^a-z0-9]+")
@@ -25,19 +26,11 @@ class GSTR1VerificationConfig:
 
 
 def _month_range(month: str) -> Tuple[date, date]:
-    try:
-        parsed = datetime.strptime(month.strip(), "%Y-%m").date()
-    except (AttributeError, ValueError) as exc:
-        raise ValueError(f"Invalid month {month!r}; expected YYYY-MM.") from exc
-    last_day = calendar.monthrange(parsed.year, parsed.month)[1]
-    return parsed.replace(day=1), parsed.replace(day=last_day)
+    return get_month_range(month)
 
 
 def _previous_month_range(as_of: Optional[date] = None) -> Tuple[date, date]:
-    current = as_of or date.today()
-    first_of_month = current.replace(day=1)
-    previous_end = first_of_month - timedelta(days=1)
-    return previous_end.replace(day=1), previous_end
+    return get_previous_month_range(as_of)
 
 
 def _first(record: Mapping[str, Any], keys: Iterable[str]) -> Any:
@@ -49,14 +42,7 @@ def _first(record: Mapping[str, Any], keys: Iterable[str]) -> Any:
 
 
 def _parse_date(value: Any) -> Optional[date]:
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
-        return value
-    try:
-        return datetime.strptime(str(value).strip()[:10], "%Y-%m-%d").date()
-    except (TypeError, ValueError):
-        return None
+    return parse_date(value)
 
 
 def _document_info(record: Mapping[str, Any], document_type: str) -> Dict[str, Any]:
