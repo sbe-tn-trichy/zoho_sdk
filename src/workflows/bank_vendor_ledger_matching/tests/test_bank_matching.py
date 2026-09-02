@@ -1,6 +1,7 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from datetime import date
+from workflows.core.config import Config
 from workflows.bank_vendor_ledger_matching.matcher import (
     get_bank_reference,
     parse_date,
@@ -10,6 +11,14 @@ from workflows.bank_vendor_ledger_matching.matcher import (
 )
 
 class TestLedgerMatcherUtils(unittest.TestCase):
+    def setUp(self):
+        self.icici_account_id = "test-icici-account"
+        config_patch = patch.object(
+            Config, "BANK_ACCOUNT_ICICI", self.icici_account_id
+        )
+        config_patch.start()
+        self.addCleanup(config_patch.stop)
+
     def test_icici_upi_reference_comes_from_description(self):
         transaction = {
             "reference_number": "S78528277",
@@ -17,7 +26,7 @@ class TestLedgerMatcherUtils(unittest.TestCase):
         }
 
         self.assertEqual(
-            get_bank_reference(transaction, "1094368000056644467"),
+            get_bank_reference(transaction, self.icici_account_id),
             "622494425255",
         )
 
@@ -28,7 +37,7 @@ class TestLedgerMatcherUtils(unittest.TestCase):
         }
 
         self.assertEqual(
-            get_bank_reference(transaction, "1094368000056644467"),
+            get_bank_reference(transaction, self.icici_account_id),
             "S78528277",
         )
         self.assertEqual(
@@ -64,7 +73,13 @@ class TestMatchLedgerEntries(unittest.TestCase):
     def setUp(self):
         self.books_client = MagicMock()
         self.bank_account_id = "bank_123"
+        self.icici_account_id = "test-icici-account"
         self.vendor_id = "vendor_456"
+        config_patch = patch.object(
+            Config, "BANK_ACCOUNT_ICICI", self.icici_account_id
+        )
+        config_patch.start()
+        self.addCleanup(config_patch.stop)
 
     def test_match_ledger_entries(self):
         # Setup mock bank transactions (withdrawals/debits)
@@ -198,7 +213,7 @@ class TestMatchLedgerEntries(unittest.TestCase):
 
         results = match_ledger_entries(
             books_client=self.books_client,
-            bank_account_id="1094368000056644467",
+            bank_account_id=self.icici_account_id,
             vendor_id=self.vendor_id,
         )
 

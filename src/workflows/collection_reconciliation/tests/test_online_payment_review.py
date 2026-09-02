@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from workflows.collection_reconciliation.review import (
     OnlinePaymentReviewConfig,
@@ -490,6 +490,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertEqual(entry["books_payment_id"], "books-payment-1")
 
     def test_refresh_combines_banks_and_labels_icici_suffix_match(self):
+        icici_account_id = "test-icici-account"
         self.payment.update(
             {
                 "Payment_Date": "2026-08-26",
@@ -511,7 +512,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
                 creator_app_link_name="app",
                 bank_accounts=(
                     ("HDFC", "hdfc-1"),
-                    ("ICICI", Config.BANK_ACCOUNT_ICICI),
+                    ("ICICI", icici_account_id),
                     ("IDFC", "idfc-1"),
                 ),
                 state_path=Path(self.temporary.name) / "multi-bank.json",
@@ -524,11 +525,12 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             [],
         ]
 
-        entry = service.refresh()["entries"][0]
+        with patch.object(Config, "BANK_ACCOUNT_ICICI", icici_account_id):
+            entry = service.refresh()["entries"][0]
 
         self.assertTrue(entry["reviewable"])
         self.assertEqual(entry["bank_name"], "ICICI")
-        self.assertEqual(entry["bank_account_id"], Config.BANK_ACCOUNT_ICICI)
+        self.assertEqual(entry["bank_account_id"], icici_account_id)
         self.assertEqual(entry["bank"]["reference"], "313296200826")
 
     def test_cheque_report_uses_presented_date_and_books_check_mode(self):
