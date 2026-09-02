@@ -24,8 +24,10 @@ compatibility alias.
 # Match Passes
 
 Exact matches require reference, amount, and a date within the configured
-tolerance. Strong matches require exact amount and date without a reference.
-Weak matches allow the configured amount tolerance and date tolerance.
+tolerance. Strong matches require exact amount and date when a reference is
+missing on at least one side. Weak matches allow the configured amount
+tolerance and date tolerance under the same missing-reference rule. Populated
+but contradictory references are never accepted by the weaker passes.
 
 Matching uses internal row positions rather than external transaction IDs, so
 missing or duplicated IDs cannot hide an unmatched record. A candidate is

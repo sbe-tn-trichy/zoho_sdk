@@ -74,12 +74,18 @@ def get_books_client(
 
 def get_creator_client(
     token: Optional[str] = None,
-    owner_name: str = "bharathdst",
+    owner_name: Optional[str] = None,
     domain: str = Config.DOMAIN,
     token_url: str = Config.TOKEN_URL,
     token_refresh_callback: Optional[Callable[[], str]] = None,
 ) -> ZohoCreatorAPI:
     """Create an authenticated Zoho Creator client with token refresh support."""
+    owner_name = owner_name or Config.CREATOR_OWNER_NAME
+    if not owner_name:
+        raise ZohoAuthError(
+            "Zoho Creator owner name is required. Pass owner_name or configure "
+            "CREATOR_OWNER_NAME."
+        )
     if not token:
         token = get_token_for("creator", "zoho_creator_conn", token_url=token_url)
     if not token:

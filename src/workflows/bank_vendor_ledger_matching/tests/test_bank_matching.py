@@ -119,12 +119,12 @@ class TestMatchLedgerEntries(unittest.TestCase):
                 "amount": "1000.00",
                 "reference_number": "REF-001"
             },
-            # Strong Match with tx_02 (different ref)
+            # Strong Match with tx_02 (reference missing on one side)
             {
                 "payment_id": "vp_02",
                 "date": "2026-06-12",
                 "amount": "500.00",
-                "reference_number": "REF-ABC"
+                "reference_number": ""
             },
             # Weak Match with tx_03 (amount is 250.00, difference of 5.00)
             {

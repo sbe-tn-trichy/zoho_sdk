@@ -1,5 +1,20 @@
 # Knowledge Change Log
 
+## 2026-09-02
+
+- Made tenant configuration fail closed with project-before-user precedence and
+  replaced the hardcoded Creator owner with explicit `CREATOR_OWNER_NAME`
+  configuration.
+- Hardened Creator/Books payment backfills with duplicate-identifier detection,
+  batch-write confirmation, response and readback verification, per-row atomic
+  checkpoints, and resumable verified outcomes.
+- Closed failed streamed HTTP responses, retained endpoint context on ordinary
+  failures, and deduplicated concurrent 401 token refreshes.
+- Prevented strong and weak bank-ledger matches when both populated references
+  conflict, and made workflow root exports lazy for base-only installations.
+- Added Python 3.8/current CI coverage for full workflow extras and a separate
+  base-install import check.
+
 ## 2026-09-01
 
 - Expanded `zoho.helpers` higher-level composite overlay layer (`contacts`, `items`, `custom_fields`, `files`, `gst`, `dates`, `accounts`, `transactions`) and refactored multiple workflows (`vendor_customer_offset`, `duplicate_payment_check`, `gstr1_verification`, `polycab_rso`, `creator_customer_delete_sync`, `collection_reconciliation`) to eliminate duplicate GST normalization, bank account lookups, date parsing, custom field provisioning, and response unwrapping.

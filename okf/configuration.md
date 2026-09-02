@@ -21,6 +21,11 @@ Runtime configuration is loaded using a prioritized multi-tier hierarchy:
 3. **Project `zoho_config.json` File**: Local JSON configuration profile in the project root (ignored in `.gitignore`).
 4. **User Home Config (`~/.config/zoho/config.json` or `~/.zoho/config.json`)**: User-level global configuration profiles.
 
+The first existing JSON file in that order is authoritative. Invalid JSON,
+non-object configuration, and missing active profiles fail closed instead of
+falling through to a lower-priority file, preventing accidental cross-tenant
+identifier selection.
+
 A configuration template is provided in `zoho_config.example.json`.
 
 Supported configuration keys:
@@ -28,6 +33,9 @@ Supported configuration keys:
 - `TOKEN_URL`: HTTP URL for retrieving runtime OAuth access tokens.
 - `ORG_ID`: Zoho Books organization ID.
 - `DOMAIN`: Zoho API data-center domain; defaults to `in`.
+- `CREATOR_OWNER_NAME`: Zoho Creator account owner used by shared client factories.
+  The former `CREATOR_ACCOUNT_OWNER_NAME` environment variable remains a
+  compatibility fallback.
 - `FILES_DIR`: Directory containing Polycab credit memo PDFs.
 - `POLYCAB_LEDGER_PATH`: Polycab reconciliation ledger path.
 - `ZEISS_LEDGER_PATH`: Zeiss reconciliation ledger path.

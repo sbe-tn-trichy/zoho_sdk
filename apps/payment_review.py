@@ -29,7 +29,7 @@ _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "payment_review.ht
 HTML = _TEMPLATE_PATH.read_text(encoding="utf-8")
 
 
-def _clients(token_url: str, owner: str, org_id: str, domain: str):
+def _clients(token_url: str, owner: Optional[str], org_id: str, domain: str):
     creator = get_creator_client(owner_name=owner, domain=domain, token_url=token_url)
     books = get_books_client(org_id=org_id, domain=domain, token_url=token_url)
     return creator, books
@@ -116,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--creator-app", default="order-management-new")
-    parser.add_argument("--creator-owner", default="bharathdst")
+    parser.add_argument("--creator-owner", default=Config.CREATOR_OWNER_NAME or None)
     parser.add_argument(
         "--bank-account-id",
         help="Use one Books bank account instead of the default HDFC/ICICI/IDFC set",

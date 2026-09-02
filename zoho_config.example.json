@@ -5,6 +5,7 @@
       "token_url": "http://localhost:3000/server/new/tokens",
       "org_id": "<your-zoho-organization-id>",
       "domain": "in",
+      "creator_owner_name": "<your-creator-account-owner>",
       "polycab_folder_id": "<workdrive-folder-id>",
       "polycab_vendor_id": "<vendor-contact-id>",
       "rso_customer_id": "<customer-contact-id>",

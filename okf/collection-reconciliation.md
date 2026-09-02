@@ -80,8 +80,10 @@ Payment ID` custom fields on that existing payment.
 The application never creates customer payments and never changes
 bank-transaction matches. Dry-run is the default. Writes require `--execute`;
 multi-record writes also require `--allow-batch`. An atomic JSON checkpoint
-makes runs auditable and restartable. Conflicting identifiers, missing
-payments, and ambiguous matches are never written automatically.
+makes runs auditable and restartable. It is updated after every row, and a
+successful update is read back from Books before being checkpointed. Duplicate
+payment numbers, conflicting identifiers, missing payments, and ambiguous
+matches are never written automatically.
 
 # Online Payments Human Review
 
@@ -157,7 +159,9 @@ Creator `Online_Payments` records that already have a corresponding Books
 customer payment. It only accepts a unique exact customer-ID, date, amount, and
 reference match (or a consistent existing Books identifier), then can write
 `Books_Transaction_Id` and `PaymentNo`. Missing, incomplete, and ambiguous
-records are reported without mutation. Dry-run is the default.
+records are reported without mutation. Dry-run is the default. Live batch
+writes require `--allow-batch`; each Creator response and readback is verified,
+and an atomic per-row checkpoint supports safe resumption.
 
 The long-running review server supplies Books and Creator token-refresh
 callbacks backed by the configured HTTP token broker. A 401 response refreshes

@@ -57,7 +57,7 @@ def run_collection_reconciliation(
     Args:
         bank_account_id: Target Books bank account ID (defaults to BANK_ACCOUNT_HDFC or env/Config)
         creator_app_link_name: Creator app link name (defaults to PAYMENT_CREATOR_APP_LINK_NAME or 'order-management-new')
-        creator_owner_name: Creator account owner name (defaults to CREATOR_ACCOUNT_OWNER_NAME or 'bharathdst')
+        creator_owner_name: Creator account owner name (defaults to configured CREATOR_OWNER_NAME)
         analytics_workspace_id: Optional Analytics workspace ID for exception matching
         dry_run: If True (default), simulates updates without writing to Books/Creator.
         token_url: URL for HTTP token broker.
@@ -80,9 +80,7 @@ def run_collection_reconciliation(
     creator_app = creator_app_link_name or os.environ.get(
         "PAYMENT_CREATOR_APP_LINK_NAME", "order-management-new"
     )
-    creator_owner = creator_owner_name or os.environ.get(
-        "CREATOR_ACCOUNT_OWNER_NAME", "bharathdst"
-    )
+    creator_owner = creator_owner_name or Config.CREATOR_OWNER_NAME
 
     if not creator_client:
         creator_client = get_creator_client(
@@ -173,7 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--creator-owner",
-        default="bharathdst",
+        default=Config.CREATOR_OWNER_NAME or None,
         help="Creator account owner name",
     )
     parser.add_argument(

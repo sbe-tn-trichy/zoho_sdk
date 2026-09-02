@@ -237,21 +237,28 @@ class BaseZohoClient:
 
         # Handle 401 refresh with thread lock
         if response.status_code == 401 and self.token_refresh_callback:
+            failed_token = token
+            response.close()
             with self._token_lock:
-                self.logger.warning(f"{self.service_name.capitalize()} request returned 401; refreshing token and retrying.")
-                response.close()
-                refreshed_token = self.token_refresh_callback()
-                if not refreshed_token:
-                    raise ZohoAuthError(
-                        f"{self.service_name.capitalize()} token refresh returned an empty token."
-                    )
-                self.access_token = refreshed_token
-                
-                token = self.access_token
-                if hasattr(token, "get_token_for_request"):
-                    token = token.get_token_for_request(actual_is_mutation)
+                current_token = self.access_token
+                if hasattr(current_token, "get_token_for_request"):
+                    current_token = current_token.get_token_for_request(actual_is_mutation)
                 else:
-                    token = str(token)
+                    current_token = str(current_token)
+                if current_token == failed_token:
+                    self.logger.warning(
+                        f"{self.service_name.capitalize()} request returned 401; "
+                        "refreshing token and retrying."
+                    )
+                    refreshed_token = self.token_refresh_callback()
+                    if not refreshed_token:
+                        raise ZohoAuthError(
+                            f"{self.service_name.capitalize()} token refresh returned an empty token."
+                        )
+                    self.access_token = refreshed_token
+                    token = str(refreshed_token)
+                else:
+                    token = current_token
                 req_headers["Authorization"] = f"Zoho-oauthtoken {token}"
                 
                 retry_kwargs = {**req_kwargs}
@@ -271,7 +278,10 @@ class BaseZohoClient:
         # Stream response
         if stream:
             if response.status_code >= 400:
-                self._raise_for_status(response, endpoint=endpoint)
+                try:
+                    self._raise_for_status(response, endpoint=endpoint)
+                finally:
+                    response.close()
             return response
 
 
@@ -279,7 +289,7 @@ class BaseZohoClient:
         if response.status_code == 204 or not response.text:
             return {}
 
-        self._raise_for_status(response)
+        self._raise_for_status(response, endpoint=endpoint)
 
         # Content types handling
         content_type = ""

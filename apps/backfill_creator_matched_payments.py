@@ -17,6 +17,7 @@ except ImportError:  # Direct script execution.
 
 from workflows.core.auth import get_books_client, get_creator_client
 from workflows.core.matching import parse_date, to_decimal, to_text
+from zoho.helpers.transactions import unwrap_record
 
 
 def _normalized(value: Any) -> str:
@@ -25,16 +26,16 @@ def _normalized(value: Any) -> str:
 
 def build_native_payment_indexes(
     payments: Sequence[Mapping[str, Any]],
-) -> Tuple[Dict[str, Mapping[str, Any]], Dict[str, Mapping[str, Any]]]:
+) -> Tuple[Dict[str, Mapping[str, Any]], Dict[str, List[Mapping[str, Any]]]]:
     by_id: Dict[str, Mapping[str, Any]] = {}
-    by_number: Dict[str, Mapping[str, Any]] = {}
+    by_number: Dict[str, List[Mapping[str, Any]]] = {}
     for payment in payments:
         payment_id = to_text(payment.get("payment_id") or payment.get("id"))
         payment_number = _normalized(payment.get("payment_number"))
         if payment_id:
             by_id[payment_id] = payment
         if payment_number:
-            by_number[payment_number] = payment
+            by_number.setdefault(payment_number, []).append(payment)
     return by_id, by_number
 
 
@@ -42,14 +43,25 @@ def resolve_books_payment(
     creator: Mapping[str, Any],
     payments: Sequence[Mapping[str, Any]],
     by_id: Mapping[str, Mapping[str, Any]],
-    by_number: Mapping[str, Mapping[str, Any]],
+    by_number: Mapping[str, Sequence[Mapping[str, Any]]],
 ) -> Tuple[Optional[Mapping[str, Any]], str]:
     transaction_id = to_text(creator.get("books_transaction_id"))
     payment_number = _normalized(creator.get("books_payment_number"))
-    direct = by_id.get(transaction_id) if transaction_id else None
-    direct = direct or (by_number.get(payment_number) if payment_number else None)
-    if direct is not None:
-        return direct, "native_id_or_number"
+    id_match = by_id.get(transaction_id) if transaction_id else None
+    number_matches = list(by_number.get(payment_number, ())) if payment_number else []
+    if id_match is not None:
+        id_match_id = to_text(id_match.get("payment_id") or id_match.get("id"))
+        if number_matches and not any(
+            to_text(candidate.get("payment_id") or candidate.get("id")) == id_match_id
+            for candidate in number_matches
+        ):
+            return None, "identifier_conflict"
+        return id_match, "native_id_or_number"
+    if len(number_matches) > 1:
+        return None, "payment_ambiguous"
+    number_match = number_matches[0] if number_matches else None
+    if number_match is not None:
+        return number_match, "native_id_or_number"
 
     target_date = creator.get("date")
     target_amount = to_decimal(creator.get("amount"))
@@ -196,19 +208,37 @@ class CreatorBooksPaymentLinkBackfill:
                     payment.get("payment_id") or payment.get("id")
                 )
                 if status == "ready" and self.config.execute:
-                    self.books.customer_payments.update(
-                        row["books_payment_id"],
-                        {
-                            "custom_fields": [
-                                {"label": "Creator Record ID", "value": record_id},
-                                {"label": "Creator Payment ID", "value": creator_payment_id},
-                            ]
-                        },
-                    )
-                    row["status"] = "updated"
+                    try:
+                        response = self.books.customer_payments.update(
+                            row["books_payment_id"],
+                            {
+                                "custom_fields": [
+                                    {"label": "Creator Record ID", "value": record_id},
+                                    {"label": "Creator Payment ID", "value": creator_payment_id},
+                                ]
+                            },
+                        )
+                        if not isinstance(response, Mapping) or str(
+                            response.get("code", "")
+                        ).strip() not in {"0"}:
+                            raise RuntimeError("Books rejected the custom-field update.")
+                        verified = unwrap_record(
+                            self.books.customer_payments.get(row["books_payment_id"]),
+                            ("customerpayment", "customer_payment", "payment"),
+                        )
+                        verified_status, _ = classify_links(
+                            verified, record_id, creator_payment_id
+                        )
+                        if verified_status != "already_linked":
+                            raise RuntimeError("Books custom-field verification failed.")
+                        row["status"] = "updated"
+                    except Exception as exc:
+                        row["status"] = "update_failed"
+                        row["error"] = str(exc)
                 else:
                     row["status"] = status
             rows.append(row)
+            _write_checkpoint(self.config.checkpoint_path, BackfillResult(rows))
         result = BackfillResult(rows)
         _write_checkpoint(self.config.checkpoint_path, result)
         return result

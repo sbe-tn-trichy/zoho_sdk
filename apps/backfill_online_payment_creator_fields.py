@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
@@ -85,19 +86,93 @@ def _creator_values(record: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _require_creator_update_success(response: Any) -> None:
+    if not isinstance(response, Mapping):
+        raise RuntimeError("Creator returned an invalid update response.")
+    payloads = [response]
+    data = response.get("data")
+    if isinstance(data, Mapping):
+        payloads.append(data)
+    elif isinstance(data, list):
+        payloads.extend(row for row in data if isinstance(row, Mapping))
+    for payload in payloads:
+        code = payload.get("code")
+        if code is not None and str(code).strip() not in {"0", "3000"}:
+            raise RuntimeError(f"Creator rejected the update (code={code}).")
+
+
+def _verify_creator_fields(
+    creator: Any,
+    creator_app: str,
+    record_id: str,
+    expected: Mapping[str, str],
+) -> None:
+    response = creator.get_records(
+        creator_app,
+        "All_Payments",
+        params={"criteria": f"ID == {record_id}", "field_config": "all"},
+    )
+    rows = response.get("data", []) if isinstance(response, Mapping) else []
+    record = next(
+        (
+            row for row in rows
+            if isinstance(row, Mapping) and to_text(row.get("ID")) == record_id
+        ),
+        None,
+    )
+    if record is None or any(
+        to_text(record.get(key)) != value for key, value in expected.items()
+    ):
+        raise RuntimeError("Creator checkpoint verification failed.")
+
+
+def _write_result(path: Path, result: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
 def run_backfill(
     creator: Any,
     books: Any,
     *,
     creator_app: str,
     execute: bool = False,
+    allow_batch: bool = False,
+    creator_record_id: Optional[str] = None,
+    checkpoint_path: Optional[Path] = None,
+    resume_from: Optional[Path] = None,
 ) -> Dict[str, Any]:
+    if execute and not creator_record_id and not allow_batch:
+        raise ValueError("Batch execution requires --allow-batch.")
     records = creator.get_all_records(creator_app, "Online_Payments")
+    if creator_record_id:
+        records = [
+            record for record in records
+            if to_text(record.get("ID")) == creator_record_id
+        ]
+    resumed: Dict[str, Mapping[str, Any]] = {}
+    if resume_from and resume_from.exists():
+        payload = json.loads(resume_from.read_text(encoding="utf-8"))
+        resumed = {
+            to_text(row.get("record_id")): row
+            for row in payload.get("rows", [])
+            if isinstance(row, Mapping) and to_text(row.get("record_id"))
+        }
     payments = books.customer_payments.list_all()
     rows = []
     for record in records:
+        record_id = to_text(record.get("ID"))
+        if record_id in resumed and resumed[record_id].get("status") == "updated":
+            rows.append(dict(resumed[record_id]))
+            if checkpoint_path:
+                _write_result(
+                    checkpoint_path, {"summary": _summary(rows), "rows": rows}
+                )
+            continue
         payment, source = find_books_payment(_creator_values(record), payments)
-        row = {"record_id": to_text(record.get("ID")), "status": source}
+        row = {"record_id": record_id, "status": source}
         if payment is not None:
             expected = {
                 "Books_Transaction_Id": to_text(payment.get("payment_id")),
@@ -105,26 +180,46 @@ def run_backfill(
             }
             row.update(expected)
             if execute:
-                creator.update_records(
-                    creator_app,
-                    "All_Payments",
-                    {"data": expected},
-                    record_id=row["record_id"],
-                )
-                row["status"] = "updated"
+                try:
+                    response = creator.update_records(
+                        creator_app,
+                        "All_Payments",
+                        {"data": expected},
+                        record_id=row["record_id"],
+                    )
+                    _require_creator_update_success(response)
+                    _verify_creator_fields(
+                        creator, creator_app, row["record_id"], expected
+                    )
+                    row["status"] = "updated"
+                except Exception as exc:
+                    row["status"] = "update_failed"
+                    row["error"] = str(exc)
             else:
                 row["status"] = "planned"
         rows.append(row)
+        if checkpoint_path:
+            partial = {"summary": _summary(rows), "rows": rows}
+            _write_result(checkpoint_path, partial)
+    summary = _summary(rows)
+    return {"summary": summary, "rows": rows}
+
+
+def _summary(rows: Sequence[Mapping[str, Any]]) -> Dict[str, int]:
     summary: Dict[str, int] = {"scanned": len(rows)}
     for row in rows:
-        summary[row["status"]] = summary.get(row["status"], 0) + 1
-    return {"summary": summary, "rows": rows}
+        status = to_text(row.get("status")) or "unknown"
+        summary[status] = summary.get(status, 0) + 1
+    return summary
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--creator-app", default="order-management-new")
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--allow-batch", action="store_true")
+    parser.add_argument("--creator-record-id")
+    parser.add_argument("--resume-from", type=Path)
     parser.add_argument(
         "--output",
         type=Path,
@@ -140,9 +235,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         get_books_client(),
         creator_app=args.creator_app,
         execute=args.execute,
+        allow_batch=args.allow_batch,
+        creator_record_id=args.creator_record_id,
+        checkpoint_path=args.output,
+        resume_from=args.resume_from,
     )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    _write_result(args.output, result)
     print(json.dumps(result["summary"], indent=2, sort_keys=True))
     return 0
 

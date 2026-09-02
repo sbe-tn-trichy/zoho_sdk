@@ -125,6 +125,60 @@ class TestBackfillHelpers(unittest.TestCase):
         self.assertIsNone(resolved)
         self.assertEqual(source, "payment_ambiguous")
 
+    def test_duplicate_native_payment_number_is_ambiguous(self):
+        payments = [
+            _books_payment(payment_id="payment-1"),
+            _books_payment(payment_id="payment-2"),
+        ]
+        by_id, by_number = build_native_payment_indexes(payments)
+
+        resolved, source = resolve_books_payment(
+            {"books_payment_number": "PAY-0001"},
+            payments,
+            by_id,
+            by_number,
+        )
+
+        self.assertIsNone(resolved)
+        self.assertEqual(source, "payment_ambiguous")
+
+    def test_explicit_payment_id_wins_when_its_number_is_duplicated(self):
+        payments = [
+            _books_payment(payment_id="payment-1"),
+            _books_payment(payment_id="payment-2"),
+        ]
+        by_id, by_number = build_native_payment_indexes(payments)
+
+        resolved, source = resolve_books_payment(
+            {
+                "books_transaction_id": "payment-1",
+                "books_payment_number": "PAY-0001",
+            },
+            payments,
+            by_id,
+            by_number,
+        )
+
+        self.assertIs(resolved, payments[0])
+        self.assertEqual(source, "native_id_or_number")
+
+    def test_conflicting_native_id_and_number_are_rejected(self):
+        payments = [
+            _books_payment(payment_id="payment-1", payment_number="PAY-1"),
+            _books_payment(payment_id="payment-2", payment_number="PAY-2"),
+        ]
+        by_id, by_number = build_native_payment_indexes(payments)
+
+        resolved, source = resolve_books_payment(
+            {"books_transaction_id": "payment-1", "books_payment_number": "PAY-2"},
+            payments,
+            by_id,
+            by_number,
+        )
+
+        self.assertIsNone(resolved)
+        self.assertEqual(source, "identifier_conflict")
+
     def test_conflicting_existing_link_is_rejected(self):
         payment = _books_payment(
             custom_fields=[
@@ -164,6 +218,14 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
 
     def test_execute_updates_both_custom_fields_on_existing_payment(self):
         self.books.customer_payments.update.return_value = {"code": 0}
+        self.books.customer_payments.get.return_value = {
+            "customerpayment": _books_payment(
+                custom_fields=[
+                    {"api_name": "cf_creator_record_id", "value": "creator-1"},
+                    {"api_name": "cf_creator_payment_id", "value": "101"},
+                ]
+            )
+        }
 
         result = CreatorBooksPaymentLinkBackfill(
             self.creator,
@@ -182,6 +244,27 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
             },
         )
         self.books.customer_payments.create.assert_not_called()
+
+    def test_failed_readback_is_recorded_and_checkpointed(self):
+        self.books.customer_payments.update.return_value = {"code": 0}
+        self.books.customer_payments.get.return_value = {
+            "customerpayment": _books_payment(custom_fields=[])
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            result = CreatorBooksPaymentLinkBackfill(
+                self.creator,
+                self.books,
+                BackfillConfig(
+                    execute=True,
+                    creator_record_id="creator-1",
+                    checkpoint_path=checkpoint,
+                ),
+            ).run()
+            saved = json.loads(checkpoint.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.rows[0]["status"], "update_failed")
+        self.assertEqual(saved["rows"][0]["status"], "update_failed")
 
     def test_existing_links_are_not_written_again(self):
         self.books.customer_payments.list_all.return_value = [

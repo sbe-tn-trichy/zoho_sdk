@@ -25,7 +25,7 @@ def to_decimal(value: Any) -> Optional[Decimal]:
 
 def to_text(value: Any) -> str:
     """Return a clean, stripped string representation of any value."""
-    return str(value or "").strip()
+    return "" if value is None else str(value).strip()
 
 
 def parse_date(date_str: Any) -> Optional[date]:
@@ -84,6 +84,9 @@ def reconcile_rows(
     *,
     reference_matches: Callable[[Dict[str, Any], Dict[str, Any]], bool],
     date_tolerance_days: int,
+    reference_conflicts: Optional[
+        Callable[[Dict[str, Any], Dict[str, Any]], bool]
+    ] = None,
     amount_tolerance: Any = Decimal("0"),
 ) -> Dict[str, Any]:
     """Conservatively reconcile parsed rows without relying on external IDs.
@@ -137,9 +140,15 @@ def reconcile_rows(
                 if pass_name == "exact":
                     valid = difference == 0 and reference_matches(left_row, right_row)
                 elif pass_name == "strong":
-                    valid = difference == 0
+                    valid = difference == 0 and not (
+                        reference_conflicts
+                        and reference_conflicts(left_row, right_row)
+                    )
                 else:
-                    valid = Decimal("0") < difference <= tolerance
+                    valid = Decimal("0") < difference <= tolerance and not (
+                        reference_conflicts
+                        and reference_conflicts(left_row, right_row)
+                    )
                 if valid:
                     candidates.setdefault(left_index, []).append(right_index)
         return candidates

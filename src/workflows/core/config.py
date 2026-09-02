@@ -1,8 +1,7 @@
 import os
 import json
-import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 try:
     from dotenv import load_dotenv
@@ -19,28 +18,48 @@ else:
     load_dotenv()
 
 
-def _load_config_dict() -> Dict[str, Any]:
-    """Load configuration from local or user-home config files in priority order."""
+def _load_config_dict(
+    project_root: Optional[Path] = None,
+    home: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Load the highest-priority JSON configuration file.
+
+    Project configuration intentionally takes precedence over user-level
+    defaults. An existing but invalid file is an error: silently falling back
+    could select identifiers for a different Zoho tenant.
+    """
+    project_root = project_root or root_dir
+    home = home or Path.home()
     candidate_paths = [
-        Path.home() / ".config" / "zoho" / "config.json",
-        Path.home() / ".zoho" / "config.json",
-        root_dir / "zoho_config.json",
+        project_root / "zoho_config.json",
+        home / ".config" / "zoho" / "config.json",
+        home / ".zoho" / "config.json",
     ]
     for path in candidate_paths:
         if path.exists() and path.is_file():
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    if isinstance(data, dict):
-                        # Support active profile selection or flat dictionary
-                        active_profile = data.get("active_profile")
-                        if active_profile and isinstance(data.get("profiles"), dict):
-                            profile = data["profiles"].get(active_profile, {})
-                            if isinstance(profile, dict):
-                                return profile
-                        return data
-            except Exception:
-                continue
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise ValueError(f"Unable to load Zoho configuration from {path}.") from exc
+            if not isinstance(data, dict):
+                raise ValueError(f"Zoho configuration in {path} must be a JSON object.")
+            active_profile = data.get("active_profile")
+            if active_profile:
+                profiles = data.get("profiles")
+                if not isinstance(profiles, dict):
+                    raise ValueError(
+                        f"Zoho configuration in {path} declares an active profile "
+                        "without a profiles object."
+                    )
+                profile = profiles.get(active_profile)
+                if not isinstance(profile, dict):
+                    raise ValueError(
+                        f"Active Zoho configuration profile {active_profile!r} "
+                        f"was not found in {path}."
+                    )
+                return profile
+            return data
     return {}
 
 
@@ -66,6 +85,9 @@ class Config:
     TOKEN_URL = get_config("TOKEN_URL", "http://localhost:3000/server/new/tokens")
     ORG_ID = get_config("ORG_ID", "")
     DOMAIN = get_config("DOMAIN", "in")
+    CREATOR_OWNER_NAME = get_config(
+        "CREATOR_OWNER_NAME", get_config("CREATOR_ACCOUNT_OWNER_NAME", "")
+    )
 
     # Zoho WorkDrive Configurations
     POLYCAB_FOLDER_ID = get_config("POLYCAB_FOLDER_ID", "")
@@ -108,4 +130,3 @@ class Config:
         GSTIN_TO_VENDOR_ID = json.loads(raw_gstin_map) if isinstance(raw_gstin_map, str) else raw_gstin_map
     except Exception:
         GSTIN_TO_VENDOR_ID = {}
-

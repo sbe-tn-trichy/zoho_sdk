@@ -54,6 +54,11 @@ def _run_three_pass_match(
         parsed_left,
         parsed_right,
         reference_matches=lambda left, right: ref_match(left.get("ref"), right.get("ref")),
+        reference_conflicts=lambda left, right: bool(
+            str(left.get("ref") or "").strip()
+            and str(right.get("ref") or "").strip()
+            and not ref_match(left.get("ref"), right.get("ref"))
+        ),
         date_tolerance_days=date_tolerance_days,
         amount_tolerance=amount_tolerance,
     )
