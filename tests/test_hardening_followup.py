@@ -81,6 +81,22 @@ def test_purchase_account_ids_load_from_active_profile(tmp_path: Path):
     assert loaded["fan_purchase_account_id"] == "fan-account"
 
 
+def test_example_config_covers_public_config_keys():
+    project_root = Path(__file__).resolve().parent.parent
+    example = json.loads(
+        (project_root / "zoho_config.example.json").read_text(encoding="utf-8")
+    )
+    profile = example["profiles"][example["active_profile"]]
+    example_keys = {key.upper() for key in profile}
+    config_keys = {
+        key
+        for key in vars(Config)
+        if key.isupper() and key != "PROJECT_ROOT"
+    }
+
+    assert config_keys <= example_keys
+
+
 def test_creator_owner_must_be_explicit_or_configured():
     with patch.object(Config, "CREATOR_OWNER_NAME", ""):
         with pytest.raises(ZohoAuthError, match="CREATOR_OWNER_NAME"):

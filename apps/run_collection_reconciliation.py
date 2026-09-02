@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -77,9 +76,7 @@ def run_collection_reconciliation(
             "Bank account ID is required. Pass bank_account_id or configure BANK_ACCOUNT_HDFC."
         )
 
-    creator_app = creator_app_link_name or os.environ.get(
-        "PAYMENT_CREATOR_APP_LINK_NAME", "order-management-new"
-    )
+    creator_app = creator_app_link_name or Config.PAYMENT_CREATOR_APP_LINK_NAME
     creator_owner = creator_owner_name or Config.CREATOR_OWNER_NAME
 
     if not creator_client:
@@ -166,8 +163,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--creator-app",
-        default="order-management-new",
-        help="Creator app link name",
+        default=Config.PAYMENT_CREATOR_APP_LINK_NAME,
+        help="Creator app link name (default: PAYMENT_CREATOR_APP_LINK_NAME config)",
     )
     parser.add_argument(
         "--creator-owner",

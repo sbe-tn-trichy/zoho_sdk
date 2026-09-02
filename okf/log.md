@@ -2,6 +2,14 @@
 
 ## 2026-09-02
 
+- Added the `neoseal_audit` domain workflow and `apps/audit_neoseal_items.py` CLI
+  for automated catalog data quality, detecting legacy duplicates and Tin vs Can
+  packaging twins, auditing item nomenclature (`GS Plus`, tape parenthetical
+  casing), validating user-generated SKU structures, and flagging unassigned or
+  catch-all Zoho item groups.
+- Completed the JSON configuration template, added a configured Creator payment
+  app link name, and added coverage that prevents public configuration keys from
+  drifting out of the template.
 - Enforced active-only purchase-account catalog exports so inactive items never enter nomenclature reviews or downstream update inputs.
 - Added explicit NeoSeal and fan purchase-account configuration keys for safely scoping item-catalog workflows.
 - Added `purchase_account_id` item catalog scoping policy to `AGENTS.md` and `okf/zoho-books.md`, and extended `zoho.helpers.items` (`fetch_items_lookup`, `find_item_by_sku_or_name`, `fetch_items_by_purchase_account`) to prevent cross-vendor catalog collisions in vendor workflows.

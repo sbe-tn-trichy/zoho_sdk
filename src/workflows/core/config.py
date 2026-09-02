@@ -88,6 +88,9 @@ class Config:
     CREATOR_OWNER_NAME = get_config(
         "CREATOR_OWNER_NAME", get_config("CREATOR_ACCOUNT_OWNER_NAME", "")
     )
+    PAYMENT_CREATOR_APP_LINK_NAME = get_config(
+        "PAYMENT_CREATOR_APP_LINK_NAME", "order-management-new"
+    )
 
     # Zoho WorkDrive Configurations
     POLYCAB_FOLDER_ID = get_config("POLYCAB_FOLDER_ID", "")

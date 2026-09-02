@@ -36,6 +36,8 @@ Supported configuration keys:
 - `CREATOR_OWNER_NAME`: Zoho Creator account owner used by shared client factories.
   The former `CREATOR_ACCOUNT_OWNER_NAME` environment variable remains a
   compatibility fallback.
+- `PAYMENT_CREATOR_APP_LINK_NAME`: Creator application link name used by the
+  collection-reconciliation runner; defaults to `order-management-new`.
 - `FILES_DIR`: Directory containing Polycab credit memo PDFs.
 - `POLYCAB_LEDGER_PATH`: Polycab reconciliation ledger path.
 - `ZEISS_LEDGER_PATH`: Zeiss reconciliation ledger path.

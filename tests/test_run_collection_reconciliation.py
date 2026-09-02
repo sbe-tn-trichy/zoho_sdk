@@ -4,10 +4,19 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from apps.run_collection_reconciliation import run_collection_reconciliation
+from apps.run_collection_reconciliation import build_parser, run_collection_reconciliation
 
 
 class TestRunCollectionReconciliation(unittest.TestCase):
+    @patch(
+        "apps.run_collection_reconciliation.Config.PAYMENT_CREATOR_APP_LINK_NAME",
+        "configured-payment-app",
+    )
+    def test_parser_uses_configured_creator_app(self):
+        args = build_parser().parse_args([])
+
+        self.assertEqual(args.creator_app, "configured-payment-app")
+
     @patch("workflows.collection_reconciliation.CollectionReconciler.validate_schema")
     def test_run_collection_reconciliation_single_step(self, mock_validate_schema):
         mock_creator = MagicMock()

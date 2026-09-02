@@ -52,6 +52,8 @@ _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
     "CreatorCustomerDeleteSyncConfig": (".creator_customer_delete_sync", "CreatorCustomerDeleteSyncConfig"),
     "CreatorCustomerDeleteSyncer": (".creator_customer_delete_sync", "CreatorCustomerDeleteSyncer"),
     "sync_creator_customer_deletions": (".creator_customer_delete_sync", "sync_creator_customer_deletions"),
+    "NeosealItemAuditor": (".neoseal_audit", "NeosealItemAuditor"),
+    "audit_neoseal_items": (".neoseal_audit", "audit_neoseal_items"),
 }
 
 
@@ -118,4 +120,6 @@ __all__ = [
     "CreatorCustomerDeleteSyncConfig",
     "CreatorCustomerDeleteSyncer",
     "sync_creator_customer_deletions",
+    "NeosealItemAuditor",
+    "audit_neoseal_items",
 ]
