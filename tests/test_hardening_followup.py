@@ -57,6 +57,30 @@ def test_invalid_active_profile_is_rejected(tmp_path: Path):
         _load_config_dict(project, tmp_path / "home")
 
 
+def test_purchase_account_ids_load_from_active_profile(tmp_path: Path):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "zoho_config.json").write_text(
+        json.dumps(
+            {
+                "active_profile": "production",
+                "profiles": {
+                    "production": {
+                        "neoseal_purchase_account_id": "neoseal-account",
+                        "fan_purchase_account_id": "fan-account",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = _load_config_dict(project, tmp_path / "home")
+
+    assert loaded["neoseal_purchase_account_id"] == "neoseal-account"
+    assert loaded["fan_purchase_account_id"] == "fan-account"
+
+
 def test_creator_owner_must_be_explicit_or_configured():
     with patch.object(Config, "CREATOR_OWNER_NAME", ""):
         with pytest.raises(ZohoAuthError, match="CREATOR_OWNER_NAME"):

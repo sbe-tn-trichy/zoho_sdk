@@ -84,3 +84,18 @@ api.contacts.bulk_update([
     }
 ])
 ```
+
+## Item catalog scoping by purchase account
+
+`items.list_by_purchase_account(account_id, status="all")` retrieves items associated
+with a specific Zoho Books purchase account ID (e.g. for vendor bills, purchase
+orders, or vendor catalog exports). Scoping item queries by `purchase_account_id`
+prevents cross-vendor item collisions when SKUs or item names overlap across different
+suppliers.
+
+In the overlay helper layer, `zoho.helpers.fetch_items_lookup(books_client, purchase_account_id=...)`
+and `zoho.helpers.fetch_items_by_purchase_account(books_client, purchase_account_id=...)`
+support this filtering pattern.
+
+Catalog review and update workflows must request `status="active"`. Inactive items
+are excluded at retrieval time rather than downloaded and filtered afterward.

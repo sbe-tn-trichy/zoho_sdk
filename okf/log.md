@@ -2,7 +2,13 @@
 
 ## 2026-09-02
 
+- Enforced active-only purchase-account catalog exports so inactive items never enter nomenclature reviews or downstream update inputs.
+- Added explicit NeoSeal and fan purchase-account configuration keys for safely scoping item-catalog workflows.
+- Added `purchase_account_id` item catalog scoping policy to `AGENTS.md` and `okf/zoho-books.md`, and extended `zoho.helpers.items` (`fetch_items_lookup`, `find_item_by_sku_or_name`, `fetch_items_by_purchase_account`) to prevent cross-vendor catalog collisions in vendor workflows.
+- Extracted reusable domain-agnostic workflow functions into `zoho.helpers` overlay modules (`fetch_open_invoices`, `fetch_open_bills`, `find_bill_by_number`, `normalize_cheque_number`, `allocate_documents_fifo` in `transactions`, `get_financial_year_range` in `dates`, `extract_bank_withdrawals` and `extract_bank_deposits` in `accounts`) and refactored workflows (`collection_reconciliation`, `vendor_customer_offset`, `gstr1_verification`, `polycab_credit_memos`, `bank_vendor_ledger_matching`) to eliminate duplicate document fetching, FIFO allocation, cheque normalization, and bank line filtering.
+
 - Made tenant configuration fail closed with project-before-user precedence and
+
   replaced the hardcoded Creator owner with explicit `CREATOR_OWNER_NAME`
   configuration.
 - Hardened Creator/Books payment backfills with duplicate-identifier detection,

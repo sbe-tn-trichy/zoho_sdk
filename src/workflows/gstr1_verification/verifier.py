@@ -7,7 +7,13 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from zoho.books.resources.gst import parse_doc_number
-from zoho.helpers import get_month_range, get_previous_month_range, parse_date
+from zoho.helpers import (
+    get_financial_year_range,
+    get_month_range,
+    get_previous_month_range,
+    parse_date,
+)
+
 
 
 _STATUS_TOKEN = re.compile(r"[^a-z0-9]+")
@@ -230,13 +236,11 @@ class GSTR1Verifier:
         }
 
     def _financial_year_range(self, target_start: date) -> Tuple[date, date]:
-        start_month = self.config.fiscal_year_start_month
-        start_year = target_start.year if target_start.month >= start_month else target_start.year - 1
-        start = date(start_year, start_month, 1)
-        end_year = start_year + 1 if start_month > 1 else start_year
-        end_month = start_month - 1 if start_month > 1 else 12
-        end = date(end_year, end_month, calendar.monthrange(end_year, end_month)[1])
-        return start, end
+        return get_financial_year_range(
+            as_of=target_start,
+            start_month=self.config.fiscal_year_start_month,
+        )
+
 
     @staticmethod
     def _safe_list_documents(

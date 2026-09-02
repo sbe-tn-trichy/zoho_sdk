@@ -6,6 +6,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
+from zoho.helpers import extract_bank_withdrawals
 from ..core.matching import (
     get_bank_reference,
     parse_date,
@@ -20,23 +21,8 @@ logger = logging.getLogger(__name__)
 
 def _extract_withdrawals(bank_txs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Filter a list of bank transactions down to outflows (withdrawals / debits)."""
-    withdrawals = []
-    for tx in bank_txs:
-        amount_val = 0.0
-        try:
-            amount_val = float(tx.get("amount", 0.0))
-        except (ValueError, TypeError):
-            pass
+    return extract_bank_withdrawals(bank_txs)
 
-        is_withdrawal = (
-            amount_val < 0
-            or str(tx.get("debit_or_credit")).lower() == "debit"
-            or str(tx.get("transaction_type")).lower() in ("expense", "withdrawal", "payment")
-            or str(tx.get("type")).lower() in ("expense", "withdrawal", "payment")
-        )
-        if is_withdrawal:
-            withdrawals.append(tx)
-    return withdrawals
 
 
 def _run_three_pass_match(

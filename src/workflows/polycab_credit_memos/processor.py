@@ -4,10 +4,16 @@ import pdfplumber
 import logging
 from datetime import datetime
 from typing import Any, Dict, Optional, List
+from zoho.helpers import (
+    attach_file_to_books_resource,
+    find_bill_by_number,
+    workdrive_upload_file,
+)
 from ..core.config import Config
 from ..vendor_ledger_reconciliation.matcher import fetch_vendor_credits
 
 logger = logging.getLogger(__name__)
+
 
 def parse_polycab_credit_memo(pdf_path: str) -> Dict[str, Any]:
     """
@@ -193,10 +199,9 @@ def resolve_item_id(pdf_text: str) -> str:
 
 def resolve_bill_id_by_number(books_client: Any, vendor_id: str, bill_number: str) -> Optional[str]:
     """Finds the bill ID for a specific bill number under this vendor in Zoho Books."""
-    res = books_client.bills.list(params={"vendor_id": vendor_id, "bill_number": bill_number})
-    bills = res.get("bills", [])
-    if bills:
-        return bills[0].get("bill_id")
+    bill = find_bill_by_number(books_client, vendor_id, bill_number)
+    if bill:
+        return bill.get("bill_id")
     return None
 
 def resolve_tax_id(books_client: Any, pdf_text: str) -> str:
@@ -270,11 +275,17 @@ def create_vendor_credit_from_pdf(
 
 def upload_vendor_credit_attachment(books_client: Any, vendor_credit_id: str, pdf_path: str) -> Dict[str, Any]:
     """Attaches PDF file to a Vendor Credit in Zoho Books."""
-    return books_client.vendor_credits.add_attachment(vendor_credit_id, pdf_path)
+    if hasattr(books_client, "vendor_credits") and hasattr(books_client.vendor_credits, "add_attachment"):
+        return books_client.vendor_credits.add_attachment(vendor_credit_id, pdf_path)
+    return attach_file_to_books_resource(books_client, "vendorcredits", vendor_credit_id, pdf_path)
 
 def upload_to_workdrive(wd_client: Any, folder_id: str, pdf_path: str) -> Dict[str, Any]:
     """Uploads PDF file to Zoho WorkDrive folder."""
-    return wd_client.files.upload(folder_id, pdf_path)
+    if hasattr(wd_client, "files") and hasattr(wd_client.files, "upload"):
+        return wd_client.files.upload(folder_id, pdf_path)
+    return workdrive_upload_file(wd_client, folder_id, pdf_path)
+
+
 
 def process_polycab_credit_memos(
     books_client: Optional[Any] = None,

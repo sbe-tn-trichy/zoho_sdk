@@ -3,15 +3,9 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from zoho.helpers import normalize_cheque_number
 from ..core.matching import to_text as _text
 
-
-def normalize_cheque_number(value: Any) -> str:
-    """Normalize a cheque reference number by stripping non-alphanumerics and leading zeros."""
-    normalized = "".join(
-        character for character in _text(value).casefold() if character.isalnum()
-    )
-    return normalized.lstrip("0") or ("0" if normalized else "")
 
 
 def attach_presented_dates(

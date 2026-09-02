@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 logger = logging.getLogger("zoho.helpers.accounts")
 
@@ -64,3 +64,58 @@ def fetch_bank_accounts_map(
         raise
 
     return lookup
+
+
+def extract_bank_withdrawals(
+    transactions: Sequence[Mapping[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Filter a list of bank transactions down to outflows (withdrawals / debits)."""
+    withdrawals: List[Dict[str, Any]] = []
+    for tx in transactions:
+        amount_val = 0.0
+        try:
+            amount_val = float(tx.get("amount", 0.0))
+        except (ValueError, TypeError):
+            pass
+
+        doc_type = str(tx.get("transaction_type") or tx.get("type") or "").lower()
+        doc_dc = str(tx.get("debit_or_credit") or "").lower()
+
+        is_withdrawal = (
+            amount_val < 0
+            or doc_dc == "debit"
+            or doc_type in ("expense", "withdrawal", "payment")
+        )
+        if is_withdrawal:
+            withdrawals.append(dict(tx))
+    return withdrawals
+
+
+def extract_bank_deposits(
+    transactions: Sequence[Mapping[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Filter a list of bank transactions down to inflows (deposits / credits / receipts)."""
+    deposits: List[Dict[str, Any]] = []
+    for tx in transactions:
+        amount_val = 0.0
+        try:
+            amount_val = float(tx.get("amount", 0.0))
+        except (ValueError, TypeError):
+            pass
+
+        doc_type = str(tx.get("transaction_type") or tx.get("type") or "").lower()
+        doc_dc = str(tx.get("debit_or_credit") or "").lower()
+
+        if doc_dc == "debit" or doc_type in ("expense", "withdrawal", "payment") or amount_val < 0:
+            continue
+
+        is_deposit = (
+            amount_val > 0
+            or doc_dc == "credit"
+            or doc_type in ("deposit", "refund", "receipt", "income")
+        )
+        if is_deposit:
+            deposits.append(dict(tx))
+    return deposits
+
+

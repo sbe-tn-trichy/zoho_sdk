@@ -5,30 +5,43 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
+from decimal import Decimal
+
 from zoho.helpers import (
     GSTIN_PATTERN,
+    allocate_documents_fifo,
     attach_file_to_books_resource,
     ensure_books_custom_fields,
+    extract_bank_deposits,
+    extract_bank_withdrawals,
     extract_custom_fields_dict,
     fetch_active_customers_map,
     fetch_bank_accounts_map,
+    fetch_items_by_purchase_account,
     fetch_items_lookup,
+    fetch_open_bills,
+
+    fetch_open_invoices,
     find_bank_account_by_name,
+    find_bill_by_number,
     find_contact_by_gstin,
     find_contact_by_name,
     find_item_by_sku_or_name,
     find_transaction_by_number,
     get_custom_field_value,
+    get_financial_year_range,
     get_month_range,
     get_previous_month_range,
     group_contacts_by_gstin,
     is_valid_gstin,
+    normalize_cheque_number,
     normalize_gstin,
     parse_date,
     unwrap_record,
     workdrive_upload_and_attach,
     workdrive_upload_file,
 )
+
 
 
 class TestCustomFieldsHelper:
@@ -151,6 +164,25 @@ class TestDatesHelper:
         assert start == date(2026, 2, 1)
         assert end == date(2026, 2, 28)
 
+    def test_get_financial_year_range(self):
+        # Default start_month = 4 (Indian FY)
+        start, end = get_financial_year_range(date(2026, 8, 15))
+        assert start == date(2026, 4, 1)
+        assert end == date(2027, 3, 31)
+
+        start_jan, end_jan = get_financial_year_range(date(2026, 2, 10))
+        assert start_jan == date(2025, 4, 1)
+        assert end_jan == date(2026, 3, 31)
+
+        # Calendar year FY (start_month = 1)
+        start_cal, end_cal = get_financial_year_range(date(2026, 7, 1), start_month=1)
+        assert start_cal == date(2026, 1, 1)
+        assert end_cal == date(2026, 12, 31)
+
+        with pytest.raises(ValueError):
+            get_financial_year_range(start_month=13)
+
+
 
 class TestAccountsHelper:
     def test_find_bank_account_by_name(self):
@@ -175,6 +207,22 @@ class TestAccountsHelper:
         assert "hdfc clearing" in acc_map
         assert acc_map["hdfc clearing"]["account_id"] == "B100"
         assert "idfc petty cash" in acc_map
+
+    def test_extract_bank_withdrawals_and_deposits(self):
+        txs = [
+            {"transaction_id": "T1", "amount": -500.0, "debit_or_credit": "debit"},
+            {"transaction_id": "T2", "amount": 1200.0, "debit_or_credit": "credit"},
+            {"transaction_id": "T3", "amount": 300.0, "transaction_type": "expense"},
+            {"transaction_id": "T4", "amount": 450.0, "transaction_type": "deposit"},
+        ]
+        withdrawals = extract_bank_withdrawals(txs)
+        assert len(withdrawals) == 2
+        assert {w["transaction_id"] for w in withdrawals} == {"T1", "T3"}
+
+        deposits = extract_bank_deposits(txs)
+        assert len(deposits) == 2
+        assert {d["transaction_id"] for d in deposits} == {"T2", "T4"}
+
 
 
 class TestTransactionsHelper:
@@ -207,6 +255,81 @@ class TestTransactionsHelper:
 
         # Not found
         assert find_transaction_by_number(mock_resource, "REF-999") is None
+
+    def test_normalize_cheque_number(self):
+        assert normalize_cheque_number("000452") == "452"
+        assert normalize_cheque_number("000123") == "123"
+        assert normalize_cheque_number("CHQ-00123") == "chq00123"
+        assert normalize_cheque_number(" 000 ") == "0"
+        assert normalize_cheque_number(None) == ""
+        assert normalize_cheque_number("") == ""
+
+
+    def test_fetch_open_invoices_and_bills(self):
+        mock_books = MagicMock()
+        mock_books.invoices.list_all.return_value = [
+            {"invoice_id": "INV-1", "status": "sent", "balance": 100.0},
+            {"invoice_id": "INV-2", "status": "paid", "balance": 0.0},
+            {"invoice_id": "INV-3", "status": "draft", "balance": 50.0},
+            {"invoice_id": "INV-4", "status": "overdue", "balance": 250.0},
+        ]
+        mock_books.bills.list_all.return_value = [
+            {"bill_id": "BILL-1", "status": "open", "balance": 400.0},
+            {"bill_id": "BILL-2", "status": "void", "balance": 300.0},
+        ]
+
+        invoices = fetch_open_invoices(mock_books, "CUST-1")
+        assert len(invoices) == 2
+        assert {inv["invoice_id"] for inv in invoices} == {"INV-1", "INV-4"}
+
+        bills = fetch_open_bills(mock_books, "VEND-1")
+        assert len(bills) == 1
+        assert bills[0]["bill_id"] == "BILL-1"
+
+        assert fetch_open_invoices(mock_books, "") == []
+        assert fetch_open_bills(mock_books, "") == []
+
+    def test_find_bill_by_number(self):
+        mock_books = MagicMock()
+        mock_books.bills.list.return_value = {
+            "bills": [
+                {"bill_id": "B-100", "bill_number": "BILL/2026/01"},
+            ]
+        }
+        bill = find_bill_by_number(mock_books, "V-1", "BILL/2026/01")
+        assert bill is not None
+        assert bill["bill_id"] == "B-100"
+
+        assert find_bill_by_number(mock_books, "V-1", "") is None
+
+    def test_allocate_documents_fifo(self):
+        invoices = [
+            {"invoice_id": "INV-1", "due_date": "2026-02-01", "date": "2026-01-01", "balance": 100.0},
+            {"invoice_id": "INV-2", "due_date": "2026-01-15", "date": "2026-01-01", "balance": 150.0},
+            {"invoice_id": "INV-3", "due_date": "2026-03-01", "date": "2026-02-01", "balance": 200.0},
+        ]
+
+        # Allocation without metadata
+        allocs, unalloc = allocate_documents_fifo(200.0, invoices, id_key="invoice_id")
+        assert unalloc == Decimal("0")
+        assert len(allocs) == 2
+        # INV-2 is oldest due date (Jan 15) -> gets 150.0
+        assert allocs[0] == {"invoice_id": "INV-2", "amount_applied": 150.0}
+        # INV-1 is next (Feb 01) -> gets remaining 50.0
+        assert allocs[1] == {"invoice_id": "INV-1", "amount_applied": 50.0}
+
+        # Allocation with metadata and unallocated remainder
+        allocs_meta, unalloc_meta = allocate_documents_fifo(
+            Decimal("500.0"), invoices, id_key="invoice_id", include_metadata=True
+        )
+        assert unalloc_meta == Decimal("50.0")
+        assert len(allocs_meta) == 3
+        assert allocs_meta[0]["due_date"] == "2026-01-15"
+        assert allocs_meta[0]["balance"] == 150.0
+
+        with pytest.raises(ValueError):
+            allocate_documents_fifo(0, invoices)
+
 
 
 class TestContactsHelper:
@@ -278,10 +401,27 @@ class TestItemsHelper:
             {"item_id": "I2", "name": "Item Two", "sku": "SKU-002"},
         ]
 
-        lookup = fetch_items_lookup(mock_books, key_field="sku")
+        lookup = fetch_items_lookup(mock_books, key_field="sku", purchase_account_id="ACC-123")
         assert "SKU-001" in lookup
         assert lookup["SKU-001"]["item_id"] == "I1"
         assert lookup["SKU-002"]["name"] == "Item Two"
+        mock_books.items.list_iter.assert_called_once_with(
+            params={"status": "active", "purchase_account_id": "ACC-123"},
+            resource_key="items",
+        )
+
+    def test_fetch_items_by_purchase_account(self):
+        mock_books = MagicMock()
+        mock_books.items.list_iter.return_value = [
+            {"item_id": "I10", "sku": "POLY-01"},
+        ]
+
+        lookup = fetch_items_by_purchase_account(mock_books, purchase_account_id="ACC-POLY")
+        assert "POLY-01" in lookup
+        assert lookup["POLY-01"]["item_id"] == "I10"
+
+        with pytest.raises(ValueError):
+            fetch_items_by_purchase_account(mock_books, "")
 
     def test_find_item_by_sku_or_name(self):
         mock_books = MagicMock()
@@ -291,9 +431,13 @@ class TestItemsHelper:
             ]
         }
 
-        match = find_item_by_sku_or_name(mock_books, "CAB-COP-2.5")
+        match = find_item_by_sku_or_name(mock_books, "CAB-COP-2.5", purchase_account_id="ACC-555")
         assert match is not None
         assert match["item_id"] == "I1"
+        mock_books.items.list.assert_called_once_with(
+            params={"search_text": "CAB-COP-2.5", "purchase_account_id": "ACC-555"}
+        )
+
 
 
 class TestFilesHelper:

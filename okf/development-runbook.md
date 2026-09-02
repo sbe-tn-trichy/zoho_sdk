@@ -87,7 +87,8 @@ PYTHONPATH=src .venv/bin/python apps/export_neoseal_items.py \
   --purchase-account-id "$NEOSEAL_PURCHASE_ACCOUNT_ID"
 ```
 
-The default outputs are `output/neoseal_items.csv` and
+The export always requests `status="active"`; inactive catalog records are never
+included in review or downstream update inputs. The default outputs are `output/neoseal_items.csv` and
 `output/neoseal_items_missing_alias.csv`. The latter is the working list for
 recording the vendor's exact supplied item name in Books `alias_name`; the
 script scopes the catalog by the dedicated NeoSeal purchase account rather than

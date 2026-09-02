@@ -31,12 +31,17 @@ def fetch_items_lookup(
     books_client: Any,
     key_field: str = "name",
     status: str = "active",
+    purchase_account_id: Optional[str] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Fetch all items from Zoho Books/Inventory and index them by `key_field`.
 
-    Supports `name`, `sku`, `item_id`, `item_name`, etc.
+    Supports `name`, `sku`, `item_id`, `item_name`, etc. Optional `purchase_account_id`
+    scopes the query to a specific purchase account.
     """
-    params = {"status": status}
+    params: Dict[str, Any] = {"status": status}
+    if purchase_account_id:
+        params["purchase_account_id"] = str(purchase_account_id).strip()
+
     lookup: Dict[str, Dict[str, Any]] = {}
 
     try:
@@ -59,18 +64,42 @@ def fetch_items_lookup(
     return lookup
 
 
+def fetch_items_by_purchase_account(
+    books_client: Any,
+    purchase_account_id: str,
+    key_field: str = "sku",
+    status: str = "all",
+) -> Dict[str, Dict[str, Any]]:
+    """Fetch items scoped to a specific purchase account and index them by `key_field`."""
+    account_id = str(purchase_account_id or "").strip()
+    if not account_id:
+        raise ValueError("purchase_account_id is required.")
+
+    return fetch_items_lookup(
+        books_client,
+        key_field=key_field,
+        status=status,
+        purchase_account_id=account_id,
+    )
+
+
 def find_item_by_sku_or_name(
     books_client: Any,
     query: str,
+    purchase_account_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Search for an item by matching SKU or name."""
+    """Search for an item by matching SKU or name, optionally scoped by purchase_account_id."""
     cleaned = str(query or "").strip()
     if not cleaned:
         return None
 
     target = cleaned.lower()
+    params: Dict[str, Any] = {"search_text": cleaned}
+    if purchase_account_id:
+        params["purchase_account_id"] = str(purchase_account_id).strip()
+
     try:
-        res = books_client.items.list(params={"search_text": cleaned})
+        res = books_client.items.list(params=params)
         items = res.get("items", []) if isinstance(res, dict) else (res if isinstance(res, list) else [])
         for item in items:
             sku = str(item.get("sku") or "").strip().lower()
@@ -86,3 +115,4 @@ def find_item_by_sku_or_name(
         logger.warning(f"Error searching items for '{cleaned}': {exc}")
 
     return None
+

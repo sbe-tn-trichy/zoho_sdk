@@ -26,8 +26,12 @@
 - Public APIs use explicit typed parameters. Use `TypedDict` or dataclasses for
   stable structured records crossing workflow boundaries.
 - Applications construct SDK clients through `workflows.core.auth` factories.
+- Scope item catalog queries in vendor workflows (bills, purchase orders, vendor
+  credits, and catalog exports) using `purchase_account_id` (via `books.items.list_by_purchase_account`
+  or `zoho.helpers.items` helpers) to prevent cross-vendor item collisions.
 - Deliver complete implementations; do not leave accidental placeholders,
   `pass`, or TODO markers. Intentional abstract/protocol stubs are allowed.
+
 
 ## Safety and Verification
 

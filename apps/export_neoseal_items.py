@@ -67,8 +67,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
-    items = get_books_client().items.list_all(
-        params={"purchase_account_id": args.purchase_account_id}
+    items = get_books_client().items.list_by_purchase_account(
+        args.purchase_account_id,
+        status="active",
     )
     rows = [export_row(item) for item in items]
     missing = [row for row in rows if row["has_alias_name"] == "false"]

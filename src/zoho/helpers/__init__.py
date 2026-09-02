@@ -1,6 +1,8 @@
 """Higher-level overlay helpers and composite operations for Zoho SDK."""
 
 from .accounts import (
+    extract_bank_deposits,
+    extract_bank_withdrawals,
     fetch_bank_accounts_map,
     find_bank_account_by_name,
 )
@@ -15,6 +17,7 @@ from .custom_fields import (
     get_custom_field_value,
 )
 from .dates import (
+    get_financial_year_range,
     get_month_range,
     get_previous_month_range,
     parse_date,
@@ -31,11 +34,18 @@ from .gst import (
     normalize_gstin,
 )
 from .items import (
+    fetch_items_by_purchase_account,
     fetch_items_lookup,
     find_item_by_sku_or_name,
 )
 from .transactions import (
+    CLOSED_DOCUMENT_STATUSES,
+    allocate_documents_fifo,
+    fetch_open_bills,
+    fetch_open_invoices,
+    find_bill_by_number,
     find_transaction_by_number,
+    normalize_cheque_number,
     unwrap_record,
 )
 
@@ -50,7 +60,9 @@ __all__ = [
     "fetch_active_customers_map",
     # Items
     "fetch_items_lookup",
+    "fetch_items_by_purchase_account",
     "find_item_by_sku_or_name",
+
     # Files
     "workdrive_upload_file",
     "attach_file_to_books_resource",
@@ -64,10 +76,20 @@ __all__ = [
     "parse_date",
     "get_month_range",
     "get_previous_month_range",
+    "get_financial_year_range",
     # Bank accounts
     "find_bank_account_by_name",
     "fetch_bank_accounts_map",
+    "extract_bank_withdrawals",
+    "extract_bank_deposits",
     # Transactions
+    "CLOSED_DOCUMENT_STATUSES",
     "find_transaction_by_number",
+    "find_bill_by_number",
+    "fetch_open_invoices",
+    "fetch_open_bills",
+    "normalize_cheque_number",
+    "allocate_documents_fifo",
     "unwrap_record",
 ]
+

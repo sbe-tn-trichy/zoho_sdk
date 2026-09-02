@@ -11,11 +11,15 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from zoho.helpers import (
     GSTIN_PATTERN,
+    allocate_documents_fifo,
+    fetch_open_bills,
+    fetch_open_invoices,
     find_bank_account_by_name,
     is_valid_gstin,
     normalize_gstin,
 )
 from ..core.matching import to_decimal
+
 
 
 class VendorCustomerOffsetError(RuntimeError):
@@ -119,19 +123,9 @@ def _allocate_documents(
     amount: Decimal,
     id_key: str,
 ) -> Tuple[List[Dict[str, Any]], Decimal]:
-    remaining = amount
-    allocations: List[Dict[str, Any]] = []
-    for document in sorted(documents, key=_document_sort_key):
-        if remaining <= 0:
-            break
-        balance = _money(_decimal(document.get("balance")))
-        document_id = str(document.get(id_key) or "")
-        if not document_id or balance <= 0:
-            continue
-        applied = min(balance, remaining)
-        allocations.append({id_key: document_id, "amount_applied": float(applied)})
-        remaining = _money(remaining - applied)
-    return allocations, remaining
+    if amount <= 0:
+        return [], Decimal("0")
+    return allocate_documents_fifo(amount, documents, id_key=id_key)
 
 
 def _build_bill_payment_tranches(
@@ -197,24 +191,9 @@ def _build_bill_payment_tranches(
 
 
 def _open_documents(books_client: Any, customer_id: str, vendor_id: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    invoices = books_client.invoices.list_all(params={"customer_id": customer_id})
-    bills = books_client.bills.list_all(params={"vendor_id": vendor_id})
-    excluded_statuses = {
-        "void",
-        "draft",
-        "paid",
-        "rejected",
-        "pending_approval",
-        "approval_overdue",
-    }
-
-    def is_open(document: Mapping[str, Any]) -> bool:
-        status = str(document.get("status") or "").strip().lower()
-        return _decimal(document.get("balance")) > 0 and status not in excluded_statuses
-
     return (
-        [item for item in invoices if is_open(item)],
-        [item for item in bills if is_open(item)],
+        fetch_open_invoices(books_client, customer_id),
+        fetch_open_bills(books_client, vendor_id),
     )
 
 

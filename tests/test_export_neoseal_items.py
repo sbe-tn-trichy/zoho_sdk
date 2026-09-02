@@ -1,3 +1,6 @@
+from unittest.mock import MagicMock
+
+from apps import export_neoseal_items
 from apps.export_neoseal_items import build_parser, export_row
 
 
@@ -27,3 +30,26 @@ def test_export_row_preserves_vendor_alias_and_flags_missing_value() -> None:
     missing = export_row({"item_id": "item-2", "manufacturer": "Neoseal"})
     assert missing["alias_name"] == ""
     assert missing["has_alias_name"] == "false"
+
+
+def test_export_fetches_only_active_items(monkeypatch, tmp_path) -> None:
+    books = MagicMock()
+    books.items.list_by_purchase_account.return_value = []
+    monkeypatch.setattr(export_neoseal_items, "get_books_client", lambda: books)
+
+    result = export_neoseal_items.main(
+        [
+            "--purchase-account-id",
+            "account-1",
+            "--output",
+            str(tmp_path / "items.csv"),
+            "--missing-output",
+            str(tmp_path / "missing.csv"),
+        ]
+    )
+
+    assert result == 0
+    books.items.list_by_purchase_account.assert_called_once_with(
+        "account-1",
+        status="active",
+    )
