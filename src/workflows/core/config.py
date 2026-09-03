@@ -105,6 +105,9 @@ class Config:
     # Zoho Books Entity IDs
     POLYCAB_VENDOR_ID = get_config("POLYCAB_VENDOR_ID", "")
     NEOSEAL_PURCHASE_ACCOUNT_ID = get_config("NEOSEAL_PURCHASE_ACCOUNT_ID", "")
+    NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID = get_config(
+        "NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID", ""
+    )
     FAN_PURCHASE_ACCOUNT_ID = get_config("FAN_PURCHASE_ACCOUNT_ID", "")
     ZOHO_RSO_CN_ITEM_ID = get_config("ZOHO_RSO_CN_ITEM_ID", "")
     ZOHO_SCHEME_CN_ITEM_ID = get_config("ZOHO_SCHEME_CN_ITEM_ID", "")

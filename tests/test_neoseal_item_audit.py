@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from apps import audit_neoseal_items
 from workflows.neoseal_audit import (
     NeosealItemAuditor,
@@ -192,6 +194,69 @@ def test_detects_missing_and_catchall_groups() -> None:
     assert catchall["recommended_group"] == "UPVC Solvent"
 
 
+def test_checks_price_list_margin_pack_mrp_and_aliases() -> None:
+    items = [
+        {
+            "item_id": "good",
+            "name": "Configured Item",
+            "sku": "NEO-1",
+            "rate": "120",
+            "purchase_rate": "100",
+            "pack_size": "1",
+            "mrp": "150",
+            "alias_name": "Neoseal Configured Item",
+        },
+        {
+            "item_id": "bad",
+            "name": "Unconfigured Item",
+            "sku": "NEO-2",
+            "rate": "100",
+            "purchase_rate": "100",
+            "pack_size": "0",
+            "mrp": "",
+            "alias_name": "",
+        },
+    ]
+    result = run_audit(items, price_list=[
+        {"sku": "NEO-1", "price": "120"},
+        {"sku": "NEO-2", "price": "110"},
+    ])
+
+    assert [(issue["sku"], issue["issue_type"]) for issue in result["price_list_issues"]] == [
+        ("NEO-2", "price_mismatch"),
+    ]
+    assert [(issue["sku"], issue["issue_type"]) for issue in result["margin_issues"]] == [
+        ("NEO-2", "non_positive_margin"),
+    ]
+    assert {issue["issue_type"] for issue in result["pack_mrp_issues"]} == {
+        "missing_pack_size", "missing_mrp",
+    }
+    assert [(issue["sku"], issue["issue_type"]) for issue in result["alias_issues"]] == [
+        ("NEO-2", "missing_alias_name"),
+    ]
+
+
+def test_price_list_requires_unique_skus() -> None:
+    with pytest.raises(ValueError, match="duplicate SKU"):
+        NeosealItemAuditor([], price_list=[
+            {"sku": "NEO-1", "price": "100"},
+            {"sku": "neo-1", "price": "100"},
+        ])
+
+
+def test_empty_supplied_price_list_flags_all_items() -> None:
+    result = run_audit([{
+        "item_id": "item-1",
+        "name": "Neoseal Item",
+        "sku": "NEO-1",
+        "rate": "100",
+    }], price_list=[])
+
+    assert [(issue["sku"], issue["issue_type"]) for issue in result["price_list_issues"]] == [
+        ("NEO-1", "missing_price_list_entry"),
+    ]
+
+
 def test_render_markdown_report() -> None:
     items = _make_sample_items()
     result = run_audit(items)
@@ -227,6 +292,37 @@ def test_cli_main_with_csv(tmp_path: Path) -> None:
     assert out_json.exists()
     data = json.loads(out_json.read_text(encoding="utf-8"))
     assert data["result"]["total_audited"] == len(items)
+
+
+def test_cli_main_with_price_list_csv(tmp_path: Path) -> None:
+    items = [{
+        "item_id": "item-1",
+        "name": "Neoseal Item",
+        "sku": "NEO-1",
+        "rate": "100",
+        "purchase_rate": "50",
+        "pack_size": "1",
+        "mrp": "110",
+        "alias_name": "Neoseal Item Alias",
+    }]
+    item_csv = tmp_path / "items.csv"
+    price_csv = tmp_path / "prices.csv"
+    with item_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(items[0]))
+        writer.writeheader()
+        writer.writerows(items)
+    with price_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["sku", "price"])
+        writer.writeheader()
+        writer.writerow({"sku": "NEO-1", "price": "100"})
+
+    rc = audit_neoseal_items.main([
+        "--input-csv", str(item_csv),
+        "--price-list-csv", str(price_csv),
+        "--output", str(tmp_path / "report.md"),
+    ])
+
+    assert rc == 0
 
 
 def test_cli_main_with_mock_books(monkeypatch, tmp_path: Path) -> None:

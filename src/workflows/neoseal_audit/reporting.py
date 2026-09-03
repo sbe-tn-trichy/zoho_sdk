@@ -42,6 +42,22 @@ def render_markdown_report(result: NeosealAuditResult, metadata: Mapping[str, st
             f"| **4. Group Categorization** | {'⚠️ Warning' if result['group_issues'] else '✅ Clean'} | "
             f"{len(result['group_issues'])} | Unassigned Zoho item groups & catch-all buckets |"
         ),
+        (
+            f"| **5. Price List** | {'⚠️ Warning' if result['price_list_issues'] else '✅ Clean'} | "
+            f"{len(result['price_list_issues'])} | Books selling price must match the supplied price list |"
+        ),
+        (
+            f"| **6. Margin** | {'⚠️ Warning' if result['margin_issues'] else '✅ Clean'} | "
+            f"{len(result['margin_issues'])} | Positive margin requires selling price above purchase rate |"
+        ),
+        (
+            f"| **7. Pack Size & MRP** | {'⚠️ Warning' if result['pack_mrp_issues'] else '✅ Clean'} | "
+            f"{len(result['pack_mrp_issues'])} | Pack size and MRP must be positive values |"
+        ),
+        (
+            f"| **8. Vendor Alias** | {'⚠️ Warning' if result['alias_issues'] else '✅ Clean'} | "
+            f"{len(result['alias_issues'])} | Each item needs its Neoseal vendor alias |"
+        ),
         "",
         "---",
         "",
@@ -116,6 +132,46 @@ def render_markdown_report(result: NeosealAuditResult, metadata: Mapping[str, st
             lines.append(
                 f"| `{issue['name']}` | `{issue['sku']}` | {curr} | {issue['description']} | "
                 f"**`{issue['recommended_group']}`** |"
+            )
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "## 5. Price List Verification",
+        "",
+    ])
+    if not result["price_list_issues"]:
+        lines.append("No price-list differences found (or no price list was supplied).")
+    else:
+        lines.extend([
+            "| Item Name | SKU | System Price | Price-List Price | Issue |",
+            "| :--- | :--- | ---: | ---: | :--- |",
+        ])
+        for issue in result["price_list_issues"]:
+            list_price = "*Missing*" if issue["price_list_price"] is None else f"{issue['price_list_price']:.2f}"
+            lines.append(
+                f"| `{issue['name']}` | `{issue['sku']}` | {issue['system_price']:.2f} | "
+                f"{list_price} | {issue['description']} |"
+            )
+
+    for title, issues, empty_message in (
+        ("6. Margin Analysis", result["margin_issues"], "All items have a positive calculated margin."),
+        ("7. Pack Size & MRP", result["pack_mrp_issues"], "All items have a positive pack size and MRP."),
+        ("8. Vendor Alias Configuration", result["alias_issues"], "All items have a vendor alias name."),
+    ):
+        lines.extend(["", "---", "", f"## {title}", ""])
+        if not issues:
+            lines.append(empty_message)
+            continue
+        lines.extend([
+            "| Item Name | SKU | Issue | Recommendation |",
+            "| :--- | :--- | :--- | :--- |",
+        ])
+        for issue in issues:
+            lines.append(
+                f"| `{issue['name']}` | `{issue['sku']}` | {issue['description']} | "
+                f"**{issue['recommendation']}** |"
             )
 
     lines.extend([

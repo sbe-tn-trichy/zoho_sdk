@@ -12,6 +12,7 @@
       "polycab_folder_id": "<workdrive-folder-id>",
       "polycab_vendor_id": "<vendor-contact-id>",
       "neoseal_purchase_account_id": "<neoseal-purchase-account-id>",
+      "neoseal_price_list_google_sheet_id": "<google-sheet-id>",
       "fan_purchase_account_id": "<fan-purchase-account-id>",
       "zeiss_vendor_id": "<vendor-contact-id>",
       "zeiss_ledger_path": "input_files/zeiss/statement.csv",

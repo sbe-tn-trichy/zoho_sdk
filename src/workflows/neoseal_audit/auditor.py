@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from difflib import SequenceMatcher
-from typing import Any, Dict, List, Mapping, Optional, Sequence, TypedDict
+from typing import Any, Dict, List, Mapping, Sequence, TypedDict
 
 
 class DuplicateMatch(TypedDict):
@@ -35,6 +35,26 @@ class GroupCategorizationIssue(TypedDict):
     description: str
 
 
+class ItemDataIssue(TypedDict):
+    item_id: str
+    name: str
+    sku: str
+    issue_type: str
+    severity: str
+    description: str
+    recommendation: str
+
+
+class PriceListIssue(TypedDict):
+    item_id: str
+    name: str
+    sku: str
+    system_price: float
+    price_list_price: float | None
+    issue_type: str  # "missing_price_list_entry", "price_mismatch"
+    description: str
+
+
 class NeosealAuditResult(TypedDict):
     total_audited: int
     active_count: int
@@ -43,13 +63,24 @@ class NeosealAuditResult(TypedDict):
     naming_issues: List[NomenclatureIssue]
     sku_issues: List[NomenclatureIssue]
     group_issues: List[GroupCategorizationIssue]
+    price_list_issues: List[PriceListIssue]
+    margin_issues: List[ItemDataIssue]
+    pack_mrp_issues: List[ItemDataIssue]
+    alias_issues: List[ItemDataIssue]
 
 
 class NeosealItemAuditor:
-    """Audits Neoseal items for duplicates, naming, user-generated SKUs, and groups."""
+    """Audits Neoseal catalog quality, pricing, margins, and vendor metadata."""
 
-    def __init__(self, items: Sequence[Mapping[str, Any]]) -> None:
+    def __init__(
+        self,
+        items: Sequence[Mapping[str, Any]],
+        price_list: Sequence[Mapping[str, Any]] | None = None,
+    ) -> None:
         self.raw_items = [self._normalize_item(it) for it in items]
+        self.price_list = (
+            self._normalize_price_list(price_list) if price_list is not None else None
+        )
 
     @staticmethod
     def _normalize_item(raw: Mapping[str, Any]) -> Dict[str, Any]:
@@ -62,7 +93,44 @@ class NeosealItemAuditor:
             "group_name": str(raw.get("group_name") or "").strip() if raw.get("group_name") is not None and str(raw.get("group_name")).lower() != "nan" else "",
             "stock_on_hand": float(raw.get("stock_on_hand") or 0.0) if raw.get("stock_on_hand") is not None and str(raw.get("stock_on_hand")).lower() != "nan" else 0.0,
             "rate": float(raw.get("rate") or 0.0) if raw.get("rate") is not None and str(raw.get("rate")).lower() != "nan" else 0.0,
+            "purchase_rate": NeosealItemAuditor._as_float(raw.get("purchase_rate")),
+            "pack_size": NeosealItemAuditor._as_float(raw.get("pack_size")),
+            "mrp": NeosealItemAuditor._as_float(raw.get("mrp")),
+            "alias_name": str(raw.get("alias_name") or "").strip(),
         }
+
+    @staticmethod
+    def _as_float(value: Any) -> float | None:
+        if value is None or str(value).strip().lower() in {"", "nan", "none"}:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _normalize_price_list(
+        price_list: Sequence[Mapping[str, Any]],
+    ) -> Dict[str, float | None]:
+        """Return price-list prices by normalized SKU.
+
+        Price-list exports must provide ``sku`` plus one of ``price``, ``rate``,
+        or ``selling_price``. Duplicate SKUs are rejected because their expected
+        selling price is ambiguous.
+        """
+        prices: Dict[str, float | None] = {}
+        for row in price_list:
+            sku = str(row.get("sku") or "").strip().casefold()
+            if not sku:
+                continue
+            if sku in prices:
+                raise ValueError(f"Price list contains duplicate SKU {sku!r}.")
+            price = next(
+                (row.get(field) for field in ("price", "rate", "selling_price") if field in row),
+                None,
+            )
+            prices[sku] = NeosealItemAuditor._as_float(price)
+        return prices
 
     def find_duplicates(self) -> List[DuplicateMatch]:
         """Detect duplicates, near-duplicates, inactive legacy pairs, and container twins."""
@@ -378,6 +446,133 @@ class NeosealItemAuditor:
 
         return issues
 
+    def check_price_list(self) -> List[PriceListIssue]:
+        """Compare each Neoseal item selling price with the supplied price list.
+
+        An empty price list means the comparison was not requested, so no issues
+        are produced. When a price list is supplied, every item with a SKU must
+        have one matching entry and its listed price must equal Books ``rate``.
+        """
+        if self.price_list is None:
+            return []
+
+        issues: List[PriceListIssue] = []
+        for it in self.raw_items:
+            sku_key = it["sku"].casefold()
+            if not sku_key:
+                issues.append({
+                    "item_id": it["item_id"],
+                    "name": it["name"],
+                    "sku": it["sku"],
+                    "system_price": it["rate"],
+                    "price_list_price": None,
+                    "issue_type": "missing_price_list_entry",
+                    "description": "Item has no SKU, so it cannot be matched to the price list.",
+                })
+                continue
+            price_list_price = self.price_list.get(sku_key)
+            if sku_key not in self.price_list or price_list_price is None:
+                issues.append({
+                    "item_id": it["item_id"],
+                    "name": it["name"],
+                    "sku": it["sku"],
+                    "system_price": it["rate"],
+                    "price_list_price": price_list_price,
+                    "issue_type": "missing_price_list_entry",
+                    "description": "No usable price-list price was found for this SKU.",
+                })
+            elif it["rate"] != price_list_price:
+                issues.append({
+                    "item_id": it["item_id"],
+                    "name": it["name"],
+                    "sku": it["sku"],
+                    "system_price": it["rate"],
+                    "price_list_price": price_list_price,
+                    "issue_type": "price_mismatch",
+                    "description": "Zoho Books selling price does not match the price-list price.",
+                })
+        return issues
+
+    def check_margin(self) -> List[ItemDataIssue]:
+        """Flag items whose selling price does not produce a positive margin."""
+        issues: List[ItemDataIssue] = []
+        for it in self.raw_items:
+            purchase_rate = it["purchase_rate"]
+            rate = it["rate"]
+            if purchase_rate is None or purchase_rate <= 0:
+                issues.append(self._data_issue(
+                    it, "missing_purchase_rate", "warning",
+                    "Purchase rate is missing or non-positive; margin cannot be calculated.",
+                    "Set the current purchase rate.",
+                ))
+            elif rate <= 0:
+                issues.append(self._data_issue(
+                    it, "missing_selling_price", "warning",
+                    "Selling price is missing or non-positive; margin cannot be calculated.",
+                    "Set a positive selling price.",
+                ))
+            elif rate <= purchase_rate:
+                issues.append(self._data_issue(
+                    it, "non_positive_margin", "warning",
+                    f"Selling price {rate:.2f} is not greater than purchase rate {purchase_rate:.2f}.",
+                    "Set a selling price above the purchase rate or verify the cost.",
+                ))
+        return issues
+
+    def check_pack_size_and_mrp(self) -> List[ItemDataIssue]:
+        """Ensure item pack size and MRP are populated with positive values."""
+        issues: List[ItemDataIssue] = []
+        for it in self.raw_items:
+            if it["pack_size"] is None or it["pack_size"] <= 0:
+                issues.append(self._data_issue(
+                    it, "missing_pack_size", "warning",
+                    "Pack size is missing or non-positive.",
+                    "Set the item pack size to a positive number.",
+                ))
+            if it["mrp"] is None or it["mrp"] <= 0:
+                issues.append(self._data_issue(
+                    it, "missing_mrp", "warning",
+                    "MRP is missing or non-positive.",
+                    "Set the item MRP to a positive amount.",
+                ))
+            elif it["mrp"] < it["rate"]:
+                issues.append(self._data_issue(
+                    it, "mrp_below_selling_price", "warning",
+                    f"MRP {it['mrp']:.2f} is lower than selling price {it['rate']:.2f}.",
+                    "Set MRP at or above the item selling price, or verify both values.",
+                ))
+        return issues
+
+    def check_aliases(self) -> List[ItemDataIssue]:
+        """Ensure every item carries the vendor-facing alias used by Neoseal."""
+        return [
+            self._data_issue(
+                it, "missing_alias_name", "warning",
+                "Vendor alias name is not configured.",
+                "Set the Neoseal vendor alias name.",
+            )
+            for it in self.raw_items
+            if not it["alias_name"]
+        ]
+
+    @staticmethod
+    def _data_issue(
+        item: Mapping[str, Any],
+        issue_type: str,
+        severity: str,
+        description: str,
+        recommendation: str,
+    ) -> ItemDataIssue:
+        return {
+            "item_id": item["item_id"],
+            "name": item["name"],
+            "sku": item["sku"],
+            "issue_type": issue_type,
+            "severity": severity,
+            "description": description,
+            "recommendation": recommendation,
+        }
+
     def audit(self) -> NeosealAuditResult:
         """Run all audit checks and compile result summary."""
         active = [it for it in self.raw_items if it["status"] == "active"]
@@ -391,9 +586,16 @@ class NeosealItemAuditor:
             "naming_issues": self.check_naming_nomenclature(),
             "sku_issues": self.check_sku_nomenclature(),
             "group_issues": self.check_group_categorization(),
+            "price_list_issues": self.check_price_list(),
+            "margin_issues": self.check_margin(),
+            "pack_mrp_issues": self.check_pack_size_and_mrp(),
+            "alias_issues": self.check_aliases(),
         }
 
 
-def audit_neoseal_items(items: Sequence[Mapping[str, Any]]) -> NeosealAuditResult:
+def audit_neoseal_items(
+    items: Sequence[Mapping[str, Any]],
+    price_list: Sequence[Mapping[str, Any]] | None = None,
+) -> NeosealAuditResult:
     """Convenience functional API to run Neoseal item audit."""
-    return NeosealItemAuditor(items).audit()
+    return NeosealItemAuditor(items, price_list=price_list).audit()

@@ -67,6 +67,7 @@ def test_purchase_account_ids_load_from_active_profile(tmp_path: Path):
                 "profiles": {
                     "production": {
                         "neoseal_purchase_account_id": "neoseal-account",
+                        "neoseal_price_list_google_sheet_id": "neoseal-price-list",
                         "fan_purchase_account_id": "fan-account",
                     }
                 },
@@ -78,6 +79,7 @@ def test_purchase_account_ids_load_from_active_profile(tmp_path: Path):
     loaded = _load_config_dict(project, tmp_path / "home")
 
     assert loaded["neoseal_purchase_account_id"] == "neoseal-account"
+    assert loaded["neoseal_price_list_google_sheet_id"] == "neoseal-price-list"
     assert loaded["fan_purchase_account_id"] == "fan-account"
 
 

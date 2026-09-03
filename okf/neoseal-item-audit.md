@@ -41,6 +41,24 @@ The workflow inspects four key catalog quality dimensions:
    - **Catch-All Buckets**: Identifies items misplaced in `Solvent Others` (redirecting to
      `UPVC Solvent`) and `Neoseal Others` (redirecting to `Neoseal Maintenance`).
 
+5. **Price List Verification**:
+   - Compares each Books item `rate` against an optional price-list CSV using a
+     case-insensitive exact SKU match.
+   - The price-list CSV must include `sku` and one of `price`, `rate`, or
+     `selling_price`. Duplicate price-list SKUs are rejected as ambiguous.
+
+6. **Margin Analysis**:
+   - Flags items with missing/non-positive purchase or selling prices, and items
+     whose selling price is not greater than their purchase rate.
+
+7. **Pack Size and MRP**:
+   - Flags missing or non-positive `pack_size` and `mrp` fields, and MRP values
+     below the Books selling price.
+
+8. **Vendor Alias Configuration**:
+   - Flags missing `alias_name` values so vendor-facing Neoseal names can be
+     configured before matching or purchasing workflows use them.
+
 ## Command-Line Usage
 
 ### Live Query against Zoho Books
@@ -50,6 +68,7 @@ Run directly using the configured Neoseal purchase account:
 ```bash
 python apps/audit_neoseal_items.py \
   --purchase-account-id "$NEOSEAL_PURCHASE_ACCOUNT_ID" \
+  --price-list-csv input_files/neoseal/price_list.csv \
   --output output/neoseal_item_audit.md
 ```
 
@@ -72,6 +91,6 @@ The workflow is exported lazily from `workflows`:
 from workflows import NeosealItemAuditor, audit_neoseal_items
 from workflows.neoseal_audit import render_markdown_report
 
-result = audit_neoseal_items(items)
+result = audit_neoseal_items(items, price_list=price_list_rows)
 report_md = render_markdown_report(result)
 ```

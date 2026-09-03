@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit Neoseal Books items for duplicates, naming, SKU structure, and groups."""
+"""Audit purchase-account-scoped Neoseal Books items and price-list data."""
 
 from __future__ import annotations
 
@@ -41,6 +41,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional local CSV inventory snapshot to audit instead of querying Books API",
     )
     parser.add_argument(
+        "--price-list-csv",
+        type=Path,
+        help=(
+            "Optional price-list CSV. It must contain sku plus price, rate, or "
+            "selling_price; values are verified against Zoho Books item rates."
+        ),
+    )
+    parser.add_argument(
         "--status",
         default="all",
         choices=["active", "inactive", "all"],
@@ -63,6 +71,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
 
+    price_list: Optional[List[Dict[str, Any]]] = None
+    if args.price_list_csv:
+        if not args.price_list_csv.exists():
+            print(f"Error: Price-list CSV '{args.price_list_csv}' does not exist.", file=sys.stderr)
+            return 1
+        price_list = load_items_from_csv(args.price_list_csv)
+
     if args.input_csv:
         if not args.input_csv.exists():
             print(f"Error: Input CSV '{args.input_csv}' does not exist.", file=sys.stderr)
@@ -84,7 +99,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         source_label = f"Zoho Books API (Purchase Account: {args.purchase_account_id}, Status: {args.status})"
 
-    result = audit_neoseal_items(items)
+    try:
+        result = audit_neoseal_items(items, price_list=price_list)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
 
     metadata = {
         "source": source_label,
@@ -111,6 +130,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"Naming issues: {len(result['naming_issues'])}, "
         f"SKU issues: {len(result['sku_issues'])}, "
         f"Group issues: {len(result['group_issues'])}. "
+        f"Price-list issues: {len(result['price_list_issues'])}, "
+        f"Margin issues: {len(result['margin_issues'])}, "
+        f"Pack/MRP issues: {len(result['pack_mrp_issues'])}, "
+        f"Alias issues: {len(result['alias_issues'])}. "
         f"Report written to '{args.output}'."
     )
     return 0

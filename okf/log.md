@@ -1,5 +1,16 @@
 # Knowledge Change Log
 
+## 2026-09-03
+
+- Added `NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID` to the active configuration,
+  template, and workflow configuration API for the Neoseal price-list source.
+- Extended the purchase-account-scoped Neoseal item audit with optional
+  SKU-based price-list verification, non-positive margin detection, pack-size
+  and MRP completeness checks, and missing vendor-alias detection. The CLI
+  accepts a price-list CSV containing `sku` plus `price`, `rate`, or
+  `selling_price`.
+- Recorded the NeoSeal solvent SKU convention `Grade-Volume-Type-Color-PackageMaterial` and retained SKU identity during reviewed catalog-name migration.
+
 ## 2026-09-02
 
 - Added the `neoseal_audit` domain workflow and `apps/audit_neoseal_items.py` CLI

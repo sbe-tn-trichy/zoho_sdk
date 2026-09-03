@@ -99,3 +99,9 @@ support this filtering pattern.
 
 Catalog review and update workflows must request `status="active"`. Inactive items
 are excluded at retrieval time rather than downloaded and filtered afterward.
+
+NeoSeal solvent SKUs use the uppercase, hyphen-separated structure
+`Grade-Volume-Type-Color-PackageMaterial`. For example,
+`105-500-PVC-CLR-TIN` identifies grade 105, 500 ml, PVC, clear, tin packaging.
+The SKU is the stable item identity; display-name normalization must not remove
+or merge attributes represented by this structure.
