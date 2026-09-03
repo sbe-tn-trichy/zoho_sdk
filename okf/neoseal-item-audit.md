@@ -89,8 +89,31 @@ The workflow is exported lazily from `workflows`:
 
 ```python
 from workflows import NeosealItemAuditor, audit_neoseal_items
-from workflows.neoseal_audit import render_markdown_report
+from workflows.neoseal_audit import (
+    compute_item_update,
+    render_markdown_report,
+    standardize_item_name,
+)
 
 result = audit_neoseal_items(items, price_list=price_list_rows)
 report_md = render_markdown_report(result)
+```
+
+## Catalog Naming & SKU Updater (`apply_neoseal_name_updates.py`)
+
+A permanent CLI application in `apps/apply_neoseal_name_updates.py` executes approved
+nomenclature and SKU updates against live Books items.
+
+- **Safe-by-Default Dry-Run**: Evaluates items and outputs a before/after diff table without mutating Books unless `--apply` is passed.
+- **Automated Backup**: Dumps a complete pre-update item snapshot to `output/neoseal_pre_update_snapshot_<timestamp>.json` before any mutations occur.
+- **Audit Trail**: Writes a JSON audit report of all applied mutations to `output/neoseal_name_updates_audit.json`.
+- **SI Unit Compliance**: Standardizes spacing before unit literals (`1 kg`, `500 g`, `100 ml`, `20 L`, `12 mm`, `10 m`) and replaces non-SI `mtr` with `m`.
+- **Duplicate Management**: Identifies zero-stock duplicate items (`701-260-B`, `701-260-W`, `105-500-PVC-CLR-TIN`) and supports optional deactivation via `--deactivate-duplicates`.
+
+```bash
+# Dry run inspection
+python apps/apply_neoseal_name_updates.py --dry-run
+
+# Commit mutations to Zoho Books
+python apps/apply_neoseal_name_updates.py --apply
 ```

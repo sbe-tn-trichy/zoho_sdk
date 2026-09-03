@@ -2,6 +2,11 @@
 
 ## 2026-09-03
 
+- Added `apps/apply_neoseal_name_updates.py` and `workflows.neoseal_audit.naming_rules`
+  to apply reviewed nomenclature, SKU overrides, and SI unit standardizations
+  directly to Zoho Books items. Features include safe-by-default dry-run,
+  automatic pre-update JSON backup snapshots, duplicate collision avoidance, and
+  audit reporting.
 - Added `NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID` to the active configuration,
   template, and workflow configuration API for the Neoseal price-list source.
 - Extended the purchase-account-scoped Neoseal item audit with optional

@@ -1,0 +1,569 @@
+{
+  "metadata": {
+    "source": "Local CSV (test_items.csv)",
+    "checked_at": "2026-09-03 18:21:39 UTC"
+  },
+  "result": {
+    "total_audited": 11,
+    "active_count": 10,
+    "inactive_count": 1,
+    "duplicates": [
+      {
+        "match_type": "packaging_twin",
+        "similarity": 0.98,
+        "item_a": {
+          "item_id": "solv-1",
+          "name": "200 UPVC Solution 100ml Blue (PVC Can)",
+          "sku": "200-100-UPVC-BLU-CAN",
+          "status": "active",
+          "group_id": "",
+          "group_name": "UPVC Solvent",
+          "stock_on_hand": -9.0,
+          "rate": 0.0,
+          "purchase_rate": null,
+          "pack_size": null,
+          "mrp": null,
+          "alias_name": ""
+        },
+        "item_b": {
+          "item_id": "solv-2",
+          "name": "200 UPVC Solution 100ml Blue (Tin)",
+          "sku": "200-100-UPVC-BLU-TIN",
+          "status": "active",
+          "group_id": "",
+          "group_name": "UPVC Solvent",
+          "stock_on_hand": 361.0,
+          "rate": 0.0,
+          "purchase_rate": null,
+          "pack_size": null,
+          "mrp": null,
+          "alias_name": ""
+        },
+        "details": "Packaging twin (Tin vs PVC Can). Identical formulation and volume; high risk of stock mismatch and negative billing entries."
+      },
+      {
+        "match_type": "legacy_duplicate",
+        "similarity": 0.889,
+        "item_a": {
+          "item_id": "tape-1",
+          "name": "PTFE Tape Premium 12mm 10mtr",
+          "sku": "10mtr tape",
+          "status": "inactive",
+          "group_id": "",
+          "group_name": "",
+          "stock_on_hand": 0.0,
+          "rate": 0.0,
+          "purchase_rate": null,
+          "pack_size": null,
+          "mrp": null,
+          "alias_name": ""
+        },
+        "item_b": {
+          "item_id": "tape-2",
+          "name": "PTFE Tape Premium 12mm 10mtr Yellow",
+          "sku": "10M-YELLOW-12MM",
+          "status": "active",
+          "group_id": "",
+          "group_name": "PTFE Tape",
+          "stock_on_hand": 1654.0,
+          "rate": 0.0,
+          "purchase_rate": null,
+          "pack_size": null,
+          "mrp": null,
+          "alias_name": ""
+        },
+        "details": "Legacy duplicate pair: 'PTFE Tape Premium 12mm 10mtr' [inactive] vs 'PTFE Tape Premium 12mm 10mtr Yellow' [active]."
+      }
+    ],
+    "naming_issues": [
+      {
+        "item_id": "bv-1",
+        "name": "1 1/4\" PVC Ball Valve GS PLUS",
+        "sku": "1.25-PVC-GSP",
+        "issue_type": "casing_convention",
+        "severity": "info",
+        "description": "Uses uppercase 'GS PLUS' instead of Title Case 'GS Plus'.",
+        "recommendation": "1 1/4\" PVC Ball Valve GS Plus"
+      },
+      {
+        "item_id": "tape-3",
+        "name": "PVC Insulation Tape 6mtr (BLUE)",
+        "sku": "6M-INSULATION-BLUE",
+        "issue_type": "casing_convention",
+        "severity": "info",
+        "description": "Parenthetical color '(BLUE)' is all-caps.",
+        "recommendation": "PVC Insulation Tape 6mtr (Blue)"
+      }
+    ],
+    "sku_issues": [
+      {
+        "item_id": "solv-3",
+        "name": "PVC-UPVC Solution 20ml (Tube)",
+        "sku": "20-PVC-UPVC-CLR-TUBE",
+        "issue_type": "inverted_sku_structure",
+        "severity": "warning",
+        "description": "SKU starts with package size ('20') instead of product type/grade.",
+        "recommendation": "UPVC-20-CLR-TUBE"
+      },
+      {
+        "item_id": "tape-1",
+        "name": "PTFE Tape Premium 12mm 10mtr",
+        "sku": "10mtr tape",
+        "issue_type": "legacy_sku_format",
+        "severity": "warning",
+        "description": "Legacy unstandardized tape SKU '10mtr tape'.",
+        "recommendation": "10M-WHITE-12MM"
+      },
+      {
+        "item_id": "chem-1",
+        "name": "501 SBR Latex 1kg",
+        "sku": "501-1",
+        "issue_type": "missing_unit_suffix",
+        "severity": "info",
+        "description": "Chemical SKU '501-1' omits unit suffix ('KG'), making size ambiguous.",
+        "recommendation": "501-1KG"
+      },
+      {
+        "item_id": "chem-2",
+        "name": "ND-40 Multi Purpose Lube Spray 50ml",
+        "sku": "ND40-50",
+        "issue_type": "brand_hyphenation",
+        "severity": "info",
+        "description": "Brand hyphen omitted in SKU ('ND40-' vs 'ND-40-').",
+        "recommendation": "ND-40-50"
+      }
+    ],
+    "group_issues": [
+      {
+        "item_id": "solv-3",
+        "name": "PVC-UPVC Solution 20ml (Tube)",
+        "sku": "20-PVC-UPVC-CLR-TUBE",
+        "current_group": "Solvent Others",
+        "issue_type": "catchall_group",
+        "recommended_group": "UPVC Solvent",
+        "description": "Item in catch-all group 'Solvent Others'; belongs in 'UPVC Solvent'."
+      },
+      {
+        "item_id": "tape-1",
+        "name": "PTFE Tape Premium 12mm 10mtr",
+        "sku": "10mtr tape",
+        "current_group": "",
+        "issue_type": "missing_group",
+        "recommended_group": "Neoseal General",
+        "description": "Item has no Zoho item group assigned."
+      },
+      {
+        "item_id": "cn-1",
+        "name": "Solvent Rate Difference",
+        "sku": "Neoseal CN",
+        "current_group": "",
+        "issue_type": "missing_group",
+        "recommended_group": "Neoseal Adjustment",
+        "description": "Item has no Zoho item group assigned."
+      }
+    ],
+    "price_list_issues": [],
+    "margin_issues": [
+      {
+        "item_id": "bv-1",
+        "name": "1 1/4\" PVC Ball Valve GS PLUS",
+        "sku": "1.25-PVC-GSP",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "bv-2",
+        "name": "1\" UPVC Ball Valve GS",
+        "sku": "1-UPVC-GS",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "solv-1",
+        "name": "200 UPVC Solution 100ml Blue (PVC Can)",
+        "sku": "200-100-UPVC-BLU-CAN",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "solv-2",
+        "name": "200 UPVC Solution 100ml Blue (Tin)",
+        "sku": "200-100-UPVC-BLU-TIN",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "solv-3",
+        "name": "PVC-UPVC Solution 20ml (Tube)",
+        "sku": "20-PVC-UPVC-CLR-TUBE",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "tape-1",
+        "name": "PTFE Tape Premium 12mm 10mtr",
+        "sku": "10mtr tape",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "tape-2",
+        "name": "PTFE Tape Premium 12mm 10mtr Yellow",
+        "sku": "10M-YELLOW-12MM",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "tape-3",
+        "name": "PVC Insulation Tape 6mtr (BLUE)",
+        "sku": "6M-INSULATION-BLUE",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "chem-1",
+        "name": "501 SBR Latex 1kg",
+        "sku": "501-1",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "chem-2",
+        "name": "ND-40 Multi Purpose Lube Spray 50ml",
+        "sku": "ND40-50",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      },
+      {
+        "item_id": "cn-1",
+        "name": "Solvent Rate Difference",
+        "sku": "Neoseal CN",
+        "issue_type": "missing_purchase_rate",
+        "severity": "warning",
+        "description": "Purchase rate is missing or non-positive; margin cannot be calculated.",
+        "recommendation": "Set the current purchase rate."
+      }
+    ],
+    "pack_mrp_issues": [
+      {
+        "item_id": "bv-1",
+        "name": "1 1/4\" PVC Ball Valve GS PLUS",
+        "sku": "1.25-PVC-GSP",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "bv-1",
+        "name": "1 1/4\" PVC Ball Valve GS PLUS",
+        "sku": "1.25-PVC-GSP",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "bv-2",
+        "name": "1\" UPVC Ball Valve GS",
+        "sku": "1-UPVC-GS",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "bv-2",
+        "name": "1\" UPVC Ball Valve GS",
+        "sku": "1-UPVC-GS",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "solv-1",
+        "name": "200 UPVC Solution 100ml Blue (PVC Can)",
+        "sku": "200-100-UPVC-BLU-CAN",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "solv-1",
+        "name": "200 UPVC Solution 100ml Blue (PVC Can)",
+        "sku": "200-100-UPVC-BLU-CAN",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "solv-2",
+        "name": "200 UPVC Solution 100ml Blue (Tin)",
+        "sku": "200-100-UPVC-BLU-TIN",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "solv-2",
+        "name": "200 UPVC Solution 100ml Blue (Tin)",
+        "sku": "200-100-UPVC-BLU-TIN",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "solv-3",
+        "name": "PVC-UPVC Solution 20ml (Tube)",
+        "sku": "20-PVC-UPVC-CLR-TUBE",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "solv-3",
+        "name": "PVC-UPVC Solution 20ml (Tube)",
+        "sku": "20-PVC-UPVC-CLR-TUBE",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "tape-1",
+        "name": "PTFE Tape Premium 12mm 10mtr",
+        "sku": "10mtr tape",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "tape-1",
+        "name": "PTFE Tape Premium 12mm 10mtr",
+        "sku": "10mtr tape",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "tape-2",
+        "name": "PTFE Tape Premium 12mm 10mtr Yellow",
+        "sku": "10M-YELLOW-12MM",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "tape-2",
+        "name": "PTFE Tape Premium 12mm 10mtr Yellow",
+        "sku": "10M-YELLOW-12MM",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "tape-3",
+        "name": "PVC Insulation Tape 6mtr (BLUE)",
+        "sku": "6M-INSULATION-BLUE",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "tape-3",
+        "name": "PVC Insulation Tape 6mtr (BLUE)",
+        "sku": "6M-INSULATION-BLUE",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "chem-1",
+        "name": "501 SBR Latex 1kg",
+        "sku": "501-1",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "chem-1",
+        "name": "501 SBR Latex 1kg",
+        "sku": "501-1",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "chem-2",
+        "name": "ND-40 Multi Purpose Lube Spray 50ml",
+        "sku": "ND40-50",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "chem-2",
+        "name": "ND-40 Multi Purpose Lube Spray 50ml",
+        "sku": "ND40-50",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      },
+      {
+        "item_id": "cn-1",
+        "name": "Solvent Rate Difference",
+        "sku": "Neoseal CN",
+        "issue_type": "missing_pack_size",
+        "severity": "warning",
+        "description": "Pack size is missing or non-positive.",
+        "recommendation": "Set the item pack size to a positive number."
+      },
+      {
+        "item_id": "cn-1",
+        "name": "Solvent Rate Difference",
+        "sku": "Neoseal CN",
+        "issue_type": "missing_mrp",
+        "severity": "warning",
+        "description": "MRP is missing or non-positive.",
+        "recommendation": "Set the item MRP to a positive amount."
+      }
+    ],
+    "alias_issues": [
+      {
+        "item_id": "bv-1",
+        "name": "1 1/4\" PVC Ball Valve GS PLUS",
+        "sku": "1.25-PVC-GSP",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "bv-2",
+        "name": "1\" UPVC Ball Valve GS",
+        "sku": "1-UPVC-GS",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "solv-1",
+        "name": "200 UPVC Solution 100ml Blue (PVC Can)",
+        "sku": "200-100-UPVC-BLU-CAN",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "solv-2",
+        "name": "200 UPVC Solution 100ml Blue (Tin)",
+        "sku": "200-100-UPVC-BLU-TIN",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "solv-3",
+        "name": "PVC-UPVC Solution 20ml (Tube)",
+        "sku": "20-PVC-UPVC-CLR-TUBE",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "tape-1",
+        "name": "PTFE Tape Premium 12mm 10mtr",
+        "sku": "10mtr tape",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "tape-2",
+        "name": "PTFE Tape Premium 12mm 10mtr Yellow",
+        "sku": "10M-YELLOW-12MM",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "tape-3",
+        "name": "PVC Insulation Tape 6mtr (BLUE)",
+        "sku": "6M-INSULATION-BLUE",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "chem-1",
+        "name": "501 SBR Latex 1kg",
+        "sku": "501-1",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "chem-2",
+        "name": "ND-40 Multi Purpose Lube Spray 50ml",
+        "sku": "ND40-50",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      },
+      {
+        "item_id": "cn-1",
+        "name": "Solvent Rate Difference",
+        "sku": "Neoseal CN",
+        "issue_type": "missing_alias_name",
+        "severity": "warning",
+        "description": "Vendor alias name is not configured.",
+        "recommendation": "Set the Neoseal vendor alias name."
+      }
+    ]
+  }
+}

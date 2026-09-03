@@ -1,0 +1,12 @@
+item_id,name,sku,status,group_name,stock_on_hand
+bv-1,"1 1/4"" PVC Ball Valve GS PLUS",1.25-PVC-GSP,active,PVC Ball Valve,50.0
+bv-2,"1"" UPVC Ball Valve GS",1-UPVC-GS,active,UPVC Ball Valve,100.0
+solv-1,200 UPVC Solution 100ml Blue (PVC Can),200-100-UPVC-BLU-CAN,active,UPVC Solvent,-9.0
+solv-2,200 UPVC Solution 100ml Blue (Tin),200-100-UPVC-BLU-TIN,active,UPVC Solvent,361.0
+solv-3,PVC-UPVC Solution 20ml (Tube),20-PVC-UPVC-CLR-TUBE,active,Solvent Others,82.0
+tape-1,PTFE Tape Premium 12mm 10mtr,10mtr tape,inactive,,0.0
+tape-2,PTFE Tape Premium 12mm 10mtr Yellow,10M-YELLOW-12MM,active,PTFE Tape,1654.0
+tape-3,PVC Insulation Tape 6mtr (BLUE),6M-INSULATION-BLUE,active,Insulation Tape,470.0
+chem-1,501 SBR Latex 1kg,501-1,active,SBR Latex,19.0
+chem-2,ND-40 Multi Purpose Lube Spray 50ml,ND40-50,active,ND-40 Lubricant,60.0
+cn-1,Solvent Rate Difference,Neoseal CN,active,,0.0
