@@ -38,6 +38,10 @@ Supported configuration keys:
   compatibility fallback.
 - `PAYMENT_CREATOR_APP_LINK_NAME`: Creator application link name used by the
   collection-reconciliation runner; defaults to `order-management-new`.
+- `PAYMENT_CREATOR_REPORTS`: Grouped Creator report-link mapping used by the
+  payment-review queue. Its `online`, `cheque`, `cheque_detail`, `customer`, and
+  `checkpoint` entries default to `Online_Payments`, `Cheques`,
+  `All_Cheque_Details`, `All_Customers1`, and `All_Payments`, respectively.
 - `FILES_DIR`: Directory containing Polycab credit memo PDFs.
 - `POLYCAB_LEDGER_PATH`: Polycab reconciliation ledger path.
 - `ZEISS_LEDGER_PATH`: Zeiss reconciliation ledger path.
@@ -90,3 +94,9 @@ Use `dry_run=True` for the initial scheduled execution. Books custom-field
 creation requires the separate explicit
 `create_missing_books_fields=True` option on schema validation or the workflow
 entry point.
+
+The payment-review application reads all Creator report link names from the
+same configuration hierarchy. Set entries within the grouped
+`payment_creator_reports` object in the active `zoho_config.json` profile to
+override them without changing Python or HTML. The environment-variable form
+accepts the same object encoded as JSON in `PAYMENT_CREATOR_REPORTS`.

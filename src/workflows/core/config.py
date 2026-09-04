@@ -78,6 +78,22 @@ def get_config(key: str, default: Any = "") -> Any:
     return default
 
 
+def get_mapping_config(
+    key: str,
+    default: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Resolve a JSON object configuration value from files or the environment."""
+    value = get_config(key, default or {})
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{key} must be a valid JSON object.") from exc
+    if not isinstance(value, dict):
+        raise ValueError(f"{key} must be a JSON object.")
+    return value
+
+
 class Config:
     PROJECT_ROOT = str(root_dir)
 
@@ -91,6 +107,14 @@ class Config:
     PAYMENT_CREATOR_APP_LINK_NAME = get_config(
         "PAYMENT_CREATOR_APP_LINK_NAME", "order-management-new"
     )
+    PAYMENT_CREATOR_REPORTS = {
+        "online": "Online_Payments",
+        "cheque": "Cheques",
+        "cheque_detail": "All_Cheque_Details",
+        "customer": "All_Customers1",
+        "checkpoint": "All_Payments",
+        **get_mapping_config("PAYMENT_CREATOR_REPORTS"),
+    }
 
     # Zoho WorkDrive Configurations
     POLYCAB_FOLDER_ID = get_config("POLYCAB_FOLDER_ID", "")

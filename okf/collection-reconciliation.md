@@ -110,6 +110,22 @@ balances. Allocation may span multiple invoices. When their total balance is
 less than the payment, Books receives all possible allocations and only the
 displayed excess remains unused credit.
 
+Ambiguous matches retain every competing bank line in the local queue. The UI
+provides a dedicated `Ambiguous` filter and shows each candidate's bank, date,
+amount, reference, and narration for inspection. These entries remain
+non-reviewable for pushing until matching becomes unique, so viewing ambiguity
+does not weaken the workflow's mutation safety.
+
+When date and amount agree but the reference predicate fails, the queue retains
+the bank lines under a separate `Possible matches` filter. This exposes likely
+reference-data problems for human review. A reviewer can explicitly select one
+candidate and confirm the reference override. Immediately before posting, the
+workflow verifies that the selected line remains uncategorized in the same bank
+account and still matches the configured date and amount tolerances. The
+selection then follows the normal invoice-allocation, payment-creation, bank
+matching, and Creator-checkpoint sequence. Fully matching ambiguous entries
+remain non-pushable.
+
 The HTTP server binds only to a loopback address and mutation requests require
 both an explicit confirmation body and a random per-process review token. The
 queue state is stored at
@@ -129,6 +145,10 @@ payment is created and matched through that specific account. A transaction is
 never consumed by more than one Creator payment in the same refresh.
 
 The same queue combines Creator's `Online_Payments` and `Cheques` reports.
+The two source reports, cheque-detail report, customer lookup report, and
+canonical checkpoint report are selected through the
+grouped `PAYMENT_CREATOR_REPORTS` runtime configuration, whose defaults retain
+these production link names.
 Online rows use `Payment_Date` and Books mode `banktransfer`; cheque rows use
 `All_Cheque_Details.Presented_Date` and Books mode `check`. The detail row is
 joined to `Cheques` by normalized cheque number plus customer; the join must be

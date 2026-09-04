@@ -12,7 +12,12 @@ from .schema import (
 )
 from .scopes import REQUIRED_OAUTH_SCOPES, missing_oauth_scopes
 from .review import OnlinePaymentReviewConfig, OnlinePaymentReviewService
-from .types import ChequeDetail, InvoiceAllocation, PaymentProposal
+from .types import (
+    BankMatchCandidate,
+    ChequeDetail,
+    InvoiceAllocation,
+    PaymentProposal,
+)
 
 __all__ = [
     "CollectionReconciler",
@@ -28,6 +33,7 @@ __all__ = [
     "OnlinePaymentReviewConfig",
     "OnlinePaymentReviewService",
     "InvoiceAllocation",
+    "BankMatchCandidate",
     "ChequeDetail",
     "PaymentProposal",
 ]

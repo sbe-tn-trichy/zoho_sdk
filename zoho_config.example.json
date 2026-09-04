@@ -7,6 +7,13 @@
       "domain": "in",
       "creator_owner_name": "<your-creator-account-owner>",
       "payment_creator_app_link_name": "order-management-new",
+      "payment_creator_reports": {
+        "online": "Online_Payments",
+        "cheque": "Cheques",
+        "cheque_detail": "All_Cheque_Details",
+        "customer": "All_Customers1",
+        "checkpoint": "All_Payments"
+      },
       "files_dir": "input_files/polycab/cn",
       "polycab_ledger_path": "input_files/polycab/ledger/reconciliation-ledger.xls",
       "polycab_folder_id": "<workdrive-folder-id>",

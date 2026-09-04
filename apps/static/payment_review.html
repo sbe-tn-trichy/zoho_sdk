@@ -116,6 +116,8 @@
     .allocation { min-width: 230px; }
     .allocation div + div { margin-top: 4px; }
     .warning { color: #9a6700; font-size: 12px; font-weight: 650; }
+    .candidate { display: block; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); cursor: pointer; }
+    .candidate input { min-width: 0; min-height: 0; flex: none; }
     #notice {
       display: none;
       position: fixed;
@@ -147,6 +149,8 @@
     <select id="filter">
       <option value="all">All entries</option>
       <option value="reviewable">Ready for review</option>
+      <option value="ambiguous">Ambiguous</option>
+      <option value="possible">Possible matches</option>
       <option value="unmatched">Unmatched</option>
       <option value="pending">Pending</option>
       <option value="pushed">Pushed</option>
@@ -184,7 +188,7 @@
 
 <script>
   const token = document.querySelector('meta[name="review-token"]').content;
-  let batch = { entries: [] }, selected = new Set();
+  let batch = { entries: [] }, selected = new Set(), candidateSelections = new Map();
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = v => {
     const n = Number(String(v ?? '').replaceAll(',', ''));
@@ -193,6 +197,35 @@
 
   function state(e) {
     return e.push_status === 'pushed' ? 'pushed' : e.push_status === 'failed' ? 'failed' : e.decision || 'pending';
+  }
+
+  const isAmbiguous = e => (e.ambiguous_candidates || []).length > 1;
+  const isPossible = e => !isAmbiguous(e) && (e.possible_candidates || []).length > 0;
+  const inProgress = e => ['payment_created', 'match_requested', 'bank_matched', 'creator_updated'].includes(e.push_status);
+
+  function selectedPossibleCandidateId(e) {
+    if (e.manual_reference_override && e.bank) return String(e.bank.transaction_id || '');
+    const candidates = e.possible_candidates || [], chosen = candidateSelections.get(String(e.id));
+    if (chosen && candidates.some(c => String(c.transaction_id) === chosen)) return chosen;
+    return candidates.length === 1 ? String(candidates[0].transaction_id || '') : '';
+  }
+
+  function eligible(e) {
+    const hasCandidate = e.reviewable || (isPossible(e) && selectedPossibleCandidateId(e) && e.creator?.books_customer_id);
+    return hasCandidate && state(e) !== 'pushed' && !inProgress(e);
+  }
+
+  function bankHtml(e) {
+    const b = e.bank;
+    if (b) return `${esc(b.date)} · <span class="money">${money(b.amount)}</span><div class="ref">${esc(b.reference)}</div><div class="muted">${esc(b.description)}</div>`;
+    const candidates = e.ambiguous_candidates || [];
+    if (candidates.length) return `<details open><summary class="warning">${candidates.length} matching bank lines</summary>${candidates.map(c => `<div class="candidate"><strong>${esc(c.bank_name || 'Bank')}</strong> · ${esc(c.date)} · <span class="money">${money(c.amount)}</span><div class="ref">${esc(c.reference)}</div><div class="muted">${esc(c.description)}</div></div>`).join('')}</details>`;
+    const possible = e.possible_candidates || [];
+    if (possible.length) {
+      const chosen = selectedPossibleCandidateId(e);
+      return `<details open><summary class="warning">${possible.length} date-and-amount candidate${possible.length === 1 ? '' : 's'} · reference differs</summary>${possible.map(c => `<label class="candidate"><input type="radio" name="possible-${esc(e.id)}" value="${esc(c.transaction_id)}" data-entry-id="${esc(e.id)}" onchange="selectPossibleCandidate(this.dataset.entryId,this.value)" ${chosen === String(c.transaction_id) ? 'checked' : ''}> <strong>${esc(c.bank_name || 'Bank')}</strong> · ${esc(c.date)} · <span class="money">${money(c.amount)}</span><div class="ref">${esc(c.reference)}</div><div class="muted">${esc(c.description)}</div></label>`).join('')}</details>`;
+    }
+    return '<span class="muted">No candidate</span>';
   }
 
   function allocationHtml(e) {
@@ -212,15 +245,19 @@
   }
 
   function render() {
-    const entries = batch.entries || [], counts = { total: entries.length, reviewable: 0, pending: 0, pushed: 0, rejected: 0 };
+    const entries = batch.entries || [], counts = { total: entries.length, reviewable: 0, ambiguous: 0, possible: 0, pending: 0, pushed: 0, rejected: 0 };
     entries.forEach(e => {
       if (e.reviewable && state(e) !== 'pushed') counts.reviewable++;
+      if (isAmbiguous(e)) counts.ambiguous++;
+      if (isPossible(e)) counts.possible++;
       const s = state(e);
       if (s in counts) counts[s]++;
     });
     document.getElementById('summary').innerHTML = [
       ['Total', counts.total],
       ['Ready', counts.reviewable],
+      ['Ambiguous', counts.ambiguous],
+      ['Possible', counts.possible],
       ['Pending', counts.pending],
       ['Pushed', counts.pushed],
       ['Rejected', counts.rejected]
@@ -232,19 +269,20 @@
       return (!q || hay.includes(q)) && (
         filter === 'all' ||
         (filter === 'reviewable' && e.reviewable && s !== 'pushed') ||
+        (filter === 'ambiguous' && isAmbiguous(e)) ||
+        (filter === 'possible' && isPossible(e)) ||
         (filter === 'unmatched' && !e.reviewable) ||
         s === filter
       );
     });
 
-    const eligible = e => e.reviewable && state(e) !== 'pushed' && !['payment_created', 'match_requested', 'bank_matched', 'creator_updated'].includes(e.push_status);
     for (const id of [...selected]) {
       const e = entries.find(x => x.id === id);
       if (!e || !eligible(e)) selected.delete(id);
     }
 
     document.getElementById('rows').innerHTML = shown.map(e => {
-      const c = e.creator || {}, b = e.bank, s = state(e), busy = ['payment_created', 'match_requested', 'bank_matched', 'creator_updated'].includes(e.push_status);
+      const c = e.creator || {}, b = e.bank, s = state(e), busy = inProgress(e);
       return `<tr>
         <td><input type="checkbox" aria-label="Select payment" ${selected.has(e.id) ? 'checked' : ''} ${eligible(e) ? '' : 'disabled'} onchange="toggleEntry('${esc(e.id)}',this.checked)"></td>
         <td><span class="badge ${esc(s)}">${esc(s)}</span>${e.push_status && e.push_status !== 'not_started' && e.push_status !== s ? `<div class="muted">${esc(e.push_status)}</div>` : ''}${e.error ? `<div class="error">${esc(e.error)}</div>` : ''}</td>
@@ -254,7 +292,7 @@
         <td><strong>${esc(e.bank_name) || '<span class="muted">—</span>'}</strong></td>
         <td class="money">${money(c.amount)}</td>
         <td class="ref">${esc(c.reference) || '<span class="muted">Missing</span>'}</td>
-        <td>${b ? `${esc(b.date)} · <span class="money">${money(b.amount)}</span><div class="ref">${esc(b.reference)}</div><div class="muted">${esc(b.description)}</div>` : '<span class="muted">No unique candidate</span>'}</td>
+        <td>${bankHtml(e)}</td>
         <td class="allocation">${allocationHtml(e)}</td>
         <td>${esc(e.reason)}</td>
         <td>
@@ -294,6 +332,11 @@
     render();
   }
 
+  function selectPossibleCandidate(entryId, transactionId) {
+    candidateSelections.set(String(entryId), String(transactionId));
+    render();
+  }
+
   function visibleEligible() {
     const q = document.getElementById('search').value.toLowerCase(), filter = document.getElementById('filter').value;
     return (batch.entries || []).filter(e => {
@@ -301,10 +344,12 @@
         shown = (!q || hay.includes(q)) && (
           filter === 'all' ||
           (filter === 'reviewable' && e.reviewable && s !== 'pushed') ||
+          (filter === 'ambiguous' && isAmbiguous(e)) ||
+          (filter === 'possible' && isPossible(e)) ||
           (filter === 'unmatched' && !e.reviewable) ||
           s === filter
         );
-      return shown && e.reviewable && s !== 'pushed' && !['payment_created', 'match_requested', 'bank_matched', 'creator_updated'].includes(e.push_status);
+      return shown && eligible(e);
     });
   }
 
@@ -328,10 +373,16 @@
   }
 
   async function acceptEntry(id) {
-    if (!confirm('Accept and push this payment to Zoho Books now? Open invoices will be refreshed and allocated oldest-due-first before creation.')) return;
+    const entry = (batch.entries || []).find(e => String(e.id) === String(id));
+    const possibleId = entry && isPossible(entry) ? selectedPossibleCandidateId(entry) : '';
+    const warning = possibleId ? ' The Creator and bank references differ; this explicitly overrides the reference check.' : '';
+    if (!confirm(`Accept and push this payment to Zoho Books now?${warning} Open invoices will be refreshed and allocated oldest-due-first before creation.`)) return;
     try {
       notify('Refreshing invoices and pushing approved payment…');
-      await api('/api/entries/' + encodeURIComponent(id) + '/accept', 'POST');
+      await api('/api/entries/' + encodeURIComponent(id) + '/accept', 'POST', {
+        bank_transaction_id: possibleId,
+        allow_reference_override: Boolean(possibleId)
+      });
       await load();
       notify('Payment allocated, pushed, and matched successfully.');
     } catch (e) {
@@ -343,10 +394,20 @@
   async function acceptSelected() {
     const ids = [...selected];
     if (!ids.length) return;
-    if (!confirm(`Accept and push ${ids.length} selected payment${ids.length === 1 ? '' : 's'} to Zoho Books? Each bank match and oldest-due-first invoice allocation is refreshed before posting.`)) return;
+    const selectedBankIds = Object.fromEntries(ids.map(id => {
+      const entry = (batch.entries || []).find(e => String(e.id) === String(id));
+      return [id, entry && isPossible(entry) ? selectedPossibleCandidateId(entry) : ''];
+    }).filter(([, bankId]) => bankId));
+    const overrides = Object.keys(selectedBankIds).length;
+    const warning = overrides ? ` ${overrides} selection${overrides === 1 ? '' : 's'} will explicitly override a reference mismatch.` : '';
+    if (!confirm(`Accept and push ${ids.length} selected payment${ids.length === 1 ? '' : 's'} to Zoho Books?${warning} Each bank match and oldest-due-first invoice allocation is refreshed before posting.`)) return;
     try {
       notify(`Allocating and pushing ${ids.length} selected payments sequentially…`);
-      const result = await api('/api/accept-selected', 'POST', { entry_ids: ids });
+      const result = await api('/api/accept-selected', 'POST', {
+        entry_ids: ids,
+        selected_bank_transaction_ids: selectedBankIds,
+        allow_reference_override: overrides > 0
+      });
       selected.clear();
       await load();
       const message = `${result.pushed.length} pushed${result.failed.length ? `, ${result.failed.length} failed` : ''}.`;
@@ -362,7 +423,7 @@
   document.getElementById('selectVisible').onchange = e => toggleVisible(e.target.checked);
   document.getElementById('selectReady').onclick = () => {
     for (const e of batch.entries || []) {
-      if (e.reviewable && state(e) !== 'pushed' && !['payment_created', 'match_requested', 'bank_matched', 'creator_updated'].includes(e.push_status)) {
+      if (eligible(e)) {
         selected.add(e.id);
       }
     }

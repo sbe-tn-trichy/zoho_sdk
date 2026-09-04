@@ -87,7 +87,22 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str):
                     entry_ids = body.get("entry_ids")
                     if not isinstance(entry_ids, list):
                         raise ValueError("entry_ids must be a list.")
-                    self._json(service.accept_many(entry_ids))
+                    selected_bank_transaction_ids = body.get(
+                        "selected_bank_transaction_ids", {}
+                    )
+                    if not isinstance(selected_bank_transaction_ids, dict):
+                        raise ValueError(
+                            "selected_bank_transaction_ids must be an object."
+                        )
+                    self._json(
+                        service.accept_many(
+                            entry_ids,
+                            selected_bank_transaction_ids,
+                            allow_reference_override=bool(
+                                body.get("allow_reference_override")
+                            ),
+                        )
+                    )
                     return
                 prefix = "/api/entries/"
                 if not path.startswith(prefix):
@@ -98,7 +113,17 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str):
                 if action == "reject":
                     self._json(service.reject(entry_id))
                 elif action == "accept":
-                    self._json(service.accept_and_push(entry_id))
+                    self._json(
+                        service.accept_and_push(
+                            entry_id,
+                            selected_bank_transaction_id=str(
+                                body.get("bank_transaction_id") or ""
+                            ),
+                            allow_reference_override=bool(
+                                body.get("allow_reference_override")
+                            ),
+                        )
+                    )
                 else:
                     raise ValueError("Unknown action.")
             except Exception as exc:
@@ -160,9 +185,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             creator_app_link_name=args.creator_app,
             bank_accounts=bank_accounts,
             payment_reports=(
-                ("Online", "Online_Payments"),
-                ("Cheque", "Cheques"),
+                ("Online", Config.PAYMENT_CREATOR_REPORTS["online"]),
+                ("Cheque", Config.PAYMENT_CREATOR_REPORTS["cheque"]),
             ),
+            cheque_detail_report_link_name=Config.PAYMENT_CREATOR_REPORTS[
+                "cheque_detail"
+            ],
+            customer_report_link_name=Config.PAYMENT_CREATOR_REPORTS["customer"],
+            creator_checkpoint_report_link_name=Config.PAYMENT_CREATOR_REPORTS[
+                "checkpoint"
+            ],
             state_path=args.state,
         ),
     )

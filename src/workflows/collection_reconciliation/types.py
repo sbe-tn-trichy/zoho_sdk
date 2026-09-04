@@ -26,6 +26,18 @@ class ChequeDetail(TypedDict, total=False):
     amount: Decimal
 
 
+class BankMatchCandidate(TypedDict, total=False):
+    """Bank line retained for human inspection when matching is ambiguous."""
+
+    transaction_id: str
+    bank_name: str
+    bank_account_id: str
+    date: str
+    amount: str
+    reference: str
+    description: str
+
+
 class PaymentProposal(TypedDict, total=False):
     """Proposal uniting a Creator collection row with bank line & invoice preview."""
 
@@ -36,6 +48,8 @@ class PaymentProposal(TypedDict, total=False):
     bank: Optional[Dict[str, Any]]
     bank_name: str
     bank_account_id: str
+    ambiguous_candidates: List[BankMatchCandidate]
+    possible_candidates: List[BankMatchCandidate]
     reviewable: bool
     reason: str
     decision: str

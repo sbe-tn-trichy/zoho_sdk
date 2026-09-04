@@ -2,6 +2,9 @@
 
 ## 2026-09-04
 
+- Added a `Possible matches` payment-review filter and explicit candidate selection for bank lines whose date and amount match while the reference differs, with live uncategorized/date/amount revalidation before pushing.
+- Added a dedicated payment-review `Ambiguous` filter and retained all competing bank-line details for safe human inspection without enabling ambiguous pushes.
+- Grouped all payment-review Creator report link names under one `PAYMENT_CREATOR_REPORTS` JSON/environment setting while preserving the existing production names as defaults.
 - Cheque review matching now compares the final four digits of cheque numbers against individual numeric runs in Books bank references and narrations.
 
 ## 2026-09-03

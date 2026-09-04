@@ -179,6 +179,17 @@ class OnlinePaymentReviewService:
                     ):
                         if key in old:
                             entry[key] = old[key]
+                    if old.get("manual_reference_override"):
+                        for key in (
+                            "bank",
+                            "bank_name",
+                            "bank_account_id",
+                            "manual_reference_override",
+                            "reviewable",
+                            "reason",
+                        ):
+                            if key in old:
+                                entry[key] = old[key]
                 entries.append(entry)
 
             current_ids = {entry["id"] for entry in entries}
@@ -229,10 +240,50 @@ class OnlinePaymentReviewService:
         self,
         entry_id: str,
         current_bank_by_id: Optional[Mapping[str, Mapping[str, Any]]] = None,
+        *,
+        selected_bank_transaction_id: str = "",
+        allow_reference_override: bool = False,
     ) -> Dict[str, Any]:
         """Push one approved proposal to Books, then checkpoint it in Creator."""
         with self._lock:
             batch, entry = self._entry(entry_id)
+            if not entry.get("bank") and selected_bank_transaction_id:
+                if not allow_reference_override:
+                    raise ReconciliationError(
+                        "Explicit confirmation of the reference mismatch is required."
+                    )
+                possible = next(
+                    (
+                        row
+                        for row in entry.get("possible_candidates", [])
+                        if _text(row.get("transaction_id"))
+                        == _text(selected_bank_transaction_id)
+                    ),
+                    None,
+                )
+                if not possible:
+                    raise ReconciliationError(
+                        "The selected bank transaction is not a possible match for this payment."
+                    )
+                if not _text(entry.get("creator", {}).get("books_customer_id")):
+                    raise ReconciliationError(
+                        "The Creator customer has no Zoho Books Customer_Id."
+                    )
+                entry.update(
+                    {
+                        "bank": {
+                            key: value
+                            for key, value in possible.items()
+                            if key not in {"bank_name", "bank_account_id"}
+                        },
+                        "bank_name": _text(possible.get("bank_name")),
+                        "bank_account_id": _text(possible.get("bank_account_id")),
+                        "manual_reference_override": True,
+                        "reviewable": True,
+                        "reason": "Manually selected date-and-amount match; reference differs",
+                    }
+                )
+                self._save(batch)
             if not entry.get("bank"):
                 raise ReconciliationError("This entry has no unique bank match to accept.")
             if not entry.get("reviewable"):
@@ -269,7 +320,13 @@ class OnlinePaymentReviewService:
                 raise
             return entry
 
-    def accept_many(self, entry_ids: Sequence[str]) -> Dict[str, Any]:
+    def accept_many(
+        self,
+        entry_ids: Sequence[str],
+        selected_bank_transaction_ids: Optional[Mapping[str, str]] = None,
+        *,
+        allow_reference_override: bool = False,
+    ) -> Dict[str, Any]:
         """Push selected entries sequentially using one current bank snapshot."""
         selected = list(dict.fromkeys(_text(entry_id) for entry_id in entry_ids if _text(entry_id)))
         if not selected:
@@ -285,11 +342,16 @@ class OnlinePaymentReviewService:
         }
         pushed: List[Dict[str, Any]] = []
         failed: List[Dict[str, Any]] = []
+        selected_bank_transaction_ids = selected_bank_transaction_ids or {}
         for entry_id in selected:
             try:
                 entry = self.accept_and_push(
                     entry_id,
                     current_bank_by_id=current_bank_by_id,
+                    selected_bank_transaction_id=_text(
+                        selected_bank_transaction_ids.get(entry_id)
+                    ),
+                    allow_reference_override=allow_reference_override,
                 )
                 pushed.append(
                     {
@@ -335,7 +397,10 @@ class OnlinePaymentReviewService:
                     raise ReconciliationError(
                         "The proposed bank transaction is no longer uncategorized. Refresh the queue."
                     )
-            self._require_same_match(entry, current)
+            if entry.get("manual_reference_override"):
+                self._require_same_date_amount(entry, current)
+            else:
+                self._require_same_match(entry, current)
 
         books_payment_id = _text(entry.get("books_payment_id"))
         books_payment_number = _text(entry.get("books_payment_number"))
@@ -564,17 +629,54 @@ class OnlinePaymentReviewService:
         }
         date_error = _text(payment.get("_review_presented_date_error"))
         if date_error:
-            candidate, reason = None, date_error
+            candidate, reason, candidates, possible_candidates = (
+                None,
+                date_error,
+                [],
+                [],
+            )
         else:
-            candidate, reason = self._find_transaction(
-                normalized, bank_transactions, used_transaction_ids
+            candidate, reason, candidates, possible_candidates = (
+                self._find_transaction_details(
+                    normalized,
+                    bank_transactions,
+                    used_transaction_ids,
+                )
             )
         bank = self._display_bank(candidate) if candidate else None
+
+        def display_candidates(
+            rows: Sequence[Mapping[str, Any]],
+        ) -> List[Dict[str, Any]]:
+            displayed_rows = []
+            for row in rows:
+                displayed = self._display_bank(row)
+                displayed.update(
+                    {
+                        "bank_name": _text(row.get("_review_bank_name")),
+                        "bank_account_id": _text(
+                            row.get("_review_bank_account_id")
+                        ),
+                    }
+                )
+                displayed_rows.append(displayed)
+            return displayed_rows
+
+        ambiguous_candidates = (
+            display_candidates(candidates) if len(candidates) > 1 else []
+        )
+        displayed_possible_candidates = display_candidates(possible_candidates)
         if bank:
             used_transaction_ids.add(bank["transaction_id"])
         fingerprint_payload = {
             "creator": normalized,
             "bank_transaction_id": bank.get("transaction_id") if bank else None,
+            "ambiguous_transaction_ids": [
+                row["transaction_id"] for row in ambiguous_candidates
+            ],
+            "possible_transaction_ids": [
+                row["transaction_id"] for row in displayed_possible_candidates
+            ],
             "reason": reason,
         }
         fingerprint = hashlib.sha256(
@@ -592,6 +694,8 @@ class OnlinePaymentReviewService:
             "bank_account_id": _text(
                 (candidate or {}).get("_review_bank_account_id")
             ),
+            "ambiguous_candidates": ambiguous_candidates,
+            "possible_candidates": displayed_possible_candidates,
             "reason": reason,
             "reviewable": bool(bank and normalized["books_customer_id"]),
             "decision": "pending",
@@ -607,17 +711,36 @@ class OnlinePaymentReviewService:
         transactions: Sequence[Mapping[str, Any]],
         used_transaction_ids: set,
     ) -> Tuple[Optional[Mapping[str, Any]], str]:
+        candidate, reason, _, _ = self._find_transaction_details(
+            payment,
+            transactions,
+            used_transaction_ids,
+        )
+        return candidate, reason
+
+    def _find_transaction_details(
+        self,
+        payment: Mapping[str, Any],
+        transactions: Sequence[Mapping[str, Any]],
+        used_transaction_ids: set,
+    ) -> Tuple[
+        Optional[Mapping[str, Any]],
+        str,
+        List[Mapping[str, Any]],
+        List[Mapping[str, Any]],
+    ]:
         payment_date = parse_date(payment.get("date"))
         amount = _decimal(payment.get("amount"))
         reference = _text(payment.get("reference")).casefold()
         if not payment_date or amount is None:
-            return None, "Invalid payment date or amount"
-        if not reference:
-            return None, "Missing reference number"
+            return None, "Invalid payment date or amount", [], []
 
         candidates = []
+        date_amount_candidates = []
         for transaction in transactions:
-            transaction_id = _text(transaction.get("transaction_id") or transaction.get("id"))
+            transaction_id = _text(
+                transaction.get("transaction_id") or transaction.get("id")
+            )
             if not transaction_id or transaction_id in used_transaction_ids:
                 continue
             transaction_date = parse_date(
@@ -631,7 +754,12 @@ class OnlinePaymentReviewService:
             )
             if abs((transaction_date - payment_date).days) > date_tolerance_days:
                 continue
-            if abs(abs(transaction_amount) - abs(amount)) > Decimal(str(self.config.amount_tolerance)):
+            if abs(abs(transaction_amount) - abs(amount)) > Decimal(
+                str(self.config.amount_tolerance)
+            ):
+                continue
+            date_amount_candidates.append(transaction)
+            if not reference:
                 continue
             account_id = _text(transaction.get("_review_bank_account_id"))
             bank_reference = _text(
@@ -652,11 +780,18 @@ class OnlinePaymentReviewService:
             if matched:
                 candidates.append(transaction)
 
+        if not reference:
+            return None, "Missing reference number", [], date_amount_candidates
         if len(candidates) == 1:
-            return candidates[0], "Unique date, amount, and reference match"
+            return (
+                candidates[0],
+                "Unique date, amount, and reference match",
+                candidates,
+                [],
+            )
         if len(candidates) > 1:
-            return None, "Multiple bank transactions match"
-        return None, "No bank transaction matched"
+            return None, "Multiple bank transactions match", candidates, []
+        return None, "No bank transaction matched", [], date_amount_candidates
 
     def _current_bank_transaction(
         self, bank_id: str, bank_account_id: str
@@ -697,6 +832,35 @@ class OnlinePaymentReviewService:
         if current_id != _text(entry["bank"].get("transaction_id")):
             raise ReconciliationError(
                 f"The live bank transaction no longer matches this payment: {reason}."
+            )
+
+    def _require_same_date_amount(
+        self,
+        entry: Mapping[str, Any],
+        transaction: Mapping[str, Any],
+    ) -> None:
+        """Revalidate a manually selected reference-mismatch candidate."""
+        creator = entry["creator"]
+        payment_date = parse_date(creator.get("date"))
+        transaction_date = parse_date(
+            transaction.get("date") or transaction.get("transaction_date")
+        )
+        payment_amount = _decimal(creator.get("amount"))
+        transaction_amount = _decimal(transaction.get("amount"))
+        tolerance_days = int(
+            creator.get("date_tolerance_days", self.config.date_tolerance_days)
+        )
+        if (
+            not payment_date
+            or not transaction_date
+            or payment_amount is None
+            or transaction_amount is None
+            or abs((transaction_date - payment_date).days) > tolerance_days
+            or abs(abs(transaction_amount) - abs(payment_amount))
+            > Decimal(str(self.config.amount_tolerance))
+        ):
+            raise ReconciliationError(
+                "The selected bank transaction no longer matches the payment date and amount."
             )
 
     def _customer_payment_payload(

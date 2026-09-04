@@ -96,6 +96,91 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertEqual(entry["allocation_status"], "fully_allocated")
         self.assertEqual(entry["invoice_allocations"][0]["amount_applied"], 1250.0)
 
+    def test_refresh_preserves_ambiguous_bank_candidates_for_review(self):
+        second_bank = {
+            **self.bank,
+            "transaction_id": "bank-tx-2",
+            "description": "Second matching UPI receipt",
+        }
+        self.creator.get_all_records.side_effect = [
+            [self.payment],
+            [self.customer],
+        ]
+        self.books.bank_transactions.list_all.return_value = [self.bank, second_bank]
+
+        entry = self.service.refresh()["entries"][0]
+
+        self.assertFalse(entry["reviewable"])
+        self.assertIsNone(entry["bank"])
+        self.assertEqual(entry["reason"], "Multiple bank transactions match")
+        self.assertEqual(
+            [row["transaction_id"] for row in entry["ambiguous_candidates"]],
+            ["bank-tx-1", "bank-tx-2"],
+        )
+        self.assertEqual(entry["possible_candidates"], [])
+
+    def test_refresh_preserves_date_amount_candidate_when_reference_differs(self):
+        self.bank["reference_number"] = "DIFFERENT-REFERENCE"
+        self.creator.get_all_records.side_effect = [
+            [self.payment],
+            [self.customer],
+        ]
+        self.books.bank_transactions.list_all.return_value = [self.bank]
+
+        entry = self.service.refresh()["entries"][0]
+
+        self.assertFalse(entry["reviewable"])
+        self.assertIsNone(entry["bank"])
+        self.assertEqual(entry["reason"], "No bank transaction matched")
+        self.assertEqual(entry["ambiguous_candidates"], [])
+        self.assertEqual(
+            [row["transaction_id"] for row in entry["possible_candidates"]],
+            ["bank-tx-1"],
+        )
+
+    def test_possible_match_can_be_explicitly_selected_and_pushed(self):
+        self.bank["reference_number"] = "DIFFERENT-REFERENCE"
+        self.creator.get_all_records.side_effect = [
+            [self.payment],
+            [self.customer],
+        ]
+        self.books.bank_transactions.list_all.return_value = [self.bank]
+        self.service.refresh()
+        self.books.customer_payments.create.return_value = {
+            "payment": {
+                "payment_id": "books-payment-1",
+                "payment_number": "PAY-0001",
+            }
+        }
+        self.books.bank_transactions.get_matches.return_value = {
+            "matching_transactions": [
+                {
+                    "transaction_id": "books-payment-1",
+                    "transaction_type": "customerpayment",
+                }
+            ]
+        }
+
+        with self.assertRaisesRegex(
+            ReconciliationError,
+            "Explicit confirmation",
+        ):
+            self.service.accept_and_push(
+                "creator-1",
+                selected_bank_transaction_id="bank-tx-1",
+            )
+
+        pushed = self.service.accept_and_push(
+            "creator-1",
+            selected_bank_transaction_id="bank-tx-1",
+            allow_reference_override=True,
+        )
+
+        self.assertEqual(pushed["push_status"], "pushed")
+        self.assertTrue(pushed["manual_reference_override"])
+        self.assertEqual(pushed["bank"]["transaction_id"], "bank-tx-1")
+        self.books.bank_transactions.match.assert_called_once()
+
     def test_reject_is_local_and_persistent(self):
         self._refresh()
 
