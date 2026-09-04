@@ -144,8 +144,10 @@ Creator `PaymentNo` (`Payment#`) field. A failed Creator checkpoint retains the 
 `bank_matched` stage, so retry reuses the existing Books payment and only
 retries the Creator write. The UI shows the payment type separately from the bank name. Online
 matching remains same-day by default. Cheque matching allows a seven-day bank
-clearing window from the presented date while still requiring exact amount and
-reference.
+clearing window from the presented date while requiring an exact amount and a
+match on the final four digits of the cheque number. The final-four comparison
+examines each numeric run in the bank reference and narration, so clearing-date
+digits cannot hide the cheque number.
 
 Books can identify a single-invoice customer payment in the bank-match candidate
 response by its invoice-application ID rather than by the parent customer-payment

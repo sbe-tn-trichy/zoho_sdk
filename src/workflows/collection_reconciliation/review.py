@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -63,6 +64,19 @@ def _identifiers(payload: Any, keys: Sequence[str]) -> set[str]:
         for value in payload:
             found.update(_identifiers(value, keys))
     return found
+
+
+def _cheque_reference_suffixes(value: Any) -> set[str]:
+    """Return the final four digits of each cheque-like number in ``value``.
+
+    Bank narrations commonly include the cheque number alongside clearing dates
+    and other identifiers, so each numeric run is considered independently.
+    """
+    return {
+        digits[-4:]
+        for digits in re.findall(r"\d+", _text(value))
+        if len(digits) >= 4
+    }
 
 
 @dataclass(frozen=True)
@@ -541,6 +555,7 @@ class OnlinePaymentReviewService:
             "customer_name": _text(lookup.get("zc_display_value") or lookup.get("Name")),
             "creator_customer_id": creator_customer_id,
             "books_customer_id": customer_ids.get(creator_customer_id, ""),
+            "payment_type": _text(payment.get("_review_payment_type")) or "Online",
             "date_tolerance_days": (
                 self.config.cheque_date_tolerance_days
                 if _text(payment.get("_review_payment_type")).casefold() == "cheque"
@@ -625,7 +640,16 @@ class OnlinePaymentReviewService:
             narration = _text(
                 transaction.get("description") or transaction.get("narration")
             ).casefold()
-            if reference == bank_reference or reference in narration:
+            if _text(payment.get("payment_type")).casefold() == "cheque":
+                cheque_suffixes = _cheque_reference_suffixes(reference)
+                bank_suffixes = (
+                    _cheque_reference_suffixes(bank_reference)
+                    | _cheque_reference_suffixes(narration)
+                )
+                matched = bool(cheque_suffixes & bank_suffixes)
+            else:
+                matched = reference == bank_reference or reference in narration
+            if matched:
                 candidates.append(transaction)
 
         if len(candidates) == 1:

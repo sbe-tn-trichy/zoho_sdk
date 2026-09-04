@@ -1,5 +1,9 @@
 # Knowledge Change Log
 
+## 2026-09-04
+
+- Cheque review matching now compares the final four digits of cheque numbers against individual numeric runs in Books bank references and narrations.
+
 ## 2026-09-03
 
 - Added `apps/apply_neoseal_name_updates.py` and `workflows.neoseal_audit.naming_rules`

@@ -537,9 +537,10 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         cheque = dict(self.payment)
         cheque.pop("Payment_Date")
         cheque["Cheque_Date"] = "2026-04-14"
+        cheque["Reference"] = "1234"
         detail = {
             "ID": "cheque-detail-1",
-            "Cheque_Number": "UPI123",
+            "Cheque_Number": "1234",
             "Presented_Date": "2026-07-12",
             "Payment_ID.Customer_Name": cheque["Customer_Name"],
         }
@@ -562,7 +563,9 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             [detail],
             [self.customer],
         ]
-        self.books.bank_transactions.list_all.return_value = [self.bank]
+        bank = dict(self.bank)
+        bank["reference_number"] = "00001234"
+        self.books.bank_transactions.list_all.return_value = [bank]
         entry = service.refresh()["entries"][0]
         self.assertEqual(entry["payment_type"], "Cheque")
         self.assertEqual(entry["source_report"], "Cheques")
@@ -635,6 +638,42 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertTrue(entry["reviewable"])
         self.assertEqual(entry["bank_name"], "IDFC")
         self.assertEqual(entry["creator"]["date_tolerance_days"], 7)
+
+    def test_cheque_match_uses_last_four_digits_in_hdfc_narration(self):
+        cheque = dict(self.payment)
+        cheque.pop("Payment_Date")
+        cheque["Payment_Amount"] = "9105.00"
+        cheque["Reference"] = "5131"
+        detail = {
+            "ID": "cheque-detail-1",
+            "Cheque_Number": "5131",
+            "Presented_Date": "2026-08-22",
+            "Payment_ID.Customer_Name": cheque["Customer_Name"],
+        }
+        bank = {
+            "transaction_id": "hdfc-cheque-1",
+            "date": "2026-08-22",
+            "amount": 9105,
+            "reference_number": "HDFC deposit",
+            "description": "CHQ DEP/00005131/22-08-2026",
+        }
+        service = OnlinePaymentReviewService(
+            self.creator,
+            self.books,
+            OnlinePaymentReviewConfig(
+                creator_app_link_name="app",
+                bank_accounts=(("HDFC", "hdfc-1"),),
+                payment_reports=(("Cheque", "Cheques"),),
+                state_path=Path(self.temporary.name) / "cheque-suffix.json",
+            ),
+        )
+        self.creator.get_all_records.side_effect = [[cheque], [detail], [self.customer]]
+        self.books.bank_transactions.list_all.return_value = [bank]
+
+        entry = service.refresh()["entries"][0]
+
+        self.assertTrue(entry["reviewable"])
+        self.assertEqual(entry["bank_name"], "HDFC")
 
     def test_cheque_without_presented_detail_is_not_reviewable(self):
         cheque = dict(self.payment)
