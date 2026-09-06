@@ -114,7 +114,7 @@ def test_soft_delete_mode(mock_books_client, mock_creator_client, tmp_path):
     mock_creator_client.update_records.assert_called_once_with(
         "customer_app",
         "All_Customers",
-        payload={"Is_Deleted": True},
+        payload={"data": {"Is_Deleted": True}},
         record_id="30003",
     )
 

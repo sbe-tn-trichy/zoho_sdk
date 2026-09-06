@@ -1,0 +1,39 @@
+{
+  "timestamp": "20260906T174149Z",
+  "mode": "live_apply",
+  "total_items_evaluated": 2,
+  "updates_required": 2,
+  "success_count": 2,
+  "failure_count": 0,
+  "backup_snapshot": "tests\\.tmp_output\\neoseal_pre_update_snapshot_20260906T174149Z.json",
+  "records": [
+    {
+      "item_id": "101",
+      "current_name": "1\" PVC Ball Valve GS PLUS",
+      "proposed_name": "1\" PVC Ball Valve GS Plus",
+      "current_sku": "1-PVC-GSP",
+      "proposed_sku": "1-PVC-GSP",
+      "reasons": [
+        "Name standardized: '1\" PVC Ball Valve GS PLUS' -> '1\" PVC Ball Valve GS Plus'"
+      ],
+      "update_status": "success",
+      "payload": {
+        "name": "1\" PVC Ball Valve GS Plus"
+      },
+      "status": "success"
+    },
+    {
+      "item_id": "102",
+      "current_name": "701 GP Silicone Sealant 260 ml Black",
+      "proposed_name": "701 GP Silicone Sealant 260 ml Black",
+      "current_sku": "701-260-B",
+      "proposed_sku": "701-260-B",
+      "reasons": [
+        "Zero-stock duplicate of active 701-260-BLK with 62 stock"
+      ],
+      "update_status": "skipped_no_field_change",
+      "deactivated": true,
+      "status": "success"
+    }
+  ]
+}

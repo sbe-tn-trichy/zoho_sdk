@@ -1,5 +1,11 @@
 # Knowledge Change Log
 
+## 2026-09-06
+
+- Added customer status and Branch custom-field filtering for Creator sync; excluded Books customers remain protected from deletion.
+
+- Renamed Creator customer deletion sync to customer sync with configurable field comparison, creates, updates, and guarded deletions; legacy imports now use full reconciliation.
+
 ## 2026-09-04
 
 - Added a `Possible matches` payment-review filter and explicit candidate selection for bank lines whose date and amount match while the reference differs, with live uncategorized/date/amount revalidation before pushing.
