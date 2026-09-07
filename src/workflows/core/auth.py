@@ -8,11 +8,23 @@ from zoho.analytics import ZohoAnalyticsAPI
 from zoho.books import ZohoBooksAPI
 from zoho.creator import ZohoCreatorAPI
 from zoho.wd import ZohoWorkdriveAPI
+from zoho.inventory import ZohoInventoryAPI
 
 from .config import Config
 from .exceptions import ZohoAuthError
 
 logger = logging.getLogger(__name__)
+
+
+def get_inventory_client(
+    token: Optional[str] = None,
+    org_id: str = Config.ORG_ID,
+    domain: str = Config.DOMAIN,
+    token_url: str = Config.TOKEN_URL,
+) -> ZohoInventoryAPI:
+    """Construct Inventory with its own service token and refresh callback."""
+    refresh = lambda: get_token_for("inventory", "zoho_inventory_conn", token_url=token_url)
+    return ZohoInventoryAPI(token or refresh(), org_id, domain=domain, token_refresh_callback=refresh)
 
 
 def fetch_access_tokens(token_url: str = Config.TOKEN_URL) -> Dict[str, Optional[str]]:

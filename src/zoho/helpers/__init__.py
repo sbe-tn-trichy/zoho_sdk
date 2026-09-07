@@ -6,6 +6,11 @@ from .accounts import (
     fetch_bank_accounts_map,
     find_bank_account_by_name,
 )
+from .bins import (
+    get_bins_by_item_map,
+    get_bins_for_items,
+    getBinsForItems,
+)
 from .contacts import (
     fetch_active_customers_map,
     find_contact_by_gstin,
@@ -58,10 +63,13 @@ __all__ = [
     "find_contact_by_gstin",
     "find_contact_by_name",
     "fetch_active_customers_map",
-    # Items
+    # Items and Bins
     "fetch_items_lookup",
     "fetch_items_by_purchase_account",
     "find_item_by_sku_or_name",
+    "get_bins_for_items",
+    "getBinsForItems",
+    "get_bins_by_item_map",
 
     # Files
     "workdrive_upload_file",

@@ -1,5 +1,12 @@
 # Knowledge Change Log
 
+## 2026-09-07
+
+- Extended paired stock transfers with a fixed 3% cost markup, maximum final-invoice threshold, quantity splitting, and inclusive date-range scheduling that excludes Sundays.
+
+- Added `get_bins_for_items` (and `getBinsForItems`) helper in `zoho.helpers.bins` to query item stock across warehouse bins from Zoho Analytics with SKU, item ID, and positive-stock filtering.
+- Added Inventory bulk item details and a paired Books replenishment workflow with purchase-account scope, GSTIN validation, commitment-aware stock caps, dry-run plans, and partial-execution journals.
+
 ## 2026-09-06
 
 - Added customer status and Branch custom-field filtering for Creator sync; excluded Books customers remain protected from deletion.

@@ -116,3 +116,15 @@ def find_item_by_sku_or_name(
 
     return None
 
+
+from .bins import get_bins_by_item_map, get_bins_for_items, getBinsForItems
+
+__all__ = [
+    "fetch_items_lookup",
+    "fetch_items_by_purchase_account",
+    "find_item_by_sku_or_name",
+    "get_bins_for_items",
+    "getBinsForItems",
+    "get_bins_by_item_map",
+]
+

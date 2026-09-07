@@ -1,18 +1,18 @@
 # Zoho Analytics Workspace Metadata
 
 - Workspace: `W` (264324000000002043)
-- Updated: 2026-08-02T16:16:18Z
-- Views: 325
+- Updated: 2026-09-07T07:24:21Z
+- Views: 326
 - Tables/query tables: 141
-- Columns: 2352
-- Relationships: 20707
+- Columns: 2344
+- Relationships: 20808
 - Errors: 0
 
 ## View types
 
 | Type | Count |
 |---|---:|
-| Pivot | 131 |
+| Pivot | 132 |
 | Table | 106 |
 | AnalysisView | 43 |
 | QueryTable | 35 |
@@ -23,11 +23,11 @@
 
 | Type | Count |
 |---|---:|
-| view_uses_view | 17325 |
-| view_contains_column | 2352 |
+| view_uses_view | 17432 |
+| view_contains_column | 2344 |
 | column_looks_up_column | 409 |
-| folder_contains_view | 325 |
-| view_parent | 174 |
+| folder_contains_view | 326 |
+| view_parent | 175 |
 | formula_defines_column | 67 |
 | workspace_contains_folder | 40 |
 | datasource_feeds_view | 15 |
@@ -54,7 +54,6 @@
 | Beat (Zoho Creator) | `264324000007236023` | Table | 9 |
 | Bill Item (Zoho Books) | `264324000001776507` | Table | 41 |
 | Bills (Zoho Books) | `264324000001766391` | Table | 49 |
-| Bin | `264324000006014280` | QueryTable | 5 |
 | Bin Locations (Zoho Books) | `264324000005867460` | Table | 10 |
 | Bin Transactions (Zoho Books) | `264324000005867434` | Table | 13 |
 | Books GSTR2 Invoices | `264324000005403179` | Table | 12 |
@@ -75,7 +74,7 @@
 | Customer Payments (Zoho Books) | `264324000001765632` | Table | 28 |
 | CustomerPaymentLocationDiff | `264324000006990003` | QueryTable | 6 |
 | Customers (Zoho Books) | `264324000001765149` | Table | 51 |
-| Customers (Zoho Creator) | `264324000007301981` | Table | 48 |
+| Customers (Zoho Creator) | `264324000007301981` | Table | 36 |
 | Delivery Challan (Zoho Books) | `264324000001776173` | Table | 32 |
 | Delivery Challan Item (Zoho Books) | `264324000001776363` | Table | 35 |
 | Delivery Challans Invoice (Zoho Books) | `264324000001776303` | Table | 3 |
@@ -105,6 +104,7 @@
 | Invoiced Quotes (Zoho Books) | `264324000001766743` | Table | 3 |
 | Invoices (Zoho Books) | `264324000001765462` | Table | 88 |
 | Item Group (Zoho Books) | `264324000001766057` | Table | 22 |
+| Item Stock by Bin | `264324000006014280` | QueryTable | 9 |
 | Items (Zoho Books) | `264324000001766113` | Table | 66 |
 | Items With Accounts | `264324000005595003` | QueryTable | 8 |
 | Jurisdiction (Zoho Creator) | `264324000007294543` | Table | 8 |

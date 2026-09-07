@@ -25,6 +25,8 @@ okf_version: "0.2"
 * [SDK Audit Findings](sdk-audit-findings.md) - Security, performance, and usability review across core transport and service clients.
 * [OKF Maintenance](okf-maintenance.md) - Rules for maintaining concept documentation, YAML frontmatter, and change logs.
 
+* [Paired Stock Transfer](stock-transfer.md) - Bulk item details, source stock guards, and paired Books invoices/bills.
+
 ## Operations
 
 * [Development Runbook](development-runbook.md) - Local virtual environment setup, pytest runner execution, and safe workflow development guidelines.
