@@ -1,5 +1,11 @@
 # Knowledge Change Log
 
+## 2026-09-08
+
+- Added a stock-transfer preflight guard requiring the start date to be on or after the latest invoice date in the explicitly selected number series.
+- Rounded stock-transfer rates to two decimal places after applying the fixed 3% markup.
+- Added exact invoice-to-bill rounding alignment and verified `bill_created` journal recovery for paired stock transfers.
+
 ## 2026-09-07
 
 - Extended paired stock transfers with a fixed 3% cost markup, maximum final-invoice threshold, quantity splitting, and inclusive date-range scheduling that excludes Sundays.

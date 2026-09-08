@@ -13,7 +13,8 @@ customer GSTIN must match the destination; bill vendor GSTIN must match the sour
 
 `workflows.stock_transfer` exports `TransferLine`, `build_plan`, `build_payloads`,
 and `validate_stock`. Each line rate is the item purchase rate plus a fixed 3%
-markup. Quantities are the minimum of destination accounting-stock
+markup, rounded half-up to two decimal places before totals and document splits
+are calculated. Quantities are the minimum of destination accounting-stock
 shortage and source accounting, physical, and uncommitted stock. Negative or zero
 source availability produces no transfer. Invalid/missing stock fails closed.
 Bin-enabled source items also require item-specific bin balances from
@@ -24,7 +25,9 @@ allocations and are rejected. Both documents use the same rates, quantities and
 intra-state tax; bills debit the inventory account.
 
 The CLI requires `--maximum-invoice-total`, `--starting-date`, and
-`--ending-date`. The threshold includes tax. It splits item quantities across
+`--ending-date`. It also requires `--invoice-number-prefix` and rejects a start
+date earlier than the latest existing invoice date in that exact source-location
+number series. The threshold includes tax. It splits item quantities across
 multiple matched invoice/bill pairs so each invoice stays at or below the cap.
 Dates are assigned across the inclusive range in order, cycle when there are
 more documents than dates, and always exclude Sundays.
@@ -55,3 +58,10 @@ recorded stage and live Books reference/IDs, and recover the existing pair rathe
 than creating duplicates. A failed draft validation leaves the draft available
 for correction; a failure after invoice posting requires completing or correcting
 the existing bill. The workflow does not automatically void or delete records.
+
+When Zoho applies entity-level rounding to an invoice but not its paired bill,
+the application adds an explicit bill adjustment (up to one rupee) and verifies
+exact total equality. `--resume` can recover a journal stopped after creating or
+aligning a bill: it reads back and verifies the existing drafts, aligns the
+current bill total, and then continues without recreating earlier pairs. Bin
+balance reads retry transient failures up to three times.

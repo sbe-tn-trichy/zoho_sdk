@@ -7,7 +7,7 @@ import pytest
 from zoho.inventory.resources.items import Items
 from workflows.stock_transfer import (
     build_plan, build_payloads, line_total, split_plan, transaction_dates,
-    validate_stock,
+    validate_series_start_date, validate_stock,
 )
 
 
@@ -26,10 +26,17 @@ def test_caps_stock_and_commitments_and_revalidates():
     data = item()
     lines = build_plan([data], 'source', 'destination', ['p'])
     assert lines[0].quantity == 6
-    assert lines[0].rate == Decimal('103.000000')
+    assert lines[0].rate == Decimal('103.00')
     data['locations'][0]['location_available_for_sale_stock'] = 5
     with pytest.raises(ValueError, match='Stock changed'):
         validate_stock(lines, [data], 'source', 'destination')
+
+
+def test_markup_rate_rounds_half_up_to_two_decimal_places():
+    data = item()
+    data['purchase_rate'] = Decimal('100.005')
+    lines = build_plan([data], 'source', 'destination', ['p'])
+    assert lines[0].rate == Decimal('103.01')
 
 
 @pytest.mark.parametrize('source,destination,expected', [(3, -8, 3), (10, -2, 2), (0, -2, 0), (-2, -2, 0), (10, 0, 0)])
@@ -123,6 +130,19 @@ def test_transaction_dates_are_inclusive_and_exclude_sundays():
     ]
     with pytest.raises(ValueError):
         transaction_dates(date(2026, 9, 6), date(2026, 9, 6))
+
+
+def test_start_date_must_not_precede_latest_invoice_in_series():
+    invoices = [
+        {'invoice_number': 'OTHER-999', 'date': '2026-09-01'},
+        {'invoice_number': 'SBE2627INV-00486', 'date': '2026-08-17'},
+        {'invoice_number': 'SBE2627INV-00485', 'date': '2026-08-16'},
+    ]
+    assert validate_series_start_date(date(2026, 8, 17), invoices, 'SBE2627INV-') == date(2026, 8, 17)
+    with pytest.raises(ValueError, match='before latest invoice date'):
+        validate_series_start_date(date(2026, 8, 16), invoices, 'SBE2627INV-')
+    with pytest.raises(ValueError, match='prefix'):
+        validate_series_start_date(date(2026, 8, 17), invoices, '')
 
 
 def test_split_plan_caps_final_value_and_preserves_quantity_and_bins():

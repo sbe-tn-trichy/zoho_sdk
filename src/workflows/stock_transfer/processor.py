@@ -92,7 +92,7 @@ def build_plan(
             raise ValueError('Batch/serial tracked items require explicit allocations')
         cost = number(item['purchase_rate'])
         rate = (cost * (Decimal('1') + markup_percentage / Decimal('100'))).quantize(
-            Decimal('0.000001'), rounding=ROUND_HALF_UP
+            Decimal('0.01'), rounding=ROUND_HALF_UP
         )
         taxes = [t for t in item.get('item_tax_preferences', []) if t.get('tax_specification') == 'intra']
         if cost <= 0 or rate <= 0 or len(taxes) != 1:
@@ -120,6 +120,26 @@ def transaction_dates(starting_date: date, ending_date: date) -> List[date]:
     if not dates:
         raise ValueError('Date range contains no non-Sunday dates')
     return dates
+
+
+def validate_series_start_date(
+    starting_date: date, invoices: Sequence[Mapping[str, Any]], invoice_number_prefix: str,
+) -> Optional[date]:
+    """Require a transfer start date on or after the latest invoice in a series."""
+    if not invoice_number_prefix:
+        raise ValueError('Explicit invoice number prefix required')
+    series_dates = [
+        date.fromisoformat(str(invoice['date']))
+        for invoice in invoices
+        if str(invoice.get('invoice_number', '')).startswith(invoice_number_prefix)
+    ]
+    latest = max(series_dates, default=None)
+    if latest is not None and starting_date < latest:
+        raise ValueError(
+            f'Starting date {starting_date.isoformat()} is before latest invoice date '
+            f'{latest.isoformat()} in series {invoice_number_prefix}'
+        )
+    return latest
 
 
 def line_total(line: TransferLine, quantity: Optional[Decimal] = None) -> Decimal:
