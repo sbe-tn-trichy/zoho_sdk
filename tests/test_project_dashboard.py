@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 from apps import open_homepage
-from apps.dashboard import WorkflowRunner, WorkflowSpec
+from apps.dashboard import (
+    WORKFLOWS,
+    WorkflowRunner,
+    WorkflowSpec,
+    filter_dashboard_workflows,
+)
 
 
 def test_runner_executes_allowlisted_workflow(tmp_path: Path):
@@ -43,8 +48,64 @@ def test_registry_exposes_only_safe_default_commands():
     commands = [item["command"] for item in runner.list_workflows()]
 
     assert commands
-    assert all("--execute" not in command for command in commands)
-    assert all("--allow-batch" not in command for command in commands)
+    runnable_commands = [command for command in commands if command]
+    assert all("--execute" not in command for command in runnable_commands)
+    assert all("--allow-batch" not in command for command in runnable_commands)
+
+
+def test_registry_catalogues_every_domain_workflow():
+    workflows = WorkflowRunner().list_workflows()
+    represented = {item["workflow"] for item in workflows}
+
+    assert represented == {
+        "bank_vendor_ledger_matching",
+        "collection_reconciliation",
+        "creator_customer_sync",
+        "duplicate_payment_check",
+        "gstr1_verification",
+        "neoseal_audit",
+        "polycab_credit_memos",
+        "polycab_rso",
+        "stock_transfer",
+        "vendor_customer_offset",
+        "vendor_ledger_reconciliation",
+    }
+
+
+def test_dashboard_workflow_config_includes_selected_domains():
+    selected = filter_dashboard_workflows(
+        WORKFLOWS,
+        {"include": ["collection_reconciliation", "gstr1_verification"]},
+    )
+
+    assert {item.workflow for item in selected} == {
+        "collection_reconciliation",
+        "gstr1_verification",
+    }
+
+
+def test_dashboard_workflow_config_exclusion_takes_precedence():
+    selected = filter_dashboard_workflows(
+        WORKFLOWS,
+        {
+            "include": ["collection_reconciliation", "gstr1_verification"],
+            "exclude": ["collection_reconciliation"],
+        },
+    )
+
+    assert [item.workflow for item in selected] == ["gstr1_verification"]
+
+
+def test_dashboard_workflow_config_rejects_unknown_ids():
+    with pytest.raises(ValueError, match="unknown workflow IDs"):
+        filter_dashboard_workflows(WORKFLOWS, {"exclude": ["typo"]})
+
+
+def test_runner_explains_when_workflow_needs_setup():
+    runner = WorkflowRunner()
+
+    with pytest.raises(ValueError, match="Choose a return month"):
+        runner.start(9)
 
 
 def test_payment_preview_uses_production_review_refresh():

@@ -17,25 +17,31 @@
       --mint: #72f0b6;
       --amber: #ffc66d;
       --red: #ff8178;
+      --blue: #8ac7ff;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
+      height: 100dvh;
+      overflow: hidden;
       background: radial-gradient(circle at 85% 0, #12392f 0, transparent 32rem), var(--bg);
       color: var(--ink);
       font: 15px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     main {
-      width: min(1180px, calc(100% - 32px));
+      width: min(1480px, calc(100% - 28px));
+      height: 100dvh;
       margin: auto;
-      padding: 54px 0 70px;
+      padding: 12px 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
     }
     header {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 24px;
-      align-items: end;
-      margin-bottom: 34px;
+      align-items: center;
+      margin-bottom: 12px;
     }
     .eyebrow {
       color: var(--mint);
@@ -44,8 +50,8 @@
       font-size: 12px;
     }
     h1 {
-      font: 700 clamp(34px, 6vw, 68px)/.98 ui-sans-serif, system-ui;
-      margin: 9px 0 13px;
+      font: 700 clamp(25px, 3.2vw, 42px)/1 ui-sans-serif, system-ui;
+      margin: 5px 0 7px;
       letter-spacing: -.05em;
       max-width: 720px;
     }
@@ -76,10 +82,31 @@
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 14px;
-      margin-bottom: 24px;
+      padding: 6px 8px;
+      margin: 0;
       box-shadow: 0 18px 70px #0005;
     }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 4px 0 8px;
+    }
+    .toolbar h2 { margin: 0; font: 700 17px ui-sans-serif, system-ui; }
+    .count { color: var(--muted); font-size: 12px; }
+    .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .filter {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      padding: 4px 9px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+    }
+    .filter.active { background: var(--ink); border-color: var(--ink); color: var(--bg); }
     .callbox input {
       min-width: 0;
       border: 0;
@@ -87,7 +114,7 @@
       background: transparent;
       color: var(--ink);
       font: 600 18px ui-monospace, SFMono-Regular, Menlo, monospace;
-      padding: 8px 10px;
+      padding: 6px 9px;
     }
     .callbox input::placeholder { color: #678077; }
     .callbox button, .run {
@@ -103,22 +130,25 @@
       opacity: .4;
       cursor: not-allowed;
     }
+    .run.setup { background: #1a302a; color: #9eb6ad; }
     .grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
+      grid-template-columns: 1fr;
+      grid-template-rows: repeat(var(--workflow-count, 1), minmax(0, 1fr));
+      gap: 5px;
+      min-height: 0;
     }
     .card {
       position: relative;
       display: grid;
       grid-template-columns: auto 1fr auto;
-      gap: 16px;
-      align-items: start;
+      gap: 8px;
+      align-items: center;
       background: linear-gradient(150deg, var(--panel2), var(--panel));
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 19px;
-      min-height: 148px;
+      padding: 4px 8px;
+      min-height: 0;
       transition: .18s transform, .18s border-color;
     }
     .card:hover {
@@ -128,47 +158,61 @@
     .num {
       display: grid;
       place-items: center;
-      width: 46px;
-      height: 46px;
+      width: 30px;
+      height: 30px;
       border: 1px solid #376052;
-      border-radius: 12px;
+      border-radius: 8px;
       color: var(--mint);
-      font-size: 20px;
+      font-size: 13px;
       font-weight: 800;
     }
     .card h2 {
-      font: 700 18px/1.25 ui-sans-serif, system-ui;
-      margin: 1px 0 7px;
+      font: 700 13px/1.1 ui-sans-serif, system-ui;
+      margin: 0 0 2px;
     }
     .card p {
       color: var(--muted);
-      margin: 0 0 16px;
-      font-size: 13px;
+      margin: 0 0 5px;
+      font-size: 10px;
+      line-height: 1.25;
+      display: none;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     .meta { display: flex; gap: 8px; flex-wrap: wrap; }
     .tag {
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 3px 8px;
+      padding: 1px 6px;
       color: #b6cbc3;
-      font-size: 11px;
+      font-size: 9px;
     }
     .status {
       grid-column: 2 / -1;
       color: var(--muted);
-      font-size: 12px;
+      font-size: 9px;
+      line-height: 1.2;
+      display: none;
       white-space: pre-wrap;
     }
     .status.running { color: var(--amber); }
     .status.succeeded { color: var(--mint); }
     .status.failed { color: var(--red); }
     .open { color: var(--mint); margin-left: 8px; }
+    .setup-note { color: var(--blue); }
     .console {
-      margin-top: 24px;
+      position: static;
+      width: auto;
+      height: 100%;
+      min-height: 0;
       background: #030807;
       border: 1px solid var(--line);
       border-radius: 16px;
       overflow: hidden;
+      box-shadow: 0 18px 70px #0005;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
     }
     .console-head {
       display: flex;
@@ -181,50 +225,82 @@
     .console pre {
       margin: 0;
       padding: 18px;
-      min-height: 150px;
-      max-height: 340px;
+      min-height: 0;
+      max-height: none;
       overflow: auto;
       color: #c5d8d1;
       white-space: pre-wrap;
       font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
     }
-    @media(max-width: 760px) {
-      main { padding-top: 30px; }
-      header { grid-template-columns: 1fr; }
-      .grid { grid-template-columns: 1fr; }
-      .card { grid-template-columns: auto 1fr; }
-      .run { grid-column: 1 / -1; }
-      .status { grid-column: 1 / -1; }
+    .head-actions { display: flex; align-items: center; gap: 14px; }
+    .output-toggle, .console-close {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--panel);
+      color: var(--ink);
+      padding: 7px 10px;
+      cursor: pointer;
+    }
+    @media(max-width: 1100px) {
+      main { width: calc(100% - 16px); padding: 8px 0; }
+      .workspace { grid-template-columns: minmax(320px, 42%) minmax(0, 1fr); }
+    }
+    @media(max-width: 900px) {
+      .workspace { grid-template-columns: minmax(280px, 46%) minmax(0, 1fr); }
+      .card { grid-template-columns: 24px 1fr auto; padding: 4px 6px; }
+      .num { width: 24px; height: 24px; }
+      .tag:nth-child(2) { display: none; }
+    }
+    @media(max-height: 720px) {
+      header p, .toolbar { display: none; }
+      .filters { margin-bottom: 5px; }
+      .card p { -webkit-line-clamp: 1; }
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(360px, 38%) minmax(0, 1fr);
+      gap: 10px;
+      min-height: 0;
+    }
+    .workflow-list {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 8px;
+      min-height: 0;
+    }
+    .workflow-list .grid { height: 100%; }
+    .run { padding: 6px 10px; font-size: 11px; }
+    @media(max-width: 1100px) {
+      .workspace { grid-template-columns: minmax(320px, 42%) minmax(0, 1fr); }
+    }
+    @media(max-width: 900px) {
+      .workspace { grid-template-columns: minmax(280px, 46%) minmax(0, 1fr); }
     }
   </style>
 </head>
 <body>
   <main>
-    <header>
-      <div>
-        <div class="eyebrow">Local operations desk</div>
-        <h1>Choose a workflow. Keep the context.</h1>
-        <p>Frequently used Zoho jobs are numbered, allowlisted, and launched from this machine. Type a number and press Enter, or use a card.</p>
+    <section class="workspace">
+      <div class="workflow-list">
+        <section class="callbox">
+          <input id="call" autocomplete="off" aria-label="Find a workflow" placeholder="Find a workflow…">
+          <button id="callButton">Find</button>
+        </section>
+        <section class="grid" id="grid"></section>
       </div>
-      <div class="pulse">Launcher online</div>
-    </header>
-    <section class="callbox">
-      <input id="call" inputmode="numeric" autocomplete="off" aria-label="Workflow number" placeholder="Call workflow number…">
-      <button id="callButton">Run</button>
-    </section>
-    <section class="grid" id="grid"></section>
-    <section class="console">
-      <div class="console-head">
-        <span id="consoleTitle">Run output</span>
-        <span id="consoleState">Waiting</span>
-      </div>
-      <pre id="logs">Select a workflow to see its output here.</pre>
+      <section class="console">
+        <div class="console-head">
+          <span id="consoleTitle">Run output</span>
+          <span id="consoleState">Waiting</span>
+        </div>
+        <pre id="logs">Select a workflow to see its output here.</pre>
+      </section>
     </section>
   </main>
 
   <script>
     const token = document.querySelector('meta[name="launcher-token"]').content;
-    let state = { workflows: [], runs: [] }, selectedRun = null;
+    let state = { workflows: [], runs: [] }, selectedRun = null, activeCategory = 'All', query = '';
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     function latest(number) {
@@ -232,9 +308,16 @@
     }
 
     function render() {
-      document.getElementById('grid').innerHTML = state.workflows.map(w => {
+      const normalized = query.trim().toLowerCase();
+      const visible = state.workflows.filter(w =>
+        !normalized || `${w.number} ${w.name} ${w.description} ${w.category}`.toLowerCase().includes(normalized)
+      );
+      const grid = document.getElementById('grid');
+      grid.style.setProperty('--workflow-count', Math.max(visible.length, 1));
+      grid.innerHTML = visible.map(w => {
         const r = latest(w.number), busy = r && ['starting', 'running'].includes(r.status);
-        return `<article class="card">
+        const detail = w.available ? w.description : `${w.description} ${w.setup}`;
+        return `<article class="card" title="${esc(detail)}">
           <div class="num">${w.number}</div>
           <div>
             <h2>${esc(w.name)}</h2>
@@ -244,8 +327,8 @@
               <span class="tag">${esc(w.safety)}</span>
             </div>
           </div>
-          <button class="run" ${busy ? 'disabled' : ''} onclick="run(${w.number})">${busy ? 'Running' : 'Run ' + w.number}</button>
-          <div class="status ${esc(r?.status || '')}">${r ? esc(r.status) : 'Not run yet'}${r?.open_url && busy ? ` · <a class="open" href="${esc(r.open_url)}" target="_blank">Open UI ↗</a>` : ''}</div>
+          <button class="run ${w.available ? '' : 'setup'}" title="${esc(w.setup || w.description)}" ${busy || !w.available ? 'disabled' : ''} onclick="run(${w.number})">${busy ? 'Running' : w.available ? 'Run ' + w.number : 'Setup needed'}</button>
+          <div class="status ${esc(r?.status || '')}">${r ? esc(r.status) : w.available ? 'Ready to run' : `<span class="setup-note">${esc(w.setup)}</span>`}${r?.open_url && busy ? ` · <a class="open" href="${esc(r.open_url)}" target="_blank">Open UI ↗</a>` : ''}</div>
         </article>`;
       }).join('');
       showConsole();
@@ -284,17 +367,16 @@
       if (data.open_url) setTimeout(() => window.open(data.open_url, '_blank'), 700);
     }
 
-    function call() {
-      const number = Number(document.getElementById('call').value);
-      if (!state.workflows.some(w => w.number === number)) {
-        alert('Enter a workflow number shown below.');
-        return;
-      }
-      run(number);
+    function find() {
+      query = document.getElementById('call').value;
+      const exact = state.workflows.find(w => String(w.number) === query.trim());
+      if (exact && exact.available) return run(exact.number);
+      render();
     }
 
-    document.getElementById('callButton').onclick = call;
-    document.getElementById('call').addEventListener('keydown', e => { if (e.key === 'Enter') call(); });
+    document.getElementById('callButton').onclick = find;
+    document.getElementById('call').addEventListener('input', e => { query = e.target.value; render(); });
+    document.getElementById('call').addEventListener('keydown', e => { if (e.key === 'Enter') find(); });
     refresh();
     setInterval(refresh, 1500);
   </script>

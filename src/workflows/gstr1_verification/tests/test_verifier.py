@@ -196,9 +196,9 @@ class TestGSTR1Verifier(unittest.TestCase):
         ]
         client = self.make_client(target_invoices=target)
         client.locations.list_all.return_value = [
-            {"location_id": "loc-a", "location_name": "A", "tax_settings_id": "gst-1"},
-            {"location_id": "loc-b", "location_name": "B", "tax_settings_id": "gst-1"},
-            {"location_id": "loc-c", "location_name": "C", "tax_settings_id": "gst-2"},
+            {"location_id": "loc-a", "location_name": "A", "tax_settings_id": "gst-1", "tax_reg_no": "33AAAAA0000A1Z5"},
+            {"location_id": "loc-b", "location_name": "B", "tax_settings_id": "gst-1", "tax_reg_no": "33AAAAA0000A1Z5"},
+            {"location_id": "loc-c", "location_name": "C", "tax_settings_id": "gst-2", "tax_reg_no": "29AAAAA0000A1Z9"},
         ]
 
         report = verify_gstr1(
@@ -207,9 +207,9 @@ class TestGSTR1Verifier(unittest.TestCase):
             config=GSTR1VerificationConfig(e_invoice_applicable=False),
         )
 
-        self.assertEqual(set(report["gst_registrations"]), {"gst-1", "gst-2"})
-        gst_1 = report["gst_registrations"]["gst-1"]
-        gst_2 = report["gst_registrations"]["gst-2"]
+        self.assertEqual(set(report["gst_registrations"]), {"33AAAAA0000A1Z5", "29AAAAA0000A1Z9"})
+        gst_1 = report["gst_registrations"]["33AAAAA0000A1Z5"]
+        gst_2 = report["gst_registrations"]["29AAAAA0000A1Z9"]
         self.assertEqual(
             [item["number"] for item in gst_1["checks"]["number_sequence"]["missing"]],
             ["INV-002"],
@@ -219,6 +219,25 @@ class TestGSTR1Verifier(unittest.TestCase):
             {item["location_id"] for item in gst_1["locations"]},
             {"loc-a", "loc-b"},
         )
+        self.assertEqual(set(gst_1["location_reports"]), {"loc-a", "loc-b"})
+
+    def test_reports_all_fetched_locations_even_without_monthly_documents(self):
+        client = self.make_client()
+        client.locations.list_all.return_value = [
+            {"location_id": "loc-a", "location_name": "A", "tax_settings_id": "gst-1", "tax_reg_no": "33AAAAA0000A1Z5"},
+            {"location_id": "loc-b", "location_name": "B", "tax_settings_id": "gst-1", "tax_reg_no": "33AAAAA0000A1Z5"},
+        ]
+
+        report = verify_gstr1(
+            client,
+            as_of=date(2026, 8, 10),
+            config=GSTR1VerificationConfig(e_invoice_applicable=False),
+        )
+
+        self.assertEqual(report["period"]["month"], "2026-07")
+        registration = report["gst_registrations"]["33AAAAA0000A1Z5"]
+        self.assertEqual(set(registration["location_reports"]), {"loc-a", "loc-b"})
+        self.assertEqual(registration["location_reports"]["loc-a"]["invoices"]["count"], 0)
 
     def test_location_metadata_failure_does_not_club_unknown_locations(self):
         target = [

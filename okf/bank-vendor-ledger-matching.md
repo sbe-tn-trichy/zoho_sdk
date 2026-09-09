@@ -18,8 +18,8 @@ status: active
 matches withdrawals one-to-one against either Books vendor payments or receipts
 from a cleaned external vendor ledger. It returns exact, strong, weak,
 ambiguous, and unmatched groups without applying matches in Books. The former
-`workflows.bank_reconciliation` import remains available as a deprecated
-compatibility alias.
+`workflows.bank_reconciliation` compatibility package has been removed; callers
+must use the canonical package name.
 
 # Match Passes
 

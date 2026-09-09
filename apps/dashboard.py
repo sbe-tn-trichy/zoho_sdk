@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 from urllib.parse import urlparse
 
+from workflows.core.config import Config
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MAX_LOG_LINES = 400
@@ -27,10 +29,12 @@ class WorkflowSpec:
     number: int
     name: str
     description: str
-    command: tuple[str, ...]
+    command: Optional[tuple[str, ...]]
     category: str
     safety: str = "Read-only"
     open_url: Optional[str] = None
+    workflow: str = ""
+    setup: Optional[str] = None
 
 
 WORKFLOWS = (
@@ -42,6 +46,7 @@ WORKFLOWS = (
         "Collections",
         "Review required",
         "http://127.0.0.1:8765",
+        "collection_reconciliation",
     ),
     WorkflowSpec(
         2,
@@ -49,6 +54,7 @@ WORKFLOWS = (
         "Refresh production online and cheque payment matches without writing to Zoho.",
         (sys.executable, "apps/payment_review.py", "--refresh-only"),
         "Collections",
+        workflow="collection_reconciliation",
     ),
     WorkflowSpec(
         3,
@@ -61,6 +67,7 @@ WORKFLOWS = (
             "output/duplicate_customer_payments.html",
         ),
         "Audit",
+        workflow="duplicate_payment_check",
     ),
     WorkflowSpec(
         4,
@@ -68,6 +75,7 @@ WORKFLOWS = (
         "Download uncategorized ICICI bank transactions to an audit CSV.",
         (sys.executable, "apps/export_icici_unmatched.py"),
         "Banking",
+        workflow="bank_vendor_ledger_matching",
     ),
     WorkflowSpec(
         5,
@@ -75,8 +83,140 @@ WORKFLOWS = (
         "Run single-step automated collection reconciliation against Books.",
         (sys.executable, "apps/run_collection_reconciliation.py"),
         "Collections",
+        safety="Dry run",
+        workflow="collection_reconciliation",
+    ),
+    WorkflowSpec(
+        6,
+        "Neoseal item audit",
+        "Check the Neoseal catalog for naming, duplicate, grouping, and price-list issues.",
+        (sys.executable, "apps/audit_neoseal_items.py"),
+        "Inventory",
+        workflow="neoseal_audit",
+    ),
+    WorkflowSpec(
+        7,
+        "Neoseal naming plan",
+        "Preview approved naming and SKU corrections without changing Books.",
+        (sys.executable, "apps/apply_neoseal_name_updates.py", "--dry-run"),
+        "Inventory",
+        safety="Dry run",
+        workflow="neoseal_audit",
+    ),
+    WorkflowSpec(
+        8,
+        "Creator customer form inspection",
+        "Inspect the production Creator customer-registration schema.",
+        (sys.executable, "apps/register_customer.py", "inspect"),
+        "Customers",
+        workflow="creator_customer_sync",
+    ),
+    WorkflowSpec(
+        9,
+        "GSTR-1 verification",
+        "Check invoice and credit-note readiness, numbering, chronology, and IRN status.",
+        None,
+        "Compliance",
+        workflow="gstr1_verification",
+        setup="Choose a return month before running.",
+    ),
+    WorkflowSpec(
+        10,
+        "Creator customer sync",
+        "Reconcile customer creation, updates, and deletions between Books and Creator.",
+        None,
+        "Customers",
+        safety="Changes data",
+        workflow="creator_customer_sync",
+        setup="Review the target Creator app and confirm live changes.",
+    ),
+    WorkflowSpec(
+        11,
+        "Polycab credit memos",
+        "Parse supplier credit memos and prepare vendor credits and attachments.",
+        None,
+        "Purchasing",
+        safety="Changes data",
+        workflow="polycab_credit_memos",
+        setup="Select the source PDFs and confirm the destination account.",
+    ),
+    WorkflowSpec(
+        12,
+        "Polycab RSO import",
+        "Import a return-sales-order PDF as a location-scoped Books sales order.",
+        None,
+        "Sales",
+        safety="Changes data",
+        workflow="polycab_rso",
+        setup="Select a Polycab RSO PDF before running.",
+    ),
+    WorkflowSpec(
+        13,
+        "Paired stock transfer",
+        "Plan and create stock-capped paired invoices and bills between locations.",
+        None,
+        "Inventory",
+        safety="Changes data",
+        workflow="stock_transfer",
+        setup="Provide the item CSV, locations, parties, dates, and series details.",
+    ),
+    WorkflowSpec(
+        14,
+        "Vendor-customer offset",
+        "Offset linked receivables and payables through the configured clearing account.",
+        None,
+        "Accounting",
+        safety="Changes data",
+        workflow="vendor_customer_offset",
+        setup="Choose the linked customer/vendor pair and confirm the offset.",
+    ),
+    WorkflowSpec(
+        15,
+        "Vendor ledger reconciliation",
+        "Clean a vendor ledger and reconcile it with the corresponding Books account.",
+        None,
+        "Purchasing",
+        workflow="vendor_ledger_reconciliation",
+        setup="Select a ledger file and vendor account before running.",
     ),
 )
+
+
+def filter_dashboard_workflows(
+    workflows: Sequence[WorkflowSpec],
+    config: dict[str, Any],
+) -> tuple[WorkflowSpec, ...]:
+    """Apply domain-level dashboard include/exclude configuration."""
+    allowed_keys = {"include", "exclude"}
+    unknown_options = set(config) - allowed_keys
+    if unknown_options:
+        raise ValueError(
+            "DASHBOARD_WORKFLOWS has unknown options: "
+            + ", ".join(sorted(unknown_options))
+        )
+
+    values: dict[str, set[str]] = {}
+    for option in allowed_keys:
+        raw = config.get(option, [])
+        if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+            raise ValueError(f"DASHBOARD_WORKFLOWS.{option} must be a list of workflow IDs.")
+        values[option] = set(raw)
+
+    known = {item.workflow for item in workflows}
+    configured = values["include"] | values["exclude"]
+    unknown_workflows = configured - known
+    if unknown_workflows:
+        raise ValueError(
+            "DASHBOARD_WORKFLOWS references unknown workflow IDs: "
+            + ", ".join(sorted(unknown_workflows))
+        )
+
+    included = values["include"] or known
+    excluded = values["exclude"]
+    return tuple(
+        item for item in workflows
+        if item.workflow in included and item.workflow not in excluded
+    )
 
 
 def _now() -> str:
@@ -89,9 +229,14 @@ class WorkflowRunner:
     def __init__(
         self,
         repo_root: Path = PROJECT_ROOT,
-        workflows: Sequence[WorkflowSpec] = WORKFLOWS,
+        workflows: Optional[Sequence[WorkflowSpec]] = None,
     ) -> None:
         self.repo_root = repo_root
+        if workflows is None:
+            workflows = filter_dashboard_workflows(
+                WORKFLOWS,
+                Config.DASHBOARD_WORKFLOWS,
+            )
         self.workflows = {item.number: item for item in workflows}
         self._runs: dict[int, dict[str, Any]] = {}
         self._processes: dict[int, subprocess.Popen[str]] = {}
@@ -107,7 +252,17 @@ class WorkflowRunner:
                 "category": item.category,
                 "safety": item.safety,
                 "open_url": item.open_url,
-                "command": " ".join(Path(part).name if i == 0 else part for i, part in enumerate(item.command)),
+                "workflow": item.workflow,
+                "available": item.command is not None,
+                "setup": item.setup,
+                "command": (
+                    " ".join(
+                        Path(part).name if i == 0 else part
+                        for i, part in enumerate(item.command)
+                    )
+                    if item.command
+                    else None
+                ),
             }
             for item in self.workflows.values()
         ]
@@ -116,6 +271,8 @@ class WorkflowRunner:
         spec = self.workflows.get(number)
         if spec is None:
             raise ValueError(f"Unknown workflow number: {number}")
+        if spec.command is None:
+            raise ValueError(spec.setup or f"{spec.name} needs setup before it can run.")
 
         with self._lock:
             for run_id, process in self._processes.items():

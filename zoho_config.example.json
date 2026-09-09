@@ -14,6 +14,10 @@
         "customer": "All_Customers1",
         "checkpoint": "All_Payments"
       },
+      "dashboard_workflows": {
+        "include": [],
+        "exclude": []
+      },
       "files_dir": "input_files/polycab/cn",
       "polycab_ledger_path": "input_files/polycab/ledger/reconciliation-ledger.xls",
       "polycab_folder_id": "<workdrive-folder-id>",

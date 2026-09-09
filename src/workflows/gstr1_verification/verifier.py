@@ -112,7 +112,9 @@ class GSTR1Verifier:
             sequence_credit_notes, location_to_registration
         )
         registration_keys = sorted(
-            set(grouped_target_invoices) | set(grouped_target_credit_notes)
+            set(registration_meta)
+            | set(grouped_target_invoices)
+            | set(grouped_target_credit_notes)
         )
 
         registration_reports: Dict[str, Dict[str, Any]] = {}
@@ -158,6 +160,11 @@ class GSTR1Verifier:
                 registration_key,
                 self._fallback_registration_metadata(registration_key, documents),
             )
+            location_reports = self._location_reports(
+                metadata["locations"], raw_invoices, raw_credit_notes,
+                grouped_sequence_invoices.get(registration_key, []),
+                grouped_sequence_credit_notes.get(registration_key, []),
+            )
             registration_reports[registration_key] = {
                 **metadata,
                 "passed": (
@@ -176,6 +183,7 @@ class GSTR1Verifier:
                     "einvoice_push": einvoice_check,
                 },
                 "void_documents": voids,
+                "location_reports": location_reports,
             }
 
         invoice_docs = [
@@ -276,12 +284,19 @@ class GSTR1Verifier:
             if not location_id:
                 continue
             tax_settings_id = str(location.get("tax_settings_id") or "")
-            registration_key = tax_settings_id or f"location:{location_id}"
+            gstin = str(
+                location.get("tax_reg_no")
+                or location.get("gstin")
+                or location.get("gst_no")
+                or ""
+            ).strip().upper()
+            registration_key = gstin or tax_settings_id or f"location:{location_id}"
             location_to_registration[location_id] = registration_key
             group = metadata.setdefault(
                 registration_key,
                 {
                     "gst_registration_key": registration_key,
+                    "gstin": gstin or None,
                     "tax_settings_id": tax_settings_id or None,
                     "locations": [],
                 },
@@ -295,6 +310,69 @@ class GSTR1Verifier:
         for group in metadata.values():
             group["locations"].sort(key=lambda item: item["location_id"])
         return metadata, location_to_registration
+
+    def _location_reports(
+        self,
+        locations: Sequence[Mapping[str, Any]],
+        invoices: Sequence[Mapping[str, Any]],
+        credit_notes: Sequence[Mapping[str, Any]],
+        sequence_invoices: Sequence[Mapping[str, Any]],
+        sequence_credit_notes: Sequence[Mapping[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Build a distinct verification view for every fetched Books location."""
+        location_meta = {
+            str(item.get("location_id") or ""): item
+            for item in locations
+            if item.get("location_id")
+        }
+        location_ids = set(location_meta)
+        location_ids.update(str(item.get("location_id") or "") for item in invoices)
+        location_ids.update(str(item.get("location_id") or "") for item in credit_notes)
+
+        reports: Dict[str, Dict[str, Any]] = {}
+        for location_id in sorted(location_ids):
+            raw_invoices = [
+                item for item in invoices
+                if str(item.get("location_id") or "") == location_id
+            ]
+            raw_credit_notes = [
+                item for item in credit_notes
+                if str(item.get("location_id") or "") == location_id
+            ]
+            invoice_docs = [_document_info(item, "invoice") for item in raw_invoices]
+            credit_note_docs = [_document_info(item, "credit_note") for item in raw_credit_notes]
+            documents = invoice_docs + credit_note_docs
+            drafts = [doc for doc in documents if doc["status"].strip().casefold() == "draft"]
+            voids = [doc for doc in documents if doc["status"].strip().casefold() == "void"]
+            sequence_check = self._merge_sequence_results(
+                self._sequence_check(
+                    invoice_docs,
+                    [_document_info(item, "invoice") for item in sequence_invoices
+                     if str(item.get("location_id") or "") == location_id],
+                ),
+                self._sequence_check(
+                    credit_note_docs,
+                    [_document_info(item, "credit_note") for item in sequence_credit_notes
+                     if str(item.get("location_id") or "") == location_id],
+                ),
+            )
+            einvoice_check = self._einvoice_check(raw_invoices, raw_credit_notes)
+            draft_check = {"passed": not drafts, "count": len(drafts), "documents": drafts}
+            metadata = location_meta.get(location_id, {})
+            reports[location_id or "unassigned"] = {
+                "location_id": location_id or None,
+                "location_name": metadata.get("location_name"),
+                "passed": draft_check["passed"] and sequence_check["passed"] and einvoice_check["passed"],
+                "invoices": {"count": len(invoice_docs), "documents": invoice_docs},
+                "credit_notes": {"count": len(credit_note_docs), "documents": credit_note_docs},
+                "checks": {
+                    "draft_documents": draft_check,
+                    "number_sequence": sequence_check,
+                    "einvoice_push": einvoice_check,
+                },
+                "void_documents": voids,
+            }
+        return reports
 
     @staticmethod
     def _group_by_registration(
@@ -322,6 +400,7 @@ class GSTR1Verifier:
                 locations[str(location_id)] = document.get("location_name")
         return {
             "gst_registration_key": registration_key,
+            "gstin": None,
             "tax_settings_id": None,
             "locations": [
                 {"location_id": location_id, "location_name": name}

@@ -1,5 +1,15 @@
 # Knowledge Change Log
 
+## 2026-09-09
+
+- Added profile-level dashboard workflow inclusion and exclusion controls with validated stable domain IDs.
+- Removed the deprecated `workflows.bank_reconciliation` compatibility package;
+  bank-to-vendor matching is available only from
+  `workflows.bank_vendor_ledger_matching`.
+- Expanded the operations home page into a searchable catalogue covering every domain workflow, using a single-screen left-side launcher list and persistent right-side output panel.
+- Organized GSTR-1 verification output by GSTIN with nested reports for every
+  fetched Books location, including locations with no target-month documents.
+
 ## 2026-09-08
 
 - Added a stock-transfer preflight guard requiring the start date to be on or after the latest invoice date in the explicitly selected number series.

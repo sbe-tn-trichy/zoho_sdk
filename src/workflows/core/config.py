@@ -115,6 +115,10 @@ class Config:
         "checkpoint": "All_Payments",
         **get_mapping_config("PAYMENT_CREATOR_REPORTS"),
     }
+    DASHBOARD_WORKFLOWS = get_mapping_config(
+        "DASHBOARD_WORKFLOWS",
+        {"include": [], "exclude": []},
+    )
 
     # Zoho WorkDrive Configurations
     POLYCAB_FOLDER_ID = get_config("POLYCAB_FOLDER_ID", "")

@@ -1,11 +1,11 @@
 {
-  "timestamp": "20260907T100700Z",
+  "timestamp": "20260909T104052Z",
   "mode": "live_apply",
   "total_items_evaluated": 2,
   "updates_required": 2,
   "success_count": 2,
   "failure_count": 0,
-  "backup_snapshot": "tests/.tmp_output/neoseal_pre_update_snapshot_20260907T100700Z.json",
+  "backup_snapshot": "tests/.tmp_output/neoseal_pre_update_snapshot_20260909T104052Z.json",
   "records": [
     {
       "item_id": "101",

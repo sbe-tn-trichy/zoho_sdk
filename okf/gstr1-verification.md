@@ -21,12 +21,15 @@ explicit `YYYY-MM` or an `as_of` date for deterministic scheduling and tests.
 
 ## Checks
 
-Before applying checks, the workflow reads Books locations and groups them by
-`tax_settings_id`, the tax-registration identifier assigned to each India
-location. Every check runs independently for each GST registration and its
-results are exposed under `gst_registrations`. If location metadata cannot be
-loaded, documents remain isolated by individual `location_id`, the report is
-marked incomplete, and locations are never combined speculatively.
+Before applying checks, the workflow reads all Books locations and groups them
+by their GSTIN (`tax_reg_no`), falling back to `tax_settings_id` when GSTIN is
+not returned. Every check runs independently for each GST registration and its
+results are exposed under `gst_registrations`. Each registration also contains
+`location_reports`, including fetched locations with no documents in the target
+month, so the report can be reviewed GSTIN-wise and then location-wise. If
+location metadata cannot be loaded, documents remain isolated by individual
+`location_id`, the report is marked incomplete, and locations are never combined
+speculatively.
 
 - Draft invoices and credit notes are reported together with identifiers,
   dates, customer names, totals, and statuses. Void documents are retained in a

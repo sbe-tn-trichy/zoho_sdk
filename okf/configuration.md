@@ -42,6 +42,9 @@ Supported configuration keys:
   payment-review queue. Its `online`, `cheque`, `cheque_detail`, `customer`, and
   `checkpoint` entries default to `Online_Payments`, `Cheques`,
   `All_Cheque_Details`, `All_Customers1`, and `All_Payments`, respectively.
+- `DASHBOARD_WORKFLOWS`: Object with `include` and `exclude` lists controlling
+  which domain workflows appear on the local dashboard. An empty `include`
+  list means all workflows; `exclude` takes precedence.
 - `FILES_DIR`: Directory containing Polycab credit memo PDFs.
 - `POLYCAB_LEDGER_PATH`: Polycab reconciliation ledger path.
 - `ZEISS_LEDGER_PATH`: Zeiss reconciliation ledger path.
