@@ -51,9 +51,9 @@ Confirm the SDK and standalone workflow packages import successfully:
 python -c "import zoho; import workflows"
 ```
 
-The package currently supports Python 3.8 and newer. Avoid runtime-evaluated
-PEP 604 unions and built-in collection generics unless the module uses
-postponed annotations; the validation matrix should include Python 3.8.
+The package targets Python 3.14. Modern Python features including PEP 604 unions,
+built-in collection generics, and standard library enhancements are supported;
+the CI validation matrix targets Python 3.14.
 
 # Development Rules
 

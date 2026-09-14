@@ -47,7 +47,7 @@ A comprehensive code audit across all `zoho_sdk` service clients identified key 
 * **Portable Filenames**: Untrusted download names normalize both POSIX and Windows separators before basename extraction.
 * **Stable Output Roots**: Relative paths that already begin with the configured
   output root are not prefixed a second time.
-* **Python 3.8 Compatibility**: Runtime-evaluated WorkDrive annotations use `typing.Union` and `typing.Set`, matching the minimum version declared in `pyproject.toml`.
+* **Python 3.14 Compatibility**: Minimum Python version declared in `pyproject.toml` is 3.14.
 
 ## Request Contract
 

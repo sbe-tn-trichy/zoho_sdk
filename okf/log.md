@@ -1,5 +1,10 @@
 # Knowledge Change Log
 
+## 2026-09-14
+
+- Migrated minimum Python runtime requirement and CI validation matrix to
+  Python 3.14 exclusively in `pyproject.toml` and GitHub Actions workflows.
+
 ## 2026-09-13
 
 - Added a `Mapping` worksheet to the Neoseal stock count workbook establishing
