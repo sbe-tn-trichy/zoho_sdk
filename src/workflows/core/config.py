@@ -136,6 +136,9 @@ class Config:
     NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID = get_config(
         "NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID", ""
     )
+    NEOSEAL_STOCK_COUNT_SHEET_ID = get_config(
+        "NEOSEAL_STOCK_COUNT_SHEET_ID", "m7or01c58bd7a660a4be8b8f2e2390e98c237"
+    )
     FAN_PURCHASE_ACCOUNT_ID = get_config("FAN_PURCHASE_ACCOUNT_ID", "")
     ZOHO_RSO_CN_ITEM_ID = get_config("ZOHO_RSO_CN_ITEM_ID", "")
     ZOHO_SCHEME_CN_ITEM_ID = get_config("ZOHO_SCHEME_CN_ITEM_ID", "")

@@ -1,5 +1,6 @@
 import os
 from typing import Any, Dict, Optional
+from zoho.inventory import ZohoInventoryAPI
 from ..base import BaseResource
 from ..mixins import StatusMixin, EmailMixin, ApprovalMixin, CreditsMixin
 
@@ -43,10 +44,13 @@ class SalesOrders(BaseResource, StatusMixin):
         customer_id: str,
         create_missing_items: bool = False,
         default_accounts: Optional[Dict[str, str]] = None,
+        *,
+        inventory_client: ZohoInventoryAPI,
     ) -> Dict[str, Any]:
         """
         Create a Sales Order in Zoho Books from a flat or standard invoice YAML string.
-        Resolves items by SKU (optionally creating them if missing when create_missing_items=True).
+        Resolves items through the injected Inventory client, optionally creating
+        them when create_missing_items=True. The sales order is created in Books.
         """
         from datetime import datetime
 
@@ -134,8 +138,8 @@ class SalesOrders(BaseResource, StatusMixin):
             if sku in sku_cache:
                 item_id, item_name = sku_cache[sku]
             else:
-                # Search item in Zoho Books
-                res = self.client.items.list(params={"sku": sku})
+                # Search item in Zoho Inventory
+                res = inventory_client.items.list(params={"sku": sku})
                 items_list = res.get("items", [])
                 
                 if items_list:
@@ -144,7 +148,7 @@ class SalesOrders(BaseResource, StatusMixin):
                     item_name = item_obj.get("name")
                 else:
                     if not create_missing_items:
-                        raise ValueError(f"Item with SKU '{sku}' not found in Zoho Books. Use create_missing_items=True to allow automatic creation.")
+                        raise ValueError(f"Item with SKU '{sku}' not found in Zoho Inventory. Use create_missing_items=True to allow automatic creation.")
                     if not default_accounts or not default_accounts.get("account_id") or not default_accounts.get("purchase_account_id") or not default_accounts.get("inventory_account_id"):
                         raise ValueError(
                             "default_accounts (with account_id, purchase_account_id, inventory_account_id) is required to create missing items."
@@ -173,7 +177,7 @@ class SalesOrders(BaseResource, StatusMixin):
                         "can_be_sold": True,
                         "can_be_purchased": True
                     }
-                    new_item_res = self.client.items.create(item_payload)
+                    new_item_res = inventory_client.items.create(item_payload)
                     new_item = new_item_res.get("item", {})
                     item_id = new_item.get("item_id")
                     item_name = new_item.get("name")

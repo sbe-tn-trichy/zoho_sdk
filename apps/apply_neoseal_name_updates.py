@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Apply approved naming conventions, SKU corrections, and SI standards to Zoho Books items.
+"""Apply approved naming conventions, SKU corrections, and SI standards to Zoho Inventory items.
 
-Default behavior is DRY-RUN. To mutate Books items, pass --apply explicitly.
+Default behavior is DRY-RUN. To mutate Inventory items, pass --apply explicitly.
 """
 
 from __future__ import annotations
@@ -20,7 +20,8 @@ try:
 except ImportError:  # Direct script execution.
     import _bootstrap  # type: ignore[no-redef]  # noqa: F401
 
-from workflows.core.auth import get_books_client
+from zoho.inventory import ZohoInventoryAPI
+from workflows.core.auth import get_inventory_client
 from workflows.neoseal_audit import (
     KNOWN_DUPLICATE_MAP,
     compute_item_update,
@@ -43,24 +44,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--purchase-account-id",
         default=DEFAULT_PURCHASE_ACCOUNT_ID,
-        help=f"Zoho Books purchase account ID for Neoseal (default: {DEFAULT_PURCHASE_ACCOUNT_ID})",
+        help=f"Zoho Inventory purchase account ID for Neoseal (default: {DEFAULT_PURCHASE_ACCOUNT_ID})",
     )
     parser.add_argument(
         "--input-csv",
         type=Path,
-        help="Optional local CSV snapshot to evaluate instead of querying Books API",
+        help="Optional local CSV snapshot to evaluate instead of querying Inventory API",
     )
     parser.add_argument(
         "--apply",
         action="store_true",
         default=False,
-        help="Execute mutations against Zoho Books API (default: dry-run mode)",
+        help="Execute mutations against Zoho Inventory API (default: dry-run mode)",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
         default=False,
-        help="Force dry-run inspection without mutating Zoho Books (enabled by default)",
+        help="Force dry-run inspection without mutating Zoho Inventory (enabled by default)",
     )
     parser.add_argument(
         "--item-id",
@@ -71,7 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--deactivate-duplicates",
         action="store_true",
         default=False,
-        help="Deactivate zero-stock duplicate items in Books (e.g. 701-260-B, 701-260-W)",
+        help="Deactivate zero-stock duplicate items in Inventory (e.g. 701-260-B, 701-260-W)",
     )
     parser.add_argument(
         "--output-dir",
@@ -87,10 +88,10 @@ def run_plan_or_apply(
     apply: bool = False,
     deactivate_duplicates: bool = False,
     target_item_id: Optional[str] = None,
-    client: Optional[Any] = None,
+    client: Optional[ZohoInventoryAPI] = None,
     output_dir: Optional[Path] = None,
 ) -> Dict[str, Any]:
-    """Evaluate items, generate planned updates, and optionally mutate Zoho Books."""
+    """Evaluate items, generate planned updates, and optionally mutate Zoho Inventory."""
     output_dir = output_dir or Path("output")
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -201,8 +202,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"Loading items from local CSV: {args.input_csv}")
         items = load_items_from_csv(args.input_csv)
     else:
-        print(f"Querying Zoho Books API for purchase account {args.purchase_account_id}...")
-        client = get_books_client()
+        print(f"Querying Zoho Inventory API for purchase account {args.purchase_account_id}...")
+        client = get_inventory_client()
         items = client.items.list_by_purchase_account(args.purchase_account_id)
 
     if not items:
@@ -210,7 +211,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
 
     if is_apply and client is None:
-        client = get_books_client()
+        client = get_inventory_client()
 
     print(f"\nEvaluating {len(items)} items...")
     summary = run_plan_or_apply(
@@ -238,8 +239,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if not is_apply:
         print("\n" + "#" * 70)
-        print(" [DRY-RUN COMPLETE] No mutations were made to Zoho Books.")
-        print(" To execute these changes live against Zoho Books, rerun with:")
+        print(" [DRY-RUN COMPLETE] No mutations were made to Zoho Inventory.")
+        print(" To execute these changes live against Zoho Inventory, rerun with:")
         print("   python apps/apply_neoseal_name_updates.py --apply")
         print("#" * 70 + "\n")
     else:

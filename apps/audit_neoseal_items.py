@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit purchase-account-scoped Neoseal Books items and price-list data."""
+"""Audit purchase-account-scoped Neoseal Inventory items and price-list data."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ try:
 except ImportError:  # Direct script execution.
     import _bootstrap  # type: ignore[no-redef]  # noqa: F401
 
-from workflows.core.auth import get_books_client
+from workflows.core.auth import get_inventory_client
 from workflows.core.config import Config
 from workflows.neoseal_audit import audit_neoseal_items, render_markdown_report
 
@@ -33,26 +33,26 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--purchase-account-id",
         default=Config.NEOSEAL_PURCHASE_ACCOUNT_ID,
-        help="Zoho Books purchase account ID for Neoseal stock",
+        help="Zoho Inventory purchase account ID for Neoseal stock",
     )
     parser.add_argument(
         "--input-csv",
         type=Path,
-        help="Optional local CSV inventory snapshot to audit instead of querying Books API",
+        help="Optional local CSV inventory snapshot to audit instead of querying Inventory API",
     )
     parser.add_argument(
         "--price-list-csv",
         type=Path,
         help=(
             "Optional price-list CSV. It must contain sku plus price, rate, or "
-            "selling_price; values are verified against Zoho Books item rates."
+            "selling_price; values are verified against Zoho Inventory item rates."
         ),
     )
     parser.add_argument(
         "--status",
         default="all",
         choices=["active", "inactive", "all"],
-        help="Item status filter when querying Zoho Books (default: all)",
+        help="Item status filter when querying Zoho Inventory (default: all)",
     )
     parser.add_argument(
         "--output",
@@ -92,12 +92,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        books = get_books_client()
-        items = books.items.list_by_purchase_account(
+        inventory = get_inventory_client()
+        items = inventory.items.list_by_purchase_account(
             args.purchase_account_id,
             status=args.status,
         )
-        source_label = f"Zoho Books API (Purchase Account: {args.purchase_account_id}, Status: {args.status})"
+        source_label = f"Zoho Inventory API (Purchase Account: {args.purchase_account_id}, Status: {args.status})"
 
     try:
         result = audit_neoseal_items(items, price_list=price_list)

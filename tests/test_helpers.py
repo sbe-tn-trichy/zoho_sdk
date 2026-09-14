@@ -398,46 +398,46 @@ class TestContactsHelper:
 
 class TestItemsHelper:
     def test_fetch_items_lookup(self):
-        mock_books = MagicMock()
-        mock_books.items.list_iter.return_value = [
+        mock_inventory = MagicMock()
+        mock_inventory.items.list_iter.return_value = [
             {"item_id": "I1", "name": "Item One", "sku": "SKU-001"},
             {"item_id": "I2", "name": "Item Two", "sku": "SKU-002"},
         ]
 
-        lookup = fetch_items_lookup(mock_books, key_field="sku", purchase_account_id="ACC-123")
+        lookup = fetch_items_lookup(mock_inventory, key_field="sku", purchase_account_id="ACC-123")
         assert "SKU-001" in lookup
         assert lookup["SKU-001"]["item_id"] == "I1"
         assert lookup["SKU-002"]["name"] == "Item Two"
-        mock_books.items.list_iter.assert_called_once_with(
-            params={"status": "active", "purchase_account_id": "ACC-123"},
+        mock_inventory.items.list_iter.assert_called_once_with(
+            params={"filter_by": "Status.Active", "purchase_account_id": "ACC-123"},
             resource_key="items",
         )
 
     def test_fetch_items_by_purchase_account(self):
-        mock_books = MagicMock()
-        mock_books.items.list_iter.return_value = [
+        mock_inventory = MagicMock()
+        mock_inventory.items.list_iter.return_value = [
             {"item_id": "I10", "sku": "POLY-01"},
         ]
 
-        lookup = fetch_items_by_purchase_account(mock_books, purchase_account_id="ACC-POLY")
+        lookup = fetch_items_by_purchase_account(mock_inventory, purchase_account_id="ACC-POLY")
         assert "POLY-01" in lookup
         assert lookup["POLY-01"]["item_id"] == "I10"
 
         with pytest.raises(ValueError):
-            fetch_items_by_purchase_account(mock_books, "")
+            fetch_items_by_purchase_account(mock_inventory, "")
 
     def test_find_item_by_sku_or_name(self):
-        mock_books = MagicMock()
-        mock_books.items.list.return_value = {
+        mock_inventory = MagicMock()
+        mock_inventory.items.list.return_value = {
             "items": [
                 {"item_id": "I1", "item_name": "Copper Cable 2.5mm", "sku": "CAB-COP-2.5"},
             ]
         }
 
-        match = find_item_by_sku_or_name(mock_books, "CAB-COP-2.5", purchase_account_id="ACC-555")
+        match = find_item_by_sku_or_name(mock_inventory, "CAB-COP-2.5", purchase_account_id="ACC-555")
         assert match is not None
         assert match["item_id"] == "I1"
-        mock_books.items.list.assert_called_once_with(
+        mock_inventory.items.list.assert_called_once_with(
             params={"search_text": "CAB-COP-2.5", "purchase_account_id": "ACC-555"}
         )
 

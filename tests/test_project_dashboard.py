@@ -64,6 +64,7 @@ def test_registry_catalogues_every_domain_workflow():
         "duplicate_payment_check",
         "gstr1_verification",
         "neoseal_audit",
+        "neoseal_stock_count",
         "polycab_credit_memos",
         "polycab_rso",
         "stock_transfer",

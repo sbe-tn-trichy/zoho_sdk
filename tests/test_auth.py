@@ -4,6 +4,7 @@ import time
 import requests
 from zoho.auth import CatalystAuth, HttpTokenProvider, ZohoOAuth2Manager
 from zoho.exceptions import ZohoAuthError
+from workflows.core import auth as workflow_auth
 
 
 class TestHttpTokenProvider(unittest.TestCase):
@@ -42,6 +43,17 @@ class TestHttpTokenProvider(unittest.TestCase):
         with self.assertRaises(ZohoAuthError) as caught:
             HttpTokenProvider("http://localhost/tokens").get_token("books")
         self.assertNotIn("must-not-leak", str(caught.exception))
+
+
+class TestWorkflowClientFactories(unittest.TestCase):
+    @patch("workflows.core.auth.get_token_for", return_value="sheet-token")
+    def test_get_sheet_client_uses_sheet_service_token_and_refreshes_it(self, get_token):
+        client = workflow_auth.get_sheet_client(domain="in")
+
+        self.assertEqual(client.access_token, "sheet-token")
+        self.assertEqual(client.base_url, "https://sheet.zoho.in/api/v2")
+        self.assertEqual(client.token_refresh_callback(), "sheet-token")
+        self.assertEqual(get_token.call_args.args[:2], ("sheet", "zoho_sheet_conn"))
 
 
 class TestCatalystAuth(unittest.TestCase):

@@ -111,7 +111,8 @@ class TestDownloadWriter(unittest.TestCase):
 class TestSalesOrdersSKUCaching(unittest.TestCase):
     def test_sku_caching_avoids_duplicate_http_queries(self):
         client = MagicMock()
-        client.items.list.return_value = {
+        inventory = MagicMock()
+        inventory.items.list.return_value = {
             "items": [{"item_id": "item_123", "name": "Standard Fan"}]
         }
         client.sales_orders = SalesOrders(client)
@@ -131,10 +132,10 @@ items:
     rate: 1500
 """
         client.sales_orders.create = MagicMock(return_value={"salesorder": {"salesorder_id": "so_1"}})
-        res = client.sales_orders.create_from_yaml(yaml_content, customer_id="cust_999")
+        res = client.sales_orders.create_from_yaml(yaml_content, customer_id="cust_999", inventory_client=inventory)
 
         # items.list should only be called ONCE for 'FAN-01' even though it appeared twice in line items
-        client.items.list.assert_called_once_with(params={"sku": "FAN-01"})
+        inventory.items.list.assert_called_once_with(params={"sku": "FAN-01"})
         self.assertIn("salesorder", res)
 
 

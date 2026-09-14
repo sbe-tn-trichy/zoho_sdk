@@ -1,5 +1,31 @@
 # Knowledge Change Log
 
+## 2026-09-13
+
+- Added a `Mapping` worksheet to the Neoseal stock count workbook establishing
+  SKU-to-cell coordinates for `Sheet1` and populating stock quantities directly
+  into mapped count cells while preserving custom cell assignments.
+
+- Restored the full one-row-per-item Neoseal detail table in the workbook's `Flat` worksheet while retaining the grouped count view in `Sheet1`.
+
+- Changed the Neoseal Zoho Sheet count to a vertical group/subgroup/item layout modeled on the workbook sample, with distinct bold heading sizes and row-index replacement on refresh.
+
+- Changed Neoseal stock count to fetch active Inventory items only and publish
+  the ordered count table to a managed Zoho Sheet worksheet while preserving
+  matching manual physical counts and remarks across refreshes.
+
+- Added a read-only Neoseal stock-count workflow and dashboard entry using scoped
+  Inventory item details, explicit quantity fields, suggested groups/subgroups,
+  custom shelf ordering, and CSV/Markdown count sheets.
+
+- Migrated Neoseal tools, Polycab RSO lookup, item helpers, and YAML sales-order
+  item resolution/creation to Inventory. Removed the Books item resource and
+  implicit Books-token fallback for Inventory mutations; mixed-service APIs now
+  require an injected Inventory client.
+
+- Established Zoho Inventory as the required API for item and inventory operations,
+  retaining purchase-account scoping for vendor catalogs.
+
 ## 2026-09-09
 
 - Added profile-level dashboard workflow inclusion and exclusion controls with validated stable domain IDs.

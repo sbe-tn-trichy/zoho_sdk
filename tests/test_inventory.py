@@ -195,10 +195,10 @@ class TestInventoryCatalystAuth(unittest.TestCase):
     def test_catalyst_auth_all_mutations(self, mock_post, mock_request):
         mock_response_catalyst = MagicMock()
         mock_response_catalyst.status_code = 200
-        # In Zoho Inventory, the key used is "books" as fallback
+        # Inventory mutations use the Inventory service token.
         mock_response_catalyst.json.return_value = {
             "status": "success",
-            "tokens": {"books": "catalyst_inventory_books_token"}
+            "tokens": {"inventory": "catalyst_inventory_token"}
         }
         mock_post.return_value = mock_response_catalyst
 
@@ -226,7 +226,7 @@ class TestInventoryCatalystAuth(unittest.TestCase):
         mock_request.reset_mock()
         client.request("POST", "items", json={})
         mock_post.assert_called_once()
-        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_inventory_books_token")
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_inventory_token")
 
         mock_request.reset_mock()
         mock_post.reset_mock()
@@ -237,13 +237,13 @@ class TestInventoryCatalystAuth(unittest.TestCase):
             json={},
             timeout=10
         )
-        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_inventory_books_token")
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_inventory_token")
 
         mock_request.reset_mock()
         mock_post.reset_mock()
         client.request("DELETE", "items/item123")
         mock_post.assert_called_once()
-        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_inventory_books_token")
+        self.assertEqual(mock_request.call_args[1]["headers"]["Authorization"], "Zoho-oauthtoken catalyst_inventory_token")
 
 
 class TestItems(unittest.TestCase):

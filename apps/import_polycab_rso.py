@@ -13,6 +13,7 @@ except ImportError:  # Direct script execution.
 
 from workflows import get_books_client, import_polycab_rso_pdf
 from workflows.core.config import Config
+from workflows.core.auth import get_inventory_client
 
 
 def main() -> int:
@@ -20,6 +21,7 @@ def main() -> int:
     parser.add_argument("pdf_path", help="Path to a machine-readable Polycab RSO PDF")
     parser.add_argument("--customer-id", default=Config.RSO_CUSTOMER_ID)
     parser.add_argument("--location-id", default=Config.EXPECTED_LOCATION_ID)
+    parser.add_argument("--purchase-account-id", default=Config.FAN_PURCHASE_ACCOUNT_ID)
     args = parser.parse_args()
 
     result = import_polycab_rso_pdf(
@@ -27,6 +29,8 @@ def main() -> int:
         args.pdf_path,
         customer_id=args.customer_id,
         location_id=args.location_id,
+        inventory_client=get_inventory_client(),
+        purchase_account_id=args.purchase_account_id,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0

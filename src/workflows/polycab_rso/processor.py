@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 import pdfplumber
 
+from zoho.inventory import ZohoInventoryAPI
 from zoho.helpers import find_transaction_by_number, unwrap_record
 from ..core.config import Config
 
@@ -155,11 +156,18 @@ def _find_existing_sales_order(books_client: Any, rso_number: str) -> Optional[D
     )
 
 
-def _resolve_line_items(books_client: Any, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _resolve_line_items(
+    inventory_client: ZohoInventoryAPI,
+    items: List[Dict[str, Any]],
+    purchase_account_id: str,
+) -> List[Dict[str, Any]]:
+    purchase_account_id = purchase_account_id.strip()
+    if not purchase_account_id:
+        raise ValueError("purchase_account_id is required for RSO item lookup.")
     resolved_by_sku: Dict[str, Dict[str, Any]] = {}
     missing: List[str] = []
     for sku in dict.fromkeys(item["sku"] for item in items):
-        # Polycab prints compact codes such as FPENSST008P while the Books
+        # Polycab prints compact codes such as FPENSST008P while the Inventory
         # catalog uses its canonical six-character-prefix form FPENSS-T008P.
         candidate_skus = [_SKU_OVERRIDES[sku]] if sku in _SKU_OVERRIDES else [sku]
         if sku not in _SKU_OVERRIDES and len(sku) > 6 and "-" not in sku:
@@ -167,7 +175,9 @@ def _resolve_line_items(books_client: Any, items: List[Dict[str, Any]]) -> List[
 
         matches: List[Dict[str, Any]] = []
         for candidate in candidate_skus:
-            response = books_client.items.list(params={"sku": candidate})
+            response = inventory_client.items.list(
+                params={"sku": candidate, "purchase_account_id": purchase_account_id}
+            )
             matches = [
                 item
                 for item in response.get("items", [])
@@ -182,7 +192,7 @@ def _resolve_line_items(books_client: Any, items: List[Dict[str, Any]]) -> List[
             resolved_by_sku[sku] = matches[0]
     if missing:
         raise ValueError(
-            "These RSO SKUs do not exist in Zoho Books: " + ", ".join(missing)
+            "These RSO SKUs do not exist in Zoho Inventory: " + ", ".join(missing)
         )
 
     return [
@@ -200,6 +210,9 @@ def import_polycab_rso_pdf(
     pdf_path: str,
     customer_id: str = Config.RSO_CUSTOMER_ID,
     location_id: str = Config.EXPECTED_LOCATION_ID,
+    *,
+    inventory_client: ZohoInventoryAPI,
+    purchase_account_id: str = Config.FAN_PURCHASE_ACCOUNT_ID,
 ) -> Dict[str, Any]:
     """Create an idempotent Books sales order from an RSO PDF and attach it."""
     details = parse_polycab_rso_pdf(pdf_path)
@@ -220,7 +233,7 @@ def import_polycab_rso_pdf(
             "parsed": details,
         }
 
-    line_items = _resolve_line_items(books_client, details["items"])
+    line_items = _resolve_line_items(inventory_client, details["items"], purchase_account_id)
     payload = {
         "customer_id": customer_id,
         "location_id": location_id,

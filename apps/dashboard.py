@@ -179,6 +179,14 @@ WORKFLOWS = (
         workflow="vendor_ledger_reconciliation",
         setup="Select a ledger file and vendor account before running.",
     ),
+    WorkflowSpec(
+        16,
+        "Neoseal stock count",
+        "List available quantities by group and subgroup in counting order.",
+        (sys.executable, "apps/neoseal_stock_count.py"),
+        "Inventory",
+        workflow="neoseal_stock_count",
+    ),
 )
 
 

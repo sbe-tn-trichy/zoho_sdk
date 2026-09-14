@@ -42,7 +42,6 @@ zoho_sdk/
 │   │       ├── sales.py             # Invoices, Estimates, SalesOrders, CreditNotes, SalesReturns, CustomerPayments
 │   │       ├── purchases.py         # Bills, PurchaseOrders, VendorPayments
 │   │       ├── banking.py           # BankAccounts, BankTransactions, Journals
-│   │       ├── inventory.py         # Items (Books items — not Zoho Inventory service)
 │   │       ├── projects.py          # Projects, Tasks, TimeEntries
 │   │       ├── gst.py               # GST — validate_gst_data, GSTR reports
 │   │       ├── customer_validator.py # CustomerValidator — GST/contact data validation
@@ -145,7 +144,7 @@ Retrieves tokens from an HTTP broker at runtime. It supports direct,
 included in `repr()`, and optional service fallbacks must be explicit.
 
 ```python
-provider = HttpTokenProvider(url, timeout=10, fallback_services={"inventory": "books"})
+provider = HttpTokenProvider(url, timeout=10)
 provider.get_tokens()
 provider.get_token("books")
 ```
@@ -189,10 +188,10 @@ token.get_token_for_request(is_mutation: bool) -> str
 ### fetch_token_from_catalyst
 
 ```python
-fetch_token_from_catalyst(url: str, service_key: str) -> Optional[str]
+fetch_token_from_catalyst(url: str, service_key: str) -> str
 ```
 
-POSTs to a local Catalyst token endpoint and extracts `tokens[service_key]` from the response. Returns `None` on any failure.
+POSTs to a local Catalyst token endpoint and extracts `tokens[service_key]` from the response. Raises `ZohoAuthError` when the requested token is unavailable; Inventory does not implicitly fall back to Books.
 
 ---
 
@@ -331,7 +330,7 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 
 | Method | Signature | Notes |
 |---|---|---|
-| `create_from_yaml` | `(yaml_str, customer_id, create_missing_items=False)` | Parses flat YAML → resolves items by SKU → creates SO. Optionally creates missing items in Books. |
+| `create_from_yaml` | `(yaml_str, customer_id, create_missing_items=False, default_accounts=None, *, inventory_client)` | Parses flat YAML → resolves items by SKU → creates SO. Item lookup and optional creation use the injected Inventory client. |
 
 **`customer_payments` (CustomerPayments)**
 
@@ -392,11 +391,7 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 |---|---|---|
 | `publish` | `(journal_id)` | POST status/publish |
 
-**`items` (Items, Books)** — required: `name`, `sku`, `rate`, `account_id`, `purchase_rate`, `purchase_account_id`, `inventory_account_id`, `is_taxable`, `product_type`, `hsn_or_sac`, `item_tax_preferences`, `unit`, `inventory_valuation_method`, `can_be_sold`, `can_be_purchased`, `track_inventory`
-
-| Method | Signature | Notes |
-|---|---|---|
-| `list_by_purchase_account` | `(account_id, status="all")` | Filters by `purchase_account_id`; status: `"all"` \| `"active"` \| `"inactive"` |
+Item catalog operations use `ZohoInventoryAPI.items`; see [Inventory routing](okf/zoho-inventory.md).
 
 **`projects` (Projects)** — Mixin: `ActiveInactiveMixin`
 

@@ -10,7 +10,7 @@ from .auditor import NeosealAuditResult
 def render_markdown_report(result: NeosealAuditResult, metadata: Mapping[str, str] | None = None) -> str:
     """Render a GitHub-flavored Markdown report from audit results."""
     meta = metadata or {}
-    source_label = meta.get("source", "Zoho Books API")
+    source_label = meta.get("source", "Zoho Inventory API")
     timestamp = meta.get("checked_at", "N/A")
 
     lines: list[str] = [
@@ -44,7 +44,7 @@ def render_markdown_report(result: NeosealAuditResult, metadata: Mapping[str, st
         ),
         (
             f"| **5. Price List** | {'⚠️ Warning' if result['price_list_issues'] else '✅ Clean'} | "
-            f"{len(result['price_list_issues'])} | Books selling price must match the supplied price list |"
+            f"{len(result['price_list_issues'])} | Inventory selling price must match the supplied price list |"
         ),
         (
             f"| **6. Margin** | {'⚠️ Warning' if result['margin_issues'] else '✅ Clean'} | "

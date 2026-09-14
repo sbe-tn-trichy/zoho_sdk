@@ -474,6 +474,7 @@ inv:
   date: "2023-04-12"
 items:
   - sku: "FAN-POLYCAB"
+    name: "Fan"
     qty: "5"
     rate: "1200"
 """
@@ -486,11 +487,12 @@ items:
         mock_request.return_value = mock_response
 
         # Mock the items lookup to return matched item ID
-        client.items.list_all = MagicMock(return_value=[
-            {"sku": "FAN-POLYCAB", "item_id": "poly123", "rate": 1200}
-        ])
+        inventory = MagicMock()
+        inventory.items.list.return_value = {"items": [
+            {"sku": "FAN-POLYCAB", "item_id": "poly123", "name": "Fan", "rate": 1200}
+        ]}
 
-        res = sales_orders.create_from_yaml(yaml_content, customer_id="cust123")
+        res = sales_orders.create_from_yaml(yaml_content, customer_id="cust123", inventory_client=inventory)
         self.assertEqual(res, {"status": "ok"})
 
 

@@ -33,9 +33,9 @@ def test_export_row_preserves_vendor_alias_and_flags_missing_value() -> None:
 
 
 def test_export_fetches_only_active_items(monkeypatch, tmp_path) -> None:
-    books = MagicMock()
-    books.items.list_by_purchase_account.return_value = []
-    monkeypatch.setattr(export_neoseal_items, "get_books_client", lambda: books)
+    inventory = MagicMock()
+    inventory.items.list_by_purchase_account.return_value = []
+    monkeypatch.setattr(export_neoseal_items, "get_inventory_client", lambda: inventory)
 
     result = export_neoseal_items.main(
         [
@@ -49,7 +49,7 @@ def test_export_fetches_only_active_items(monkeypatch, tmp_path) -> None:
     )
 
     assert result == 0
-    books.items.list_by_purchase_account.assert_called_once_with(
+    inventory.items.list_by_purchase_account.assert_called_once_with(
         "account-1",
         status="active",
     )

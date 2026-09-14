@@ -325,10 +325,10 @@ def test_cli_main_with_price_list_csv(tmp_path: Path) -> None:
     assert rc == 0
 
 
-def test_cli_main_with_mock_books(monkeypatch, tmp_path: Path) -> None:
-    books = MagicMock()
-    books.items.list_by_purchase_account.return_value = _make_sample_items()
-    monkeypatch.setattr(audit_neoseal_items, "get_books_client", lambda: books)
+def test_cli_main_with_mock_inventory(monkeypatch, tmp_path: Path) -> None:
+    inventory = MagicMock()
+    inventory.items.list_by_purchase_account.return_value = _make_sample_items()
+    monkeypatch.setattr(audit_neoseal_items, "get_inventory_client", lambda: inventory)
 
     out_md = tmp_path / "report.md"
     rc = audit_neoseal_items.main([
@@ -338,7 +338,7 @@ def test_cli_main_with_mock_books(monkeypatch, tmp_path: Path) -> None:
 
     assert rc == 0
     assert out_md.exists()
-    books.items.list_by_purchase_account.assert_called_once_with(
+    inventory.items.list_by_purchase_account.assert_called_once_with(
         "mock-account-id",
         status="all",
     )

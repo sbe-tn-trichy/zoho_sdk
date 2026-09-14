@@ -9,6 +9,7 @@ from zoho.books import ZohoBooksAPI
 from zoho.creator import ZohoCreatorAPI
 from zoho.wd import ZohoWorkdriveAPI
 from zoho.inventory import ZohoInventoryAPI
+from zoho.sheet import ZohoSheetAPI
 
 from .config import Config
 from .exceptions import ZohoAuthError
@@ -27,6 +28,23 @@ def get_inventory_client(
     return ZohoInventoryAPI(token or refresh(), org_id, domain=domain, token_refresh_callback=refresh)
 
 
+def get_sheet_client(
+    token: Optional[str] = None,
+    domain: str = Config.DOMAIN,
+    token_url: str = Config.TOKEN_URL,
+    token_refresh_callback: Optional[Callable[[], str]] = None,
+) -> ZohoSheetAPI:
+    """Create an authenticated Zoho Sheet client with token refresh support."""
+    if not token:
+        token = get_token_for("sheet", "zoho_sheet_conn", token_url=token_url)
+    if not token:
+        raise ZohoAuthError("No Zoho Sheet access token available.")
+    refresh_cb = token_refresh_callback or (
+        lambda: get_token_for("sheet", "zoho_sheet_conn", token_url=token_url)
+    )
+    return ZohoSheetAPI(access_token=token, domain=domain, token_refresh_callback=refresh_cb)
+
+
 def fetch_access_tokens(token_url: str = Config.TOKEN_URL) -> Dict[str, Optional[str]]:
     """Retrieve runtime-only access tokens from the configured token broker."""
     logger.info("Retrieving access tokens from configured token service.")
@@ -34,7 +52,7 @@ def fetch_access_tokens(token_url: str = Config.TOKEN_URL) -> Dict[str, Optional
         tokens = HttpTokenProvider(token_url, timeout=30).get_tokens()
         return {
             service: tokens.get(service)
-            for service in ("books", "workdrive", "inventory", "creator", "analytics")
+            for service in ("books", "workdrive", "inventory", "creator", "analytics", "sheet")
         }
     except Exception as exc:
         logger.error("Failed to fetch access tokens: %s", exc)

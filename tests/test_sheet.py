@@ -13,6 +13,11 @@ class TestZohoSheetAPI(unittest.TestCase):
         self.assertEqual(self.client.domain, "com")
         self.assertEqual(self.client.base_url, "https://sheet.zoho.com/api/v2")
 
+    def test_init_accepts_token_refresh_callback(self):
+        refresh = MagicMock(return_value="refreshed")
+        client = ZohoSheetAPI(self.access_token, token_refresh_callback=refresh)
+        self.assertIs(client.token_refresh_callback, refresh)
+
     def test_get_headers(self):
         headers = self.client._get_headers()
         self.assertEqual(headers, {"Authorization": "Zoho-oauthtoken fake_access_token"})
@@ -51,6 +56,47 @@ class TestZohoSheetAPI(unittest.TestCase):
             params={"method": "worksheet.list"},
             timeout=30,
         )
+
+    @patch("requests.request")
+    def test_list_sheets_accepts_worksheet_name_response_field(self, mock_request):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"worksheet_names": [{"worksheet_name": "Sheet1"}]}
+        mock_request.return_value = mock_response
+
+        self.assertEqual(self.client.list_sheets("wb1"), ["Sheet1"])
+
+    @patch("requests.request")
+    def test_get_sheet_id(self, mock_request):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {"worksheet_names": [
+            {"worksheet_name": "Sheet1", "worksheet_id": "0#"},
+        ]}
+        mock_request.return_value = response
+        self.assertEqual(self.client.get_sheet_id("wb1", "Sheet1"), "0#")
+        with self.assertRaises(ValueError):
+            self.client.get_sheet_id("wb1", "Missing")
+
+    @patch("requests.request")
+    def test_format_ranges(self, mock_request):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {"status": "success"}
+        mock_request.return_value = response
+        formats = [{"worksheet_id": "0#", "range": "A2:A2", "font_size": "18", "bold": "true"}]
+        self.client.format_ranges("wb1", formats)
+        assert mock_request.call_args.kwargs["params"] == {"method": "ranges.format.set"}
+        assert mock_request.call_args.kwargs["data"] == {"format_json": json.dumps(formats)}
+
+    @patch("requests.request")
+    def test_delete_rows_by_index(self, mock_request):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {"status": "success"}
+        mock_request.return_value = response
+        self.client.delete_rows("wb1", "Sheet1", [2, 3])
+        assert mock_request.call_args.kwargs["params"] == {"method": "worksheet.records.delete"}
+        assert mock_request.call_args.kwargs["data"] == {
+            "worksheet_name": "Sheet1", "row_array": "[2, 3]",
+        }
 
     @patch("requests.request")
     def test_get_rows_success(self, mock_request):
@@ -142,7 +188,7 @@ class TestZohoSheetAPI(unittest.TestCase):
             method="POST",
             url="https://sheet.zoho.com/api/v2/wb1",
             headers=self.client._get_headers(),
-            params={"method": "worksheet.add"},
+            params={"method": "worksheet.insert"},
             data={
                 "worksheet_name": "NewSheet"
             },

@@ -24,13 +24,14 @@ row. It requires contiguous item sequence numbers and reconciles the parsed line
 amounts to that subtotal before returning data. Rows after the total are never
 eligible for import.
 
-`import_polycab_rso_pdf(books_client, pdf_path, customer_id, location_id)`:
+`import_polycab_rso_pdf(books_client, pdf_path, customer_id, location_id,
+inventory_client=inventory, purchase_account_id=account_id)`:
 
 1. Parses and validates the PDF without mutating Books.
 2. Finds an existing sales order using the RSO number as either the reference or
    sales-order number.
-3. Resolves every unique Polycab SKU to an existing Books item, trying both the
-   compact printed code and the Books convention with a hyphen after its
+3. Resolves every unique Polycab SKU to an existing Inventory item, trying both the
+   compact printed code and the catalog convention with a hyphen after its
    six-character prefix, and refuses to create the order if any SKU is missing.
    Approved replacements currently map `FTANSST033P` to `FTANSS-T024P` and
    `FCEECST303M` to `FCEECS-T187M`, and `LDO0119012` to
@@ -44,3 +45,8 @@ eligible for import.
 If the order already exists, creation is skipped. A missing attachment is added;
 an attachment already reported by Books is left unchanged. The CLI entry point
 is `python apps/import_polycab_rso.py <pdf-path>`.
+
+Item resolution uses the injected Inventory client and scopes every SKU query by
+`purchase_account_id`. The CLI constructs both clients through the auth factories
+and accepts `--purchase-account-id`, defaulting to `FAN_PURCHASE_ACCOUNT_ID`.
+A missing account is rejected before item lookup when a new order is needed.

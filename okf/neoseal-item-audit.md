@@ -42,7 +42,7 @@ The workflow inspects four key catalog quality dimensions:
      `UPVC Solvent`) and `Neoseal Others` (redirecting to `Neoseal Maintenance`).
 
 5. **Price List Verification**:
-   - Compares each Books item `rate` against an optional price-list CSV using a
+   - Compares each Inventory item `rate` against an optional price-list CSV using a
      case-insensitive exact SKU match.
    - The price-list CSV must include `sku` and one of `price`, `rate`, or
      `selling_price`. Duplicate price-list SKUs are rejected as ambiguous.
@@ -53,7 +53,7 @@ The workflow inspects four key catalog quality dimensions:
 
 7. **Pack Size and MRP**:
    - Flags missing or non-positive `pack_size` and `mrp` fields, and MRP values
-     below the Books selling price.
+     below the Inventory selling price.
 
 8. **Vendor Alias Configuration**:
    - Flags missing `alias_name` values so vendor-facing Neoseal names can be
@@ -61,7 +61,7 @@ The workflow inspects four key catalog quality dimensions:
 
 ## Command-Line Usage
 
-### Live Query against Zoho Books
+### Live Query against Zoho Inventory
 
 Run directly using the configured Neoseal purchase account:
 
@@ -102,9 +102,9 @@ report_md = render_markdown_report(result)
 ## Catalog Naming & SKU Updater (`apply_neoseal_name_updates.py`)
 
 A permanent CLI application in `apps/apply_neoseal_name_updates.py` executes approved
-nomenclature and SKU updates against live Books items.
+nomenclature and SKU updates against live Inventory items.
 
-- **Safe-by-Default Dry-Run**: Evaluates items and outputs a before/after diff table without mutating Books unless `--apply` is passed.
+- **Safe-by-Default Dry-Run**: Evaluates items and outputs a before/after diff table without mutating Inventory unless `--apply` is passed.
 - **Automated Backup**: Dumps a complete pre-update item snapshot to `output/neoseal_pre_update_snapshot_<timestamp>.json` before any mutations occur.
 - **Audit Trail**: Writes a JSON audit report of all applied mutations to `output/neoseal_name_updates_audit.json`.
 - **SI Unit Compliance**: Standardizes spacing before unit literals (`1 kg`, `500 g`, `100 ml`, `20 L`, `12 mm`, `10 m`) and replaces non-SI `mtr` with `m`.
@@ -114,6 +114,6 @@ nomenclature and SKU updates against live Books items.
 # Dry run inspection
 python apps/apply_neoseal_name_updates.py --dry-run
 
-# Commit mutations to Zoho Books
+# Commit mutations to Zoho Inventory
 python apps/apply_neoseal_name_updates.py --apply
 ```

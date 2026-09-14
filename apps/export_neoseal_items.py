@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export Books items for a purchase account and flag missing vendor aliases."""
+"""Export Inventory items for a purchase account and flag missing vendor aliases."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ try:
 except ImportError:  # Direct script execution.
     import _bootstrap  # type: ignore[no-redef]  # noqa: F401
 
-from workflows.core.auth import get_books_client
+from workflows.core.auth import get_inventory_client
 
 
 FIELDS = (
@@ -28,7 +28,7 @@ FIELDS = (
 
 
 def export_row(item: Mapping[str, Any]) -> Dict[str, str]:
-    """Return the stable CSV representation of one Books item."""
+    """Return the stable CSV representation of one Inventory item."""
     alias = str(item.get("alias_name") or "").strip()
     return {
         "item_id": str(item.get("item_id") or "").strip(),
@@ -67,7 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
-    items = get_books_client().items.list_by_purchase_account(
+    items = get_inventory_client().items.list_by_purchase_account(
         args.purchase_account_id,
         status="active",
     )

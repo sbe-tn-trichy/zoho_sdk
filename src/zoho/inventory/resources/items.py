@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 import json
 from ..base import BaseResource
 
@@ -6,6 +6,14 @@ class Items(BaseResource):
     """Resource class for Zoho Inventory Items operations."""
     def __init__(self, client: Any):
         super().__init__(client, 'items')
+
+    def mark_as_active(self, item_id: str) -> Dict[str, Any]:
+        """Activate an Inventory item."""
+        return self._action('POST', item_id, 'active')
+
+    def mark_as_inactive(self, item_id: str) -> Dict[str, Any]:
+        """Deactivate an Inventory item."""
+        return self._action('POST', item_id, 'inactive')
 
     def get_details(self, item_ids: List[str], batch_size: int = 50) -> List[Dict[str, Any]]:
         """Bulk-fetch complete items through GET /itemdetails; require every ID."""
@@ -51,19 +59,20 @@ class Items(BaseResource):
 
     def list_by_status(self, status: str = "active") -> List[Dict[str, Any]]:
         params: Dict[str, Any] = {}
-        if status and status.lower() != "all":
+        if status:
             params["filter_by"] = f"Status.{status.title()}"
         return self.list_all(params=params)
 
     def list_by_purchase_account(
         self,
-        account_id: Optional[str],
+        account_id: str,
         status: str = "all",
     ) -> List[Dict[str, Any]]:
-        params: Dict[str, Any] = {}
-        if account_id:
-            params["purchase_account_id"] = account_id
-        if status and status.lower() != "all":
+        account_id = str(account_id or "").strip()
+        if not account_id:
+            raise ValueError("purchase_account_id is required.")
+        params: Dict[str, Any] = {"purchase_account_id": account_id}
+        if status:
             params["filter_by"] = f"Status.{status.title()}"
         return self.list_all(params=params)
 

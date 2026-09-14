@@ -52,6 +52,7 @@ Supported configuration keys:
 - `POLYCAB_VENDOR_ID`: Vendor ID for Polycab ledger reconciliation.
 - `NEOSEAL_PURCHASE_ACCOUNT_ID`: Purchase-account ID used to scope NeoSeal item-catalog workflows.
 - `NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID`: Google Sheet ID for the NeoSeal price list.
+- `NEOSEAL_STOCK_COUNT_SHEET_ID`: Zoho Sheet workbook ID for the active NeoSeal stock-count worksheet.
 - `FAN_PURCHASE_ACCOUNT_ID`: Purchase-account ID used to scope fan item-catalog workflows.
 - `ZEISS_VENDOR_ID`: Vendor ID for Zeiss ledger reconciliation.
 - `ZOHO_RSO_CN_ITEM_ID`: Books item ID used for RSO credit notes.

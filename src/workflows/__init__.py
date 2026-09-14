@@ -8,6 +8,8 @@ from typing import Dict, Tuple
 from .core.auth import (
     fetch_access_tokens,
     get_books_client,
+    get_inventory_client,
+    get_sheet_client,
     get_workdrive_client,
 )
 from .core.exceptions import (
@@ -57,6 +59,7 @@ _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
     "sync_creator_customer_deletions": (".creator_customer_delete_sync", "sync_creator_customer_deletions"),
     "NeosealItemAuditor": (".neoseal_audit", "NeosealItemAuditor"),
     "audit_neoseal_items": (".neoseal_audit", "audit_neoseal_items"),
+    "fetch_neoseal_stock_count": (".neoseal_stock_count", "fetch_neoseal_stock_count"),
 }
 
 
@@ -85,6 +88,8 @@ def __dir__():
 __all__ = [
     "fetch_access_tokens",
     "get_books_client",
+    "get_inventory_client",
+    "get_sheet_client",
     "get_workdrive_client",
     "ZohoUsableError",
     "ZohoAuthError",
@@ -125,4 +130,5 @@ __all__ = [
     "sync_creator_customer_deletions",
     "NeosealItemAuditor",
     "audit_neoseal_items",
+    "fetch_neoseal_stock_count",
 ]

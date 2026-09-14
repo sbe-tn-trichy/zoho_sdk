@@ -80,7 +80,7 @@ Use dry-run options where a workflow provides them. Verify organization, domain,
 ## NeoSeal item alias review
 
 Run the read-only export below to create an all-items catalog and a smaller
-review list for NeoSeal Books items that do not yet have an `alias_name`:
+review list for NeoSeal Inventory items that do not yet have an `alias_name`:
 
 ```bash
 PYTHONPATH=src .venv/bin/python apps/export_neoseal_items.py \
@@ -92,7 +92,7 @@ included in review or downstream update inputs. The default outputs are `output/
 `output/neoseal_items_missing_alias.csv`. The latter is the working list for
 recording the vendor's exact supplied item name in Books `alias_name`; the
 script scopes the catalog by the dedicated NeoSeal purchase account rather than
-by a free-text manufacturer value, and never creates or updates Books items.
+by a free-text manufacturer value, and never creates or updates Inventory items.
 
 # Related Knowledge
 

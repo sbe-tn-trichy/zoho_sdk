@@ -68,15 +68,14 @@ def test_compute_item_update_duplicate_detection():
     assert "701-260-BLK" in update_b["duplicate_info"]["master_sku"]
 
 
-from pathlib import Path
 
-def test_run_plan_dry_run_never_mutates():
+def test_run_plan_dry_run_never_mutates(tmp_path):
     mock_client = MagicMock()
     items = [
         {"item_id": "1", "name": '1" PVC Ball Valve GS PLUS', "sku": "1-PVC-GSP"},
         {"item_id": "2", "name": "100 PVC Solution 100ml (Tin)", "sku": "100-100-PVC-CLR-TIN"},
     ]
-    test_out = Path("tests/.tmp_output")
+    test_out = tmp_path
 
     summary = run_plan_or_apply(
         items=items,
@@ -91,13 +90,13 @@ def test_run_plan_dry_run_never_mutates():
     mock_client.items.mark_as_inactive.assert_not_called()
 
 
-def test_run_plan_apply_calls_update():
+def test_run_plan_apply_calls_update(tmp_path):
     mock_client = MagicMock()
     items = [
         {"item_id": "101", "name": '1" PVC Ball Valve GS PLUS', "sku": "1-PVC-GSP"},
         {"item_id": "102", "name": "701 GP Silicone Sealant 260 ml Black", "sku": "701-260-B"},
     ]
-    test_out = Path("tests/.tmp_output")
+    test_out = tmp_path
 
     summary = run_plan_or_apply(
         items=items,

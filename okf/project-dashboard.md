@@ -34,7 +34,7 @@ IDs, only those domains are shown. `exclude` is applied last and therefore wins
 when an ID is present in both lists. Supported IDs are
 `bank_vendor_ledger_matching`, `collection_reconciliation`,
 `creator_customer_sync`, `duplicate_payment_check`, `gstr1_verification`,
-`neoseal_audit`, `polycab_credit_memos`, `polycab_rso`, `stock_transfer`,
+`neoseal_audit`, `neoseal_stock_count`, `polycab_credit_memos`, `polycab_rso`, `stock_transfer`,
 `vendor_customer_offset`, and `vendor_ledger_reconciliation`. Configuration
 with unknown IDs or incorrectly typed values fails at dashboard startup rather
 than silently hiding the wrong operation.

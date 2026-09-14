@@ -155,10 +155,7 @@ def fetch_token_from_catalyst(url: str, service_key: str) -> str:
     Raises ZohoAuthError when the broker cannot be reached or does not return the
     requested token. Error messages never include response payloads or tokens.
     """
-    provider = HttpTokenProvider(
-        url,
-        fallback_services={"inventory": "books"},
-    )
+    provider = HttpTokenProvider(url)
     return provider.get_token(service_key)
 
 

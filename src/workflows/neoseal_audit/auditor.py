@@ -451,7 +451,7 @@ class NeosealItemAuditor:
 
         An empty price list means the comparison was not requested, so no issues
         are produced. When a price list is supplied, every item with a SKU must
-        have one matching entry and its listed price must equal Books ``rate``.
+        have one matching entry and its listed price must equal Inventory ``rate``.
         """
         if self.price_list is None:
             return []
@@ -489,7 +489,7 @@ class NeosealItemAuditor:
                     "system_price": it["rate"],
                     "price_list_price": price_list_price,
                     "issue_type": "price_mismatch",
-                    "description": "Zoho Books selling price does not match the price-list price.",
+                    "description": "Zoho Inventory selling price does not match the price-list price.",
                 })
         return issues
 

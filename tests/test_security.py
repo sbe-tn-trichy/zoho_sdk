@@ -132,21 +132,23 @@ class TestSalesOrdersSecurity(unittest.TestCase):
     def setUp(self):
         self.client = MagicMock()
         self.sales_orders = SalesOrders(self.client)
+        self.inventory = MagicMock()
 
     def test_create_from_yaml_requires_customer_id(self):
         yaml_content = "inv:\n  no: '123'\n  date: '2026-01-01'\nitems:\n  - sku: 'ITEM-1'\n    qty: 1\n    rate: 100\n    name: 'Widget'\n"
         with self.assertRaises(ValueError) as ctx:
-            self.sales_orders.create_from_yaml(yaml_content, customer_id="")
+            self.sales_orders.create_from_yaml(yaml_content, customer_id="", inventory_client=self.inventory)
         self.assertIn("customer_id is required", str(ctx.exception))
 
     def test_create_from_yaml_missing_items_requires_default_accounts(self):
         yaml_content = "inv:\n  no: '123'\n  date: '2026-01-01'\nitems:\n  - sku: 'NEW-SKU'\n    qty: 1\n    rate: 100\n    name: 'Widget'\n"
-        self.client.items.list.return_value = {"items": []}
+        self.inventory.items.list.return_value = {"items": []}
         with self.assertRaises(ValueError) as ctx:
             self.sales_orders.create_from_yaml(
                 yaml_content,
                 customer_id="cust123",
                 create_missing_items=True,
+                inventory_client=self.inventory,
                 default_accounts=None
             )
         self.assertIn("default_accounts", str(ctx.exception))

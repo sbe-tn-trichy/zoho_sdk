@@ -1,9 +1,11 @@
-"""Higher-level helper functions for Zoho Books and Inventory item operations."""
+"""Higher-level helper functions for Zoho Inventory item operations."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Optional
+
+from zoho.inventory import ZohoInventoryAPI
 
 logger = logging.getLogger("zoho.helpers.items")
 
@@ -28,24 +30,24 @@ def _get_items_iterable(items_resource: Any, params: Dict[str, Any]) -> Any:
 
 
 def fetch_items_lookup(
-    books_client: Any,
+    inventory_client: ZohoInventoryAPI,
     key_field: str = "name",
     status: str = "active",
     purchase_account_id: Optional[str] = None,
 ) -> Dict[str, Dict[str, Any]]:
-    """Fetch all items from Zoho Books/Inventory and index them by `key_field`.
+    """Fetch all items from Zoho Inventory and index them by `key_field`.
 
     Supports `name`, `sku`, `item_id`, `item_name`, etc. Optional `purchase_account_id`
     scopes the query to a specific purchase account.
     """
-    params: Dict[str, Any] = {"status": status}
+    params: Dict[str, Any] = {"filter_by": f"Status.{status.title()}"}
     if purchase_account_id:
         params["purchase_account_id"] = str(purchase_account_id).strip()
 
     lookup: Dict[str, Dict[str, Any]] = {}
 
     try:
-        items = _get_items_iterable(books_client.items, params)
+        items = _get_items_iterable(inventory_client.items, params)
         for item in items:
             key_val = item.get(key_field)
             if key_val is None and key_field == "name":
@@ -65,7 +67,7 @@ def fetch_items_lookup(
 
 
 def fetch_items_by_purchase_account(
-    books_client: Any,
+    inventory_client: ZohoInventoryAPI,
     purchase_account_id: str,
     key_field: str = "sku",
     status: str = "all",
@@ -76,7 +78,7 @@ def fetch_items_by_purchase_account(
         raise ValueError("purchase_account_id is required.")
 
     return fetch_items_lookup(
-        books_client,
+        inventory_client,
         key_field=key_field,
         status=status,
         purchase_account_id=account_id,
@@ -84,7 +86,7 @@ def fetch_items_by_purchase_account(
 
 
 def find_item_by_sku_or_name(
-    books_client: Any,
+    inventory_client: ZohoInventoryAPI,
     query: str,
     purchase_account_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -99,7 +101,7 @@ def find_item_by_sku_or_name(
         params["purchase_account_id"] = str(purchase_account_id).strip()
 
     try:
-        res = books_client.items.list(params=params)
+        res = inventory_client.items.list(params=params)
         items = res.get("items", []) if isinstance(res, dict) else (res if isinstance(res, list) else [])
         for item in items:
             sku = str(item.get("sku") or "").strip().lower()

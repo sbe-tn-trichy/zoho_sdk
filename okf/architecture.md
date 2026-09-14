@@ -49,3 +49,9 @@ zoho (API Clients & Auth) <-- workflows (Business Engines) <-- apps (Web UIs & C
 - Public signatures use explicit typed parameters, and stable structured records
   crossing workflow boundaries use `TypedDict` or dataclasses.
 - Applications obtain clients from `workflows.core.auth` factories.
+- Use the Zoho Inventory API for item and inventory-related operations, including
+  catalog reads and updates, stock, warehouses, and inventory adjustments.
+  Vendor catalog queries must retain `purchase_account_id` scoping. Applications
+  inject a separate Inventory client when a Books transaction needs item lookup
+  or creation; Books clients do not expose an item resource. See
+  [Inventory API routing](zoho-inventory.md) for the public API migration.

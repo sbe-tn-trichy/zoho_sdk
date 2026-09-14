@@ -8,13 +8,19 @@ class ZohoSheetAPI(BaseZohoClient):
     Client for Zoho Sheet API v2.
     Docs: https://www.zoho.com/sheet/help/api/v2/
     """
-    def __init__(self, access_token: str, domain: str = "in"):
+    def __init__(
+        self,
+        access_token: str,
+        domain: str = "in",
+        token_refresh_callback: Optional[Any] = None,
+    ):
         base_url = f"https://sheet.zoho.{domain or 'in'}/api/v2"
         super().__init__(
             access_token=access_token,
             domain=domain or "in",
             base_url=base_url,
-            service_name="sheet"
+            service_name="sheet",
+            token_refresh_callback=token_refresh_callback,
         )
 
     def _get_headers(self) -> dict:
@@ -34,10 +40,38 @@ class ZohoSheetAPI(BaseZohoClient):
         res = self.request("POST", workbook_id, params=params, is_mutation=False)
         worksheets = res.get('worksheet_names', [])
         return [
-            str(item.get("name")) if isinstance(item, dict) else str(item)
+            str(item.get("worksheet_name") or item.get("name"))
+            if isinstance(item, dict) else str(item)
             for item in worksheets
-            if not isinstance(item, dict) or item.get("name") is not None
+            if not isinstance(item, dict)
+            or item.get("worksheet_name") is not None
+            or item.get("name") is not None
         ]
+
+    def get_sheet_id(self, workbook_id: str, sheet_name: str) -> str:
+        """Return the worksheet ID required by workbook range-format APIs."""
+        res = self.request("POST", workbook_id, params={"method": "worksheet.list"}, is_mutation=False)
+        for worksheet in res.get("worksheet_names", []):
+            if isinstance(worksheet, dict) and worksheet.get("worksheet_name") == sheet_name:
+                return str(worksheet["worksheet_id"])
+        raise ValueError(f"Worksheet {sheet_name!r} was not found.")
+
+    def format_ranges(self, workbook_id: str, formats: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Apply Zoho Sheet range formats in one workbook request."""
+        return self.request(
+            "POST", workbook_id, params={"method": "ranges.format.set"},
+            data={"format_json": json.dumps(formats)}, is_mutation=True,
+        )
+
+    def delete_rows(self, workbook_id: str, sheet_name: str, row_indices: List[int]) -> Dict[str, Any]:
+        """Delete specific tabular rows using their Zoho row indices."""
+        if not row_indices:
+            return {}
+        return self.request(
+            "POST", workbook_id, params={"method": "worksheet.records.delete"},
+            data={"worksheet_name": sheet_name, "row_array": json.dumps(row_indices)},
+            is_mutation=True,
+        )
 
     def get_rows(self, workbook_id: str, sheet_name: str, limit: int = 1) -> List[Any]:
         """Fetches rows from a specific sheet. Returns empty list if sheet has no records."""
@@ -93,7 +127,7 @@ class ZohoSheetAPI(BaseZohoClient):
 
     def add_sheet(self, workbook_id: str, sheet_name: str) -> Dict[str, Any]:
         """Adds a new sheet to an existing workbook."""
-        params = {"method": "worksheet.add"}
+        params = {"method": "worksheet.insert"}
         payload = {
             "worksheet_name": sheet_name
         }
