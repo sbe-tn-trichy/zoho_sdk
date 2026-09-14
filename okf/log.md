@@ -2,9 +2,65 @@
 
 ## 2026-09-14
 
+- Rebuilt and verified every mapped StockCount QTY formula to use the corresponding Mapping SKU and Flat available quantity in column E.
+
+- Removed sort order, group, and subgroup from the Neoseal Flat schema; item ID now starts in column A and packing is in column L.
+
+- The Neoseal Flat refresh now validates the full existing header order and numeric item IDs before writing, preventing duplicate appends from shifted columns.
+
+- Optimized NeoSeal Flat stock count upsert to use bulk truncate and add: cleared
+  data rows via `worksheet.records.delete` with `criteria='"item_id" != \'\''` to
+  leave headers intact, then re-added all merged items in a single `worksheet.records.add`
+  call, reducing sheet API calls from 95+ to 3 and execution time to ~2–3s while
+  preserving manual counts, remarks, and unapproved missing items.
+
+- Made NeoSeal Flat reads inspect the full grid after deletions: Zoho's tabular
+  fetch stops at a blank row and previously hid later items, causing duplicates.
+  Approved deletions now process individual row indices from bottom to top.
+
+- Added the Inventory item's `cf_pack_size` custom-field value to the trailing
+  `packing` column in NeoSeal Flat upserts, preserving existing column positions.
+
+- Added a post-upsert report of Flat items absent from the current tracked
+  Inventory fetch, plus an exact-ID deletion command that requires separate
+  approval and revalidates missing status before deleting.
+
+- Limited the NeoSeal Flat stock-count run to active Inventory items whose
+  catalog `track_inventory` flag is true, filtering before bulk detail fetch.
+
+- Corrected Zoho Sheet record updates to send the required `data` parameter,
+  enabling item-ID-based Flat stock-count updates.
+
+- Changed the NeoSeal stock-count command to an ungrouped Flat-only Inventory
+  quantity upsert keyed by item ID; existing rows retain manual fields, missing
+  items are appended, and StockCount/Mapping are left untouched.
+
+- Added a custom `StockCount` reconciliation operation that sets QTY to zero for
+  product lines without a SKU-to-cell mapping while preserving mapped values and
+  section headings.
+
+- Moved the Neoseal `Mapping` sheet's Name field to column C and sourced each
+  mapped item's name from its product row in `StockCount`; unmapped items keep
+  blank Cell and Name values, and refreshes reject missing page labels.
+
+- Added permanent CLI runner `apps/sync_creator_customers.py` for reconciling
+  customer records between Books and Creator, configurable branch/status filtering,
+  safe dry-run defaults, and connected it to entry 10 in `apps/dashboard.py`.
+- Updated the Neoseal `Mapping` worksheet to link 90 active Inventory items
+  to their target `QTY` columns in the customized dual-column `StockCount` layout
+  (Column `C` for Left table, Column `H` for Right table) while keeping the `AVL`
+  columns (`D` and `I`) blank. Added `clear_range` to `ZohoSheetAPI`, updated
+  `CUSTOM_STOCK_COUNT_MAPPING` in `workflows.neoseal_stock_count`, preserved
+  intentional unmapped entries (`cell=""`), and aggregated available quantities
+  for multi-variant consolidated count rows.
+- Added `apps/format_stock_count.py` and `format_custom_stock_count_sheet` API
+  in `workflows.neoseal_stock_count` to automatically merge category header cells
+  (`A:D` and `F:I`), align text and numeric columns, and apply clean borders across
+  the dual-column `StockCount` sheet in Zoho Sheet.
 - Reorganized configuration files (`zoho_config.example.json` and local profiles)
   into module/workflow sections (`core`, `dashboard`, `creator`, `neoseal`,
   `polycab`, `fan`, `zeiss`, `banking`) with automatic key flattening and prefix aliasing.
+
 - Moved Neoseal stock count worksheet names (`Sheet1`, `Flat`, `Mapping`) to
   configuration files (`zoho_config.json` / `config.json`) with individual and
   grouped mapping settings, and enabled project-root `config.json` recognition.

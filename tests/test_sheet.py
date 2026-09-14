@@ -236,7 +236,7 @@ class TestZohoSheetAPI(unittest.TestCase):
             data={
                 "worksheet_name": "Sheet1",
                 "criteria": "Name='John'",
-                "json_data": json.dumps(rows_data)
+                "data": json.dumps(rows_data)
             },
             timeout=30,
         )
@@ -304,7 +304,6 @@ class TestSheetCatalystAuth(unittest.TestCase):
         api_response.json.return_value = {"status": "success"}
         res = client.set_cell("wb123", "Sheet1", 1, 1, "hello")
         self.assertEqual(res, {"status": "success"})
-        
         mock_post.assert_called_once()
         self.assertEqual(mock_request.call_args.kwargs["url"], "https://sheet.zoho.in/api/v2/wb123")
         self.assertEqual(
@@ -312,6 +311,24 @@ class TestSheetCatalystAuth(unittest.TestCase):
             "Zoho-oauthtoken catalyst_sheet_token",
         )
 
+        # 3. clear_range is also a mutating method
+        mock_post.reset_mock()
+        mock_request.reset_mock()
+        api_response.json.return_value = {"status": "success"}
+        res = client.clear_range("wb123", "Sheet1", 3, 4, 10, 4)
+        self.assertEqual(res, {"status": "success"})
+        mock_post.assert_called_once()
+        self.assertEqual(mock_request.call_args.kwargs["params"], {"method": "range.clear"})
+        self.assertEqual(
+            mock_request.call_args.kwargs["data"],
+            {
+                "worksheet_name": "Sheet1",
+                "start_row": 3,
+                "start_column": 4,
+                "end_row": 10,
+                "end_column": 4,
+            },
+        )
 
 
 if __name__ == "__main__":

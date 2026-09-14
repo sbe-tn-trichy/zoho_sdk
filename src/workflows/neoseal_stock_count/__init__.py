@@ -1,6 +1,9 @@
 """Neoseal stock count: grouped, ordered Inventory quantity snapshots."""
 
 from .processor import (
+    FlatStockRow,
+    FlatStockSnapshot,
+    fetch_neoseal_flat_stock,
     CountPlacement,
     SKUMappingRow,
     StockCount,
@@ -12,19 +15,34 @@ from .processor import (
     parse_cell_address,
 )
 from .reporting import (
+    upsert_flat_stock_to_sheet,
+    delete_approved_missing_flat_items,
+    FlatStockUpsertResult,
+    MissingFlatItem,
+    CUSTOM_STOCK_COUNT_MAPPING,
     MAPPING_FIELDS,
     StockCountFiles,
     StockCountSheetResult,
     build_sku_cell_mappings,
     fill_quantities_from_mapping,
+    format_custom_stock_count_sheet,
     render_stock_count,
     write_flat_stock_count_to_sheet,
     write_mapping_to_sheet,
     write_stock_count,
     write_stock_count_to_sheet,
+    zero_unmapped_stockcount_quantities,
 )
 
 __all__ = [
+    "FlatStockRow",
+    "FlatStockSnapshot",
+    "fetch_neoseal_flat_stock",
+    "upsert_flat_stock_to_sheet",
+    "delete_approved_missing_flat_items",
+    "FlatStockUpsertResult",
+    "MissingFlatItem",
+    "CUSTOM_STOCK_COUNT_MAPPING",
     "CountPlacement",
     "MAPPING_FIELDS",
     "SKUMappingRow",
@@ -38,10 +56,12 @@ __all__ = [
     "fetch_neoseal_stock_count",
     "fill_quantities_from_mapping",
     "format_cell_address",
+    "format_custom_stock_count_sheet",
     "parse_cell_address",
     "render_stock_count",
     "write_flat_stock_count_to_sheet",
     "write_mapping_to_sheet",
     "write_stock_count",
     "write_stock_count_to_sheet",
+    "zero_unmapped_stockcount_quantities",
 ]

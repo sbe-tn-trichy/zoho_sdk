@@ -23,7 +23,7 @@ okf_version: "0.2"
 * [Vendor-Customer Offset](vendor-customer-offset.md) - GSTIN-safe paired customer/vendor payments through a clearing bank account.
 * [Creator Customer Sync](creator-customer-delete-sync.md) - Books-to-Creator customer creation, update, and deletion reconciliation.
 * [Neoseal Item Audit](neoseal-item-audit.md) - Automated catalog data quality, duplicate/packaging twin detection, nomenclature verification, and item group audit.
-* [Neoseal Stock Count](neoseal-stock-count.md) - Inventory quantities grouped into ordered count sheets with optional shelf-layout overrides.
+* [Neoseal Stock Count](neoseal-stock-count.md) - Active, inventory-tracked item quantity upserts into the Flat Zoho Sheet tab.
 * [SDK Audit Findings](sdk-audit-findings.md) - Security, performance, and usability review across core transport and service clients.
 * [OKF Maintenance](okf-maintenance.md) - Rules for maintaining concept documentation, YAML frontmatter, and change logs.
 

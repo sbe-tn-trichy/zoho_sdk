@@ -152,7 +152,7 @@ class ZohoSheetAPI(BaseZohoClient):
         payload = {
             "worksheet_name": sheet_name,
             "criteria": criteria,
-            "json_data": json.dumps(rows_data)
+            "data": json.dumps(rows_data)
         }
         return self.request("POST", workbook_id, params=params, data=payload, is_mutation=True)
 
@@ -162,5 +162,25 @@ class ZohoSheetAPI(BaseZohoClient):
         payload = {
             "worksheet_name": sheet_name,
             "criteria": criteria
+        }
+        return self.request("POST", workbook_id, params=params, data=payload, is_mutation=True)
+
+    def clear_range(
+        self,
+        workbook_id: str,
+        sheet_name: str,
+        start_row: int,
+        start_col: int,
+        end_row: int,
+        end_col: int,
+    ) -> Dict[str, Any]:
+        """Clears content across a specified range using range.clear."""
+        params = {"method": "range.clear"}
+        payload = {
+            "worksheet_name": sheet_name,
+            "start_row": start_row,
+            "start_column": start_col,
+            "end_row": end_row,
+            "end_column": end_col,
         }
         return self.request("POST", workbook_id, params=params, data=payload, is_mutation=True)

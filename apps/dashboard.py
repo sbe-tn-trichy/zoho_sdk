@@ -124,11 +124,10 @@ WORKFLOWS = (
         10,
         "Creator customer sync",
         "Reconcile customer creation, updates, and deletions between Books and Creator.",
-        None,
+        (sys.executable, "apps/sync_creator_customers.py", "--dry-run"),
         "Customers",
-        safety="Changes data",
+        safety="Dry run",
         workflow="creator_customer_sync",
-        setup="Review the target Creator app and confirm live changes.",
     ),
     WorkflowSpec(
         11,
@@ -182,7 +181,7 @@ WORKFLOWS = (
     WorkflowSpec(
         16,
         "Neoseal stock count",
-        "List available quantities by group and subgroup in counting order.",
+        "Upsert active, inventory-tracked NeoSeal items in the Flat stock sheet.",
         (sys.executable, "apps/neoseal_stock_count.py"),
         "Inventory",
         workflow="neoseal_stock_count",

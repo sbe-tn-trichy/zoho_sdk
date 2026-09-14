@@ -32,7 +32,7 @@
         "neoseal_purchase_account_id": "<neoseal-purchase-account-id>",
         "neoseal_price_list_google_sheet_id": "<google-sheet-id>",
         "neoseal_stock_count_sheet_id": "<zoho-sheet-workbook-id>",
-        "neoseal_stock_count_worksheet": "Sheet1",
+        "neoseal_stock_count_worksheet": "StockCount",
         "neoseal_stock_count_flat_worksheet": "Flat",
         "neoseal_stock_count_mapping_worksheet": "Mapping"
       },

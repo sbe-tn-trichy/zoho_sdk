@@ -56,7 +56,7 @@ Supported configuration keys:
 - `NEOSEAL_PURCHASE_ACCOUNT_ID`: Purchase-account ID used to scope NeoSeal item-catalog workflows.
 - `NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID`: Google Sheet ID for the NeoSeal price list.
 - `NEOSEAL_STOCK_COUNT_SHEET_ID`: Zoho Sheet workbook ID for the active NeoSeal stock-count worksheet.
-- `NEOSEAL_STOCK_COUNT_WORKSHEET`: Target worksheet name for the formatted Neoseal stock count; defaults to `Sheet1`.
+- `NEOSEAL_STOCK_COUNT_WORKSHEET`: Target worksheet name for the formatted Neoseal stock count; defaults to `StockCount`.
 - `NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET`: Target worksheet name for the flat tabular Neoseal stock count; defaults to `Flat`.
 - `NEOSEAL_STOCK_COUNT_MAPPING_WORKSHEET`: Target worksheet name for the SKU-to-cell coordinate mapping; defaults to `Mapping`.
 - `NEOSEAL_STOCK_COUNT_WORKSHEETS`: Optional JSON object mapping (`count`, `flat`, `mapping`) to configure worksheet names together.

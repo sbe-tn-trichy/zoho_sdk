@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""Create grouped Neoseal stock-count sheets using Zoho Inventory."""
+"""Upsert active, inventory-tracked Neoseal items into the Flat Zoho Sheet tab."""
 
 from __future__ import annotations
 
 import argparse
-import csv
 import sys
-from pathlib import Path
 from typing import Sequence
 
 try:
@@ -17,30 +15,10 @@ except ImportError:
 from workflows.core.auth import get_inventory_client, get_sheet_client
 from workflows.core.config import Config
 from workflows.neoseal_stock_count import (
-    CountPlacement,
-    fetch_neoseal_stock_count,
-    fill_quantities_from_mapping,
-    write_flat_stock_count_to_sheet,
-    write_mapping_to_sheet,
-    write_stock_count_to_sheet,
+    delete_approved_missing_flat_items,
+    fetch_neoseal_flat_stock,
+    upsert_flat_stock_to_sheet,
 )
-
-
-def load_layout(path: Path) -> dict[str, CountPlacement]:
-    """Read item_id, group, subgroup and optional numeric ordering columns."""
-    result = {}
-    with path.open(encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        if not {"item_id", "group", "subgroup"}.issubset(reader.fieldnames or []):
-            raise ValueError("Layout CSV requires item_id, group, and subgroup columns.")
-        for row in reader:
-            item_id = (row["item_id"] or "").strip()
-            if not item_id or item_id in result:
-                raise ValueError("Layout item IDs must be non-empty and unique.")
-            result[item_id] = CountPlacement((row["group"] or "").strip(), (row["subgroup"] or "").strip(),
-                int(row.get("group_order") or 90), int(row.get("subgroup_order") or 90),
-                int(row.get("item_order") or 0))
-    return result
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -48,58 +26,54 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--purchase-account-id", default=Config.NEOSEAL_PURCHASE_ACCOUNT_ID)
     parser.add_argument("--location-id", help="Optional Inventory location ID; default is whole organization")
     parser.add_argument("--sheet-id", default=Config.NEOSEAL_STOCK_COUNT_SHEET_ID)
-    parser.add_argument("--worksheet", default=Config.NEOSEAL_STOCK_COUNT_WORKSHEET)
     parser.add_argument("--flat-worksheet", default=Config.NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET)
-    parser.add_argument("--mapping-worksheet", default=Config.NEOSEAL_STOCK_COUNT_MAPPING_WORKSHEET)
-    parser.add_argument("--layout-csv", type=Path, help="Optional shelf layout and count-order overrides")
+    parser.add_argument("--delete-missing-item-id", action="append", default=[],
+                        help="Delete one previously reviewed missing Flat item ID; repeat for more IDs")
     args = parser.parse_args(argv)
     if not args.purchase_account_id or not args.purchase_account_id.strip():
         parser.error("Set NEOSEAL_PURCHASE_ACCOUNT_ID or pass --purchase-account-id.")
+    if any(not item_id.isdigit() for item_id in args.delete_missing_item_id):
+        parser.error("--delete-missing-item-id requires a numeric item ID.")
     try:
-        layout = load_layout(args.layout_csv) if args.layout_csv else None
         if not args.sheet_id or not args.sheet_id.strip():
             parser.error("Set NEOSEAL_STOCK_COUNT_SHEET_ID or pass --sheet-id.")
-        count = fetch_neoseal_stock_count(
+        snapshot = fetch_neoseal_flat_stock(
             get_inventory_client(),
             purchase_account_id=args.purchase_account_id,
             location_id=args.location_id,
-            layout=layout,
         )
         sheet_client = get_sheet_client()
-        flat_result = write_flat_stock_count_to_sheet(
+        result = upsert_flat_stock_to_sheet(
             sheet_client,
             workbook_id=args.sheet_id,
             worksheet_name=args.flat_worksheet,
-            count_worksheet_name=args.worksheet,
-            count=count,
+            snapshot=snapshot,
         )
-        result = write_stock_count_to_sheet(
-            sheet_client,
-            workbook_id=args.sheet_id,
-            worksheet_name=args.worksheet,
-            count=count,
-        )
-        mapping_result = write_mapping_to_sheet(
-            sheet_client,
-            workbook_id=args.sheet_id,
-            worksheet_name=args.mapping_worksheet,
-            count=count,
-            count_worksheet_name=args.worksheet,
-        )
-        fill_quantities_from_mapping(
-            sheet_client,
-            workbook_id=args.sheet_id,
-            count_worksheet_name=args.worksheet,
-            count=count,
-            mapping_worksheet_name=args.mapping_worksheet,
-            only_custom=True,
-        )
+        deleted = 0
+        if args.delete_missing_item_id:
+            deleted = delete_approved_missing_flat_items(
+                sheet_client,
+                workbook_id=args.sheet_id,
+                worksheet_name=args.flat_worksheet,
+                snapshot=snapshot,
+                approved_item_ids=args.delete_missing_item_id,
+            )
     except Exception as exc:
         print(f"Stock count failed: {exc}", file=sys.stderr)
         return 1
-    print(f"Listed {len(count.rows)} items in {len({r.placement.group for r in count.rows})} groups; "
-          f"{sum(bool(r.warnings) for r in count.rows)} rows need review.")
-    print(f"Zoho Sheet updated: {args.sheet_id} / {result.worksheet_name}, {flat_result.worksheet_name}, and {mapping_result.worksheet_name}")
+    print(f"Listed {len(snapshot.rows)} items; {sum(bool(r.warnings) for r in snapshot.rows)} rows need review.")
+    print(f"Zoho Sheet updated: {args.sheet_id} / {result.worksheet_name}")
+    if deleted:
+        print(f"Deleted {deleted} approved missing Flat item(s).")
+    approved = set(args.delete_missing_item_id)
+    remaining = [item for item in result.missing_items if item.item_id not in approved]
+    if remaining:
+        print(f"Flat items absent from the current active, inventory-tracked bulk fetch ({len(remaining)}):")
+        for item in remaining:
+            print(f"- {item.item_id} | {item.sku} | {item.name}")
+        print("Deletion requires approval for these exact item IDs; no other rows were deleted.")
+    else:
+        print("No unapproved Flat items are missing from the current bulk fetch.")
     return 0
 
 

@@ -1,52 +1,98 @@
 ---
 type: reference
-description: Read-only Neoseal stock-count sheets with local grouping and counting order.
+description: Inventory quantity upserts into the Neoseal Flat stock-count sheet.
 ---
 
 # Neoseal stock count
 
 `apps/neoseal_stock_count.py` lists active Neoseal catalog items using the
-Inventory purchase account, then bulk-fetches item details through
-`items.get_details`. It writes the ordered count layout to `Sheet1`, the complete
-one-row-per-item detail table to `Flat`, and the SKU-to-cell lookup table to `Mapping` in
-Zoho Sheet workbook `m7or01c58bd7a660a4be8b8f2e2390e98c237`.
+Inventory purchase account, keeps only items with `track_inventory=true`, then
+bulk-fetches their details through
+`items.get_details`. It updates existing item rows by `item_id` and appends
+missing items in the `Flat` worksheet of the configured Zoho Sheet workbook.
+The command leaves `StockCount` and `Mapping` untouched. Flat begins with
+`item_id`, `sku`, and `name`; it has no sort-order, group, or subgroup columns.
+After upserting Flat rows, it lists existing
+Flat items absent from the current active, inventory-tracked Inventory fetch,
+including their item IDs, SKUs, and names. It does not delete them by default.
+Existing `physical_count` and `remarks` cells remain unchanged.
+The bulk item detail's `cf_pack_size` custom field (`Pack Size`) is written to
+Flat's trailing `packing` column for both existing and new items. An absent
+custom-field value becomes blank. The column is appended after `generated_at`
+in column L; an occupied column L with a
+different header stops the upsert.
 The dashboard exposes the workflow as `neoseal_stock_count` (entry 16).
 
 ```powershell
 python apps/neoseal_stock_count.py
 python apps/neoseal_stock_count.py --location-id LOCATION_ID
-python apps/neoseal_stock_count.py --layout-csv input_files/neoseal/count_layout.csv
-python apps/neoseal_stock_count.py --mapping-worksheet Mapping
+python apps/neoseal_stock_count.py --flat-worksheet Flat
+python apps/neoseal_stock_count.py --delete-missing-item-id APPROVED_NUMERIC_ID
 ```
 
 `--purchase-account-id` defaults to `NEOSEAL_PURCHASE_ACCOUNT_ID` and must be
-non-empty. Only active items are fetched. Zero and negative quantities remain in
+non-empty. Only active, inventory-tracked items are fetched. A missing or invalid
+`track_inventory` flag fails the run; items with `track_inventory=false` are
+excluded before the bulk detail request. Previously written Flat rows for
+excluded items are reported as missing but not deleted unless their exact IDs
+are explicitly passed with `--delete-missing-item-id` after review and approval.
+Before deleting, the workflow checks the current Flat sheet and the freshly
+fetched Inventory snapshot again; it rejects IDs that are no longer missing.
+Approved rows are deleted from the bottom upward. Flat reads use grid content
+as well as the tabular API because blank row positions after deletion can make
+tabular fetch stop early, hiding later rows and causing duplicate appends.
+Zero and negative quantities remain in
 the sheet for review. Every returned item must match the purchase account. Missing,
 duplicate, or unexpected item IDs and incomplete detail responses fail the run.
 
-`--sheet-id` can override the configured `NEOSEAL_STOCK_COUNT_SHEET_ID`, and
-`--worksheet`, `--flat-worksheet`, and `--mapping-worksheet` can override the
-worksheet names configured via `NEOSEAL_STOCK_COUNT_WORKSHEET` (`Sheet1`),
-`NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET` (`Flat`), and
-`NEOSEAL_STOCK_COUNT_MAPPING_WORKSHEET` (`Mapping`). The workflow creates
-the worksheet when it is absent. On later runs it replaces the managed table, removes
-stale catalog rows, and preserves manual `physical_count` and `remarks` values
-for matching item IDs. Do not add unrelated content to this managed worksheet.
+`--sheet-id` can override `NEOSEAL_STOCK_COUNT_SHEET_ID`, and
+`--flat-worksheet` can override `NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET` (`Flat`).
+The command creates the Flat worksheet when absent. Duplicate `item_id` rows
+or an existing Flat sheet at the 1,000-row read limit stop the run to prevent
+ambiguous updates.
+An existing Flat worksheet must have the expected columns in order, and every
+populated item ID must be numeric; otherwise the command stops before writing.
+The table is bulk-refreshed in two API operations: existing data rows are cleared via
+`worksheet.records.delete` with `criteria='"item_id" != \'\''` (preserving Row 1 headers),
+and all merged rows (retaining physical counts, remarks, and unapproved missing
+items) are re-added in a single `worksheet.records.add`
+operation.
 
-The worksheet follows the sample in `Sheet2`: each group has its own bold 18-point
-line, each subgroup follows on a bold 14-point line, and item lines follow beneath.
+The grouped `StockCount` and `Mapping` helpers remain public for separate,
+explicit operations, but the main command no longer calls them.
+
+The separate grouped-sheet helper follows the sample in `Sheet2`: each group has its own bold 16-point
+line, each subgroup follows on a bold 14-point line, and item lines follow beneath (10-point, regular).
 Item lines show available quantity, unit, blank or retained physical count, remarks,
 SKU, item ID, on-hand quantity, and count order in adjacent columns. The first row
 holds field names for the Zoho tabular API; group and subgroup lines begin on row 2.
-`Flat` retains the previous columns: count order, group, subgroup, item ID, SKU,
-name, unit, available quantity, on-hand quantity, physical count, remarks,
-original Zoho group, location ID, and generation time. Both views refresh from
-the same active Inventory snapshot.
+`Flat` contains item ID, SKU, name, unit, available quantity, on-hand quantity,
+physical count, remarks, original Zoho group, location ID, generation time, and
+packing. The main command updates ungrouped item details in `Flat`.
 
-`Mapping` maps each catalog item's `sku` to its target quantity `cell` in `Sheet1`
-(along with `item_id`, `name`, and optional `stock_on_hand_cell`). Using this map,
-quantities are filled directly into their mapped cells in `Sheet1`. Custom cell
-assignments in `Mapping` are preserved across refreshes.
+The separate mapping helpers maintain `Mapping`, which maps each catalog item's
+`sku` to its target quantity `cell` in `StockCount`
+(along with the product `name` displayed in `StockCount`, `item_id`, and optional
+`stock_on_hand_cell`). Columns A–C are SKU, Cell, and Name respectively. Unmapped
+items have a blank Cell and Name. Mapping refresh reads the current `StockCount`
+label for each mapped cell and rejects a missing label. Using this map,
+quantities are filled directly into their mapped cells in `StockCount`. In the dual-table
+`StockCount` layout, system inventory available stock is written into the `QTY` columns
+(Column `C` for the left table, Column `H` for the right table), while the `AVL` columns
+(Column `D` and Column `I`) remain intentionally blank. Custom cell assignments in
+`Mapping` are preserved across refreshes, and intentionally unmapped items (`cell=""`)
+are protected from accidental fallback overwrites.
+The live count page's mapped QTY cells use Zoho Sheet `SUMIF` formulas against
+`Flat.B2:B1000` (SKU), each row's `Mapping.A` (SKU), and `Flat.E2:E1000`
+(`available_quantity`). The formula's Mapping row must match its target Cell in
+Mapping column B; unmapped product QTY cells remain fixed zeroes.
+When multiple SKUs map to a single consolidated row in `StockCount` (such as multiple
+insulation tape colors or silicone colors), `fill_quantities_from_mapping` sums the
+available quantities across all matching items for that target cell.
+For the custom two-table layout, `zero_unmapped_stockcount_quantities` writes `0` to
+the QTY cell of each product line with no mapped SKU. It leaves mapped quantities
+and category lines alone; a product line is identified by a product label plus a
+PACK or existing QTY value.
 
 ## Quantity meaning
 
@@ -62,9 +108,10 @@ system snapshot; no inventory adjustment is submitted.
 Quantities retain decimal precision and each item's unit. No grand total mixes
 different units. This is a timestamped snapshot, not an atomic warehouse freeze.
 
-## Groups and count order
+## Separate grouped-sheet helpers
 
-Suggested groups, in order, are Solvent cement, Ball valves, Tapes, Sealants,
+The library's `build_stock_count` helper still supports suggested groups, in
+order: Solvent cement, Ball valves, Tapes, Sealants,
 Construction chemicals, Maintenance, Other items, and Adjustments. Subgroups
 use product material/grade, tape type, valve handle, or chemical family. Unknown
 items retain their existing Zoho group as a subgroup, or use Unclassified.
@@ -73,7 +120,8 @@ These are local counting labels and do not modify Zoho groups.
 
 Within groups/subgroups, numeric parts of names sort naturally (50 before 100),
 then SKU and item ID provide stable tie-breakers. `sort_order` is the final
-one-based count sequence. An optional layout CSV can override shelf placement:
+one-based count sequence. A caller can provide a layout mapping built from rows
+like these to override shelf placement:
 
 ```csv
 item_id,group,subgroup,group_order,subgroup_order,item_order
@@ -90,16 +138,19 @@ negative/non-integer ranks are rejected.
 ## Public APIs
 
 `workflows.neoseal_stock_count` exports `CountPlacement`, `StockCountRow`,
-`StockCount`, `StockCountFiles`, `SKUMappingRow`, `default_placement`,
-`build_stock_count`, `build_sku_cell_mappings`, `fetch_neoseal_stock_count`,
-`render_stock_count`, and `write_stock_count`.
+`StockCount`, `StockCountFiles`, `SKUMappingRow`, `CUSTOM_STOCK_COUNT_MAPPING`,
+`default_placement`, `build_stock_count`, `build_sku_cell_mappings`,
+`fetch_neoseal_stock_count`, `render_stock_count`, and `write_stock_count`.
 It also exports `StockCountSheetResult`, `write_stock_count_to_sheet`,
 `write_flat_stock_count_to_sheet`, `write_mapping_to_sheet`,
-`fill_quantities_from_mapping`, `format_cell_address`, and `parse_cell_address`.
+`fill_quantities_from_mapping`, `format_custom_stock_count_sheet`,
+`zero_unmapped_stockcount_quantities`,
+`format_cell_address`, and `parse_cell_address`.
+`apps/format_stock_count.py` formats category cell merges and borders via the Sheet API.
 `fetch_neoseal_stock_count` is also available from `workflows` and requires an
 injected Inventory client. Applications construct the Inventory and Sheet
 clients using the auth factories.
 
-The workbook write is the only external mutation: it creates or replaces the
-managed worksheet data. It does not update Inventory quantities, create an
+The workbook write is the only external mutation: it upserts Flat worksheet
+rows. It does not update Inventory quantities, create an
 inventory adjustment, or reconcile physical counts automatically.

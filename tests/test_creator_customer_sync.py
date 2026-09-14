@@ -133,3 +133,23 @@ def test_invalid_status_fails_before_fetch(tmp_path):
     with pytest.raises(ReconciliationError, match="books_status_filter"):
         sync_creator_customers(books, creator, config(tmp_path, books_status_filter="typo"))
     books.contacts.list_all.assert_not_called()
+
+
+def test_cli_main_dry_run(monkeypatch, tmp_path):
+    from apps import sync_creator_customers as cli
+
+    books, creator = clients()
+    monkeypatch.setattr(cli, "get_books_client", lambda: books)
+    monkeypatch.setattr(cli, "get_creator_client", lambda: creator)
+
+    exit_code = cli.main([
+        "--output-dir", str(tmp_path),
+        "--branch", "all",
+        "--max-deletion-percentage", "100",
+        "--dry-run",
+    ])
+    assert exit_code == 0
+    creator.add_records.assert_not_called()
+    creator.update_records.assert_not_called()
+    creator.delete_records.assert_not_called()
+

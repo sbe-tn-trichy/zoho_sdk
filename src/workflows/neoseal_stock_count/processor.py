@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Mapping, Sequence
 
+from zoho.helpers import get_custom_field_value
 from zoho.inventory import ZohoInventoryAPI
 from workflows.core.matching import to_decimal, to_text
 
@@ -49,6 +50,27 @@ class StockCount:
     location_id: str | None
     generated_at: str
     rows: tuple[StockCountRow, ...]
+
+
+@dataclass(frozen=True)
+class FlatStockRow:
+    item_id: str
+    sku: str
+    name: str
+    unit: str
+    available_quantity: Decimal | None
+    stock_on_hand: Decimal | None
+    source_group: str
+    warnings: tuple[str, ...]
+    packing: str = ""
+
+
+@dataclass(frozen=True)
+class FlatStockSnapshot:
+    purchase_account_id: str
+    location_id: str | None
+    generated_at: str
+    rows: tuple[FlatStockRow, ...]
 
 
 @dataclass(frozen=True)
@@ -211,7 +233,21 @@ def fetch_neoseal_stock_count(
         raise ValueError("purchase_account_id is required.")
     if status != "active":
         raise ValueError("Neoseal stock count supports active items only.")
-    catalog = inventory_client.items.list_by_purchase_account(account, status=status)
+    merged = _fetch_scoped_items(inventory_client, account)
+    return build_stock_count(merged, purchase_account_id=account, location_id=location_id, layout=layout)
+
+
+def _fetch_scoped_items(
+    inventory_client: ZohoInventoryAPI,
+    account: str,
+    *,
+    tracked_only: bool = False,
+) -> list[dict[str, Any]]:
+    catalog = inventory_client.items.list_by_purchase_account(account, status="active")
+    if tracked_only:
+        if any(type(item.get("track_inventory")) is not bool for item in catalog):
+            raise ValueError("Inventory catalog is missing a valid track_inventory flag.")
+        catalog = [item for item in catalog if item["track_inventory"]]
     ids = [to_text(item.get("item_id")) for item in catalog]
     if len(ids) != len(set(ids)) or any(not value.isdigit() for value in ids):
         raise ValueError("Catalog contains missing, invalid, or duplicate item IDs.")
@@ -219,5 +255,52 @@ def fetch_neoseal_stock_count(
     if len(details) != len(ids) or {to_text(it.get("item_id")) for it in details} != set(ids):
         raise ValueError("Incomplete or unexpected item details.")
     by_id = {to_text(item.get("item_id")): item for item in catalog}
-    merged = [{**by_id[to_text(item.get("item_id"))], **item} for item in details]
-    return build_stock_count(merged, purchase_account_id=account, location_id=location_id, layout=layout)
+    return [{**by_id[to_text(item.get("item_id"))], **item} for item in details]
+
+
+def fetch_neoseal_flat_stock(
+    inventory_client: ZohoInventoryAPI,
+    *,
+    purchase_account_id: str,
+    location_id: str | None = None,
+) -> FlatStockSnapshot:
+    """Fetch scoped active, inventory-tracked items for an ungrouped Flat upsert."""
+    account = purchase_account_id.strip()
+    if not account:
+        raise ValueError("purchase_account_id is required.")
+    if location_id is not None and not location_id.strip():
+        raise ValueError("location_id cannot be blank.")
+    items = _fetch_scoped_items(inventory_client, account, tracked_only=True)
+    rows = []
+    for item in items:
+        item_id = to_text(item.get("item_id"))
+        if to_text(item.get("purchase_account_id")) != account:
+            raise ValueError(f"Item {item_id} does not belong to the requested purchase account.")
+        warnings = []
+        if location_id:
+            matches = [loc for loc in (item.get("locations") or [])
+                       if to_text(loc.get("location_id")) == location_id]
+            if len(matches) > 1:
+                raise ValueError(f"Duplicate location balance for item {item_id}.")
+            balance = matches[0] if matches else {}
+            available = _quantity(balance.get("location_available_stock"))
+            on_hand = _quantity(balance.get("location_stock_on_hand"))
+            if not matches:
+                warnings.append("Location balance missing")
+        else:
+            available = _quantity(item.get("available_stock"))
+            on_hand = _quantity(item.get("stock_on_hand"))
+        if available is None:
+            warnings.append("Available quantity unknown")
+        elif available < 0:
+            warnings.append("Negative available quantity")
+        if on_hand is None:
+            warnings.append("Stock on hand unknown")
+        elif on_hand < 0:
+            warnings.append("Negative stock on hand")
+        rows.append(FlatStockRow(item_id, to_text(item.get("sku")), to_text(item.get("name")),
+                                 to_text(item.get("unit")), available, on_hand,
+                                 to_text(item.get("group_name")), tuple(warnings),
+                                 to_text(get_custom_field_value(item, "cf_pack_size"))))
+    return FlatStockSnapshot(account, location_id.strip() if location_id else None,
+                             datetime.now(timezone.utc).isoformat(), tuple(rows))

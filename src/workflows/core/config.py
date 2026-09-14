@@ -170,7 +170,7 @@ class Config:
     _neoseal_worksheets = get_mapping_config("NEOSEAL_STOCK_COUNT_WORKSHEETS", {})
     NEOSEAL_STOCK_COUNT_WORKSHEET = get_config(
         "NEOSEAL_STOCK_COUNT_WORKSHEET",
-        _neoseal_worksheets.get("count", _neoseal_worksheets.get("worksheet", "Sheet1")),
+        _neoseal_worksheets.get("count", _neoseal_worksheets.get("worksheet", "StockCount")),
     )
     NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET = get_config(
         "NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET",

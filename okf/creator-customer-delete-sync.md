@@ -43,6 +43,14 @@ before any writes. Missing Creator IDs/link keys, duplicate keys abort before mu
 Creates and updates run before deletions. API exceptions propagate and stop the run;
 previous successful writes are not rolled back. Reports are written on successful completion.
 
+```powershell
+python apps/sync_creator_customers.py --dry-run
+python apps/sync_creator_customers.py --status active
+python apps/sync_creator_customers.py --apply
+```
+
+The operations dashboard exposes this workflow as entry 10 (`creator_customer_sync`).
+
 The former `creator_customer_delete_sync` module and exported names remain aliases
 for compatibility and now perform full reconciliation, so existing callers must configure
 the creation form when customers are missing. The new helper is `sync_creator_customers`.
