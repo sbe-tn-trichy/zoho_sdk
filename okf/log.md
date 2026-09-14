@@ -2,6 +2,12 @@
 
 ## 2026-09-14
 
+- Reorganized configuration files (`zoho_config.example.json` and local profiles)
+  into module/workflow sections (`core`, `dashboard`, `creator`, `neoseal`,
+  `polycab`, `fan`, `zeiss`, `banking`) with automatic key flattening and prefix aliasing.
+- Moved Neoseal stock count worksheet names (`Sheet1`, `Flat`, `Mapping`) to
+  configuration files (`zoho_config.json` / `config.json`) with individual and
+  grouped mapping settings, and enabled project-root `config.json` recognition.
 - Migrated minimum Python runtime requirement and CI validation matrix to
   Python 3.14 exclusively in `pyproject.toml` and GitHub Actions workflows.
 

@@ -48,9 +48,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--purchase-account-id", default=Config.NEOSEAL_PURCHASE_ACCOUNT_ID)
     parser.add_argument("--location-id", help="Optional Inventory location ID; default is whole organization")
     parser.add_argument("--sheet-id", default=Config.NEOSEAL_STOCK_COUNT_SHEET_ID)
-    parser.add_argument("--worksheet", default="Sheet1")
-    parser.add_argument("--flat-worksheet", default="Flat")
-    parser.add_argument("--mapping-worksheet", default="Mapping")
+    parser.add_argument("--worksheet", default=Config.NEOSEAL_STOCK_COUNT_WORKSHEET)
+    parser.add_argument("--flat-worksheet", default=Config.NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET)
+    parser.add_argument("--mapping-worksheet", default=Config.NEOSEAL_STOCK_COUNT_MAPPING_WORKSHEET)
     parser.add_argument("--layout-csv", type=Path, help="Optional shelf layout and count-order overrides")
     args = parser.parse_args(argv)
     if not args.purchase_account_id or not args.purchase_account_id.strip():

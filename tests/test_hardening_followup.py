@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from workflows.core.auth import get_creator_client
-from workflows.core.config import Config, _load_config_dict
+from workflows.core.config import Config, _load_config_dict, _flatten_profile
 from workflows.core.exceptions import ZohoAuthError
 from workflows.core.matching import reconcile_rows
 from zoho.base_client import BaseZohoClient
@@ -83,13 +83,71 @@ def test_purchase_account_ids_load_from_active_profile(tmp_path: Path):
     assert loaded["fan_purchase_account_id"] == "fan-account"
 
 
+def test_config_json_in_project_root_is_loaded(tmp_path: Path):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "config.json").write_text(
+        json.dumps({"org_id": "config-json-org"}), encoding="utf-8"
+    )
+    assert _load_config_dict(project, tmp_path / "home")["org_id"] == "config-json-org"
+
+
+def test_neoseal_worksheet_names_load_from_active_profile(tmp_path: Path):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "config.json").write_text(
+        json.dumps(
+            {
+                "active_profile": "production",
+                "profiles": {
+                    "production": {
+                        "neoseal_stock_count_worksheet": "CustomSheet",
+                        "neoseal_stock_count_flat_worksheet": "CustomFlat",
+                        "neoseal_stock_count_mapping_worksheet": "CustomMapping",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = _load_config_dict(project, tmp_path / "home")
+    assert loaded["neoseal_stock_count_worksheet"] == "CustomSheet"
+    assert loaded["neoseal_stock_count_flat_worksheet"] == "CustomFlat"
+    assert loaded["neoseal_stock_count_mapping_worksheet"] == "CustomMapping"
+
+
+def test_module_grouped_sections_load_into_config_dict(tmp_path: Path):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "config.json").write_text(
+        json.dumps(
+            {
+                "active_profile": "production",
+                "profiles": {
+                    "production": {
+                        "core": {"org_id": "core-org"},
+                        "neoseal": {"purchase_account_id": "neoseal-acc"},
+                        "polycab": {"polycab_vendor_id": "polycab-v"},
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = _load_config_dict(project, tmp_path / "home")
+    assert loaded["org_id"] == "core-org"
+    assert loaded["neoseal_purchase_account_id"] == "neoseal-acc"
+    assert loaded["polycab_vendor_id"] == "polycab-v"
+
+
 def test_example_config_covers_public_config_keys():
     project_root = Path(__file__).resolve().parent.parent
     example = json.loads(
         (project_root / "zoho_config.example.json").read_text(encoding="utf-8")
     )
     profile = example["profiles"][example["active_profile"]]
-    example_keys = {key.upper() for key in profile}
+    flattened = _flatten_profile(profile)
+    example_keys = {key.upper() for key in flattened}
     config_keys = {
         key
         for key in vars(Config)

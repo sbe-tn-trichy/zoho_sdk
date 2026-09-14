@@ -18,6 +18,33 @@ else:
     load_dotenv()
 
 
+def _flatten_profile(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Flatten section/workflow-grouped profile dictionaries for key lookup."""
+    non_section_mappings = {
+        "payment_creator_reports",
+        "dashboard_workflows",
+        "gstin_to_vendor_id",
+        "neoseal_stock_count_worksheets",
+    }
+    result: Dict[str, Any] = {}
+    for key, val in data.items():
+        key_lower = key.lower()
+        if isinstance(val, dict) and key_lower not in non_section_mappings:
+            result[key_lower] = val
+            result[key] = val
+            for sub_key, sub_val in val.items():
+                sub_key_lower = sub_key.lower()
+                result[sub_key_lower] = sub_val
+                result[sub_key] = sub_val
+                prefix = f"{key_lower}_"
+                if not sub_key_lower.startswith(prefix):
+                    result[f"{prefix}{sub_key_lower}"] = sub_val
+        else:
+            result[key_lower] = val
+            result[key] = val
+    return result
+
+
 def _load_config_dict(
     project_root: Optional[Path] = None,
     home: Optional[Path] = None,
@@ -32,6 +59,7 @@ def _load_config_dict(
     home = home or Path.home()
     candidate_paths = [
         project_root / "zoho_config.json",
+        project_root / "config.json",
         home / ".config" / "zoho" / "config.json",
         home / ".zoho" / "config.json",
     ]
@@ -58,8 +86,8 @@ def _load_config_dict(
                         f"Active Zoho configuration profile {active_profile!r} "
                         f"was not found in {path}."
                     )
-                return profile
-            return data
+                return _flatten_profile(profile)
+            return _flatten_profile(data)
     return {}
 
 
@@ -138,6 +166,19 @@ class Config:
     )
     NEOSEAL_STOCK_COUNT_SHEET_ID = get_config(
         "NEOSEAL_STOCK_COUNT_SHEET_ID", "m7or01c58bd7a660a4be8b8f2e2390e98c237"
+    )
+    _neoseal_worksheets = get_mapping_config("NEOSEAL_STOCK_COUNT_WORKSHEETS", {})
+    NEOSEAL_STOCK_COUNT_WORKSHEET = get_config(
+        "NEOSEAL_STOCK_COUNT_WORKSHEET",
+        _neoseal_worksheets.get("count", _neoseal_worksheets.get("worksheet", "Sheet1")),
+    )
+    NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET = get_config(
+        "NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET",
+        _neoseal_worksheets.get("flat", "Flat"),
+    )
+    NEOSEAL_STOCK_COUNT_MAPPING_WORKSHEET = get_config(
+        "NEOSEAL_STOCK_COUNT_MAPPING_WORKSHEET",
+        _neoseal_worksheets.get("mapping", "Mapping"),
     )
     FAN_PURCHASE_ACCOUNT_ID = get_config("FAN_PURCHASE_ACCOUNT_ID", "")
     ZOHO_RSO_CN_ITEM_ID = get_config("ZOHO_RSO_CN_ITEM_ID", "")

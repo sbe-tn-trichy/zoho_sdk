@@ -35,6 +35,7 @@ htmlcov/
 
 # Local config & cache
 zoho_config.json
+config.json
 .zoho_cache.json
 *.cache.json
 uv.lock

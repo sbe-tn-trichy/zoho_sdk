@@ -25,8 +25,10 @@ the sheet for review. Every returned item must match the purchase account. Missi
 duplicate, or unexpected item IDs and incomplete detail responses fail the run.
 
 `--sheet-id` can override the configured `NEOSEAL_STOCK_COUNT_SHEET_ID`, and
-`--worksheet`, `--flat-worksheet`, and `--mapping-worksheet` can override the default
-`Sheet1`, `Flat`, and `Mapping` worksheet names. The workflow creates
+`--worksheet`, `--flat-worksheet`, and `--mapping-worksheet` can override the
+worksheet names configured via `NEOSEAL_STOCK_COUNT_WORKSHEET` (`Sheet1`),
+`NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET` (`Flat`), and
+`NEOSEAL_STOCK_COUNT_MAPPING_WORKSHEET` (`Mapping`). The workflow creates
 the worksheet when it is absent. On later runs it replaces the managed table, removes
 stale catalog rows, and preserves manual `physical_count` and `remarks` values
 for matching item IDs. Do not add unrelated content to this managed worksheet.

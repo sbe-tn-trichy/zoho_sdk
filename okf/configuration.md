@@ -18,7 +18,7 @@ Runtime configuration is loaded using a prioritized multi-tier hierarchy:
 
 1. **Environment Variables**: Explicit process environment variables (`os.environ`).
 2. **Project `.env` File**: Local `.env` in the repository root (not committed).
-3. **Project `zoho_config.json` File**: Local JSON configuration profile in the project root (ignored in `.gitignore`).
+3. **Project Configuration File (`zoho_config.json` or `config.json`)**: Local JSON configuration profile in the project root (ignored in `.gitignore`).
 4. **User Home Config (`~/.config/zoho/config.json` or `~/.zoho/config.json`)**: User-level global configuration profiles.
 
 The first existing JSON file in that order is authoritative. Invalid JSON,
@@ -26,7 +26,10 @@ non-object configuration, and missing active profiles fail closed instead of
 falling through to a lower-priority file, preventing accidental cross-tenant
 identifier selection.
 
-A configuration template is provided in `zoho_config.example.json`.
+A configuration template is provided in `zoho_config.example.json`. Profiles
+can organize settings into readable module and workflow sections (`core`,
+`dashboard`, `creator`, `neoseal`, `polycab`, `fan`, `zeiss`, `banking`), or
+declare flat keys directly; grouped keys are automatically flattened for runtime lookup.
 
 Supported configuration keys:
 
@@ -53,6 +56,10 @@ Supported configuration keys:
 - `NEOSEAL_PURCHASE_ACCOUNT_ID`: Purchase-account ID used to scope NeoSeal item-catalog workflows.
 - `NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID`: Google Sheet ID for the NeoSeal price list.
 - `NEOSEAL_STOCK_COUNT_SHEET_ID`: Zoho Sheet workbook ID for the active NeoSeal stock-count worksheet.
+- `NEOSEAL_STOCK_COUNT_WORKSHEET`: Target worksheet name for the formatted Neoseal stock count; defaults to `Sheet1`.
+- `NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET`: Target worksheet name for the flat tabular Neoseal stock count; defaults to `Flat`.
+- `NEOSEAL_STOCK_COUNT_MAPPING_WORKSHEET`: Target worksheet name for the SKU-to-cell coordinate mapping; defaults to `Mapping`.
+- `NEOSEAL_STOCK_COUNT_WORKSHEETS`: Optional JSON object mapping (`count`, `flat`, `mapping`) to configure worksheet names together.
 - `FAN_PURCHASE_ACCOUNT_ID`: Purchase-account ID used to scope fan item-catalog workflows.
 - `ZEISS_VENDOR_ID`: Vendor ID for Zeiss ledger reconciliation.
 - `ZOHO_RSO_CN_ITEM_ID`: Books item ID used for RSO credit notes.
