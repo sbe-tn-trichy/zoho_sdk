@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
 from zoho.helpers import parse_date, unwrap_record
+from workflows.core.matching import to_finite_decimal
 
 
 DuplicateKey = Tuple[str, date, Decimal]
@@ -15,14 +16,6 @@ DuplicateKey = Tuple[str, date, Decimal]
 
 def _date(value: Any) -> Optional[date]:
     return parse_date(value)
-
-
-def _amount(value: Any) -> Optional[Decimal]:
-    try:
-        amount = Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
-        return None
-    return amount if amount.is_finite() else None
 
 
 def _payment_id(payment: Mapping[str, Any]) -> str:
@@ -94,7 +87,7 @@ class DuplicatePaymentChecker:
         for original in payment_list:
             payment = dict(original)
             paid_on = _date(payment.get("date"))
-            amount = _amount(payment.get("amount"))
+            amount = to_finite_decimal(payment.get("amount"))
 
             if not paid_on or amount is None:
                 skipped.append({

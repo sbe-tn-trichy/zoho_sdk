@@ -2,6 +2,13 @@
 
 ## 2026-09-14
 
+- Consolidated collection response-ID and Books payment payload helpers, moved
+  exact scoped SKU lookup into Inventory helpers, and reused finite decimal
+  parsing for duplicate payment checks.
+
+- Hardened authenticated URL overrides to approved HTTPS Zoho hosts, redacted
+  missing-token OAuth errors, and made empty HTTP error responses raise normally.
+
 - Rebuilt and verified every mapped StockCount QTY formula to use the corresponding Mapping SKU and Flat available quantity in column E.
 
 - Removed sort order, group, and subgroup from the Neoseal Flat schema; item ID now starts in column A and packing is in column L.

@@ -46,7 +46,7 @@ class TestSecurityUtilities(unittest.TestCase):
             resolve_output_path("output/report.xlsx"),
             str((Path.cwd() / "output" / "report.xlsx").resolve()),
         )
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmpdir:
             base = Path(tmpdir) / "output"
             prefixed = base / "reports" / "monthly.xlsx"
             relative_to_cwd = os.path.relpath(prefixed, Path.cwd())

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 import pdfplumber
 
 from zoho.inventory import ZohoInventoryAPI
-from zoho.helpers import find_transaction_by_number, unwrap_record
+from zoho.helpers import find_item_by_exact_sku, find_transaction_by_number, unwrap_record
 from ..core.config import Config
 
 
@@ -173,23 +173,15 @@ def _resolve_line_items(
         if sku not in _SKU_OVERRIDES and len(sku) > 6 and "-" not in sku:
             candidate_skus.append(f"{sku[:6]}-{sku[6:]}")
 
-        matches: List[Dict[str, Any]] = []
+        match: Optional[Dict[str, Any]] = None
         for candidate in candidate_skus:
-            response = inventory_client.items.list(
-                params={"sku": candidate, "purchase_account_id": purchase_account_id}
-            )
-            matches = [
-                item
-                for item in response.get("items", [])
-                if str(item.get("sku") or "").upper() == candidate.upper()
-            ]
-            if matches:
-                matches.sort(key=lambda item: item.get("status") != "active")
+            match = find_item_by_exact_sku(inventory_client, candidate, purchase_account_id)
+            if match:
                 break
-        if not matches or not matches[0].get("item_id"):
+        if not match or not match.get("item_id"):
             missing.append(sku)
         else:
-            resolved_by_sku[sku] = matches[0]
+            resolved_by_sku[sku] = match
     if missing:
         raise ValueError(
             "These RSO SKUs do not exist in Zoho Inventory: " + ", ".join(missing)

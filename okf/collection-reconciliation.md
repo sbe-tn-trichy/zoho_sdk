@@ -19,6 +19,11 @@ Zoho Creator against uncategorized incoming bank lines in Zoho Books. It is a
 high-level workflow and receives Creator, Books, and optional Analytics clients
 through dependency injection.
 
+The automatic reconciler and online review service share nested response-ID
+extraction and Books customer-payment payload construction within this workflow
+package. Each caller still supplies its own payment-mode and invoice-allocation
+policy.
+
 The workflow requires an exact reference match, either in the Books reference
 field or within the bank narration, in addition to date and amount checks. Date
 and amount tolerances are configurable. Multiple matching bank lines are never

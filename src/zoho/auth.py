@@ -131,7 +131,7 @@ class ZohoOAuth2Manager:
         data = response.json()
         
         if "access_token" not in data:
-            raise ValueError(f"Failed to refresh access token, response: {data}")
+            raise ValueError("Token service did not return an access token.")
             
         self._access_token = data["access_token"]
         expires_in = data.get("expires_in", 3600)

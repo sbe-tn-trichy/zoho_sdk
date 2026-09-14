@@ -22,6 +22,8 @@ The workflow is read-only and requires `ZohoBooks.customerpayments.READ`. When a
 list item does not contain its customer ID, the checker retrieves that payment's
 detail before evaluating it. Missing or invalid records are returned in the
 `skipped` collection rather than silently matched.
+Amount parsing uses the finite-only workflow conversion without treating commas
+as grouping separators, preserving exact duplicate detection semantics.
 
 Use `apps/check_duplicate_payments.py` to run the check through the
 configured token broker. Optional customer and inclusive local date filters are

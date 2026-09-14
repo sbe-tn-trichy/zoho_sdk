@@ -23,6 +23,18 @@ def to_decimal(value: Any) -> Optional[Decimal]:
         return None
 
 
+def to_finite_decimal(value: Any, *, allow_commas: bool = False) -> Optional[Decimal]:
+    """Parse a finite Decimal, optionally accepting grouped numeric strings."""
+    if allow_commas:
+        amount = to_decimal(value)
+    else:
+        try:
+            amount = Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+    return amount if amount is not None and amount.is_finite() else None
+
+
 def to_text(value: Any) -> str:
     """Return a clean, stripped string representation of any value."""
     return "" if value is None else str(value).strip()

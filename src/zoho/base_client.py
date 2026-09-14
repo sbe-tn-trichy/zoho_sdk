@@ -1,6 +1,7 @@
 import logging
 import collections.abc
 import threading
+from urllib.parse import urlsplit
 import requests
 from typing import Any, Dict, Optional
 from zoho.logging import configure_logger
@@ -155,6 +156,18 @@ class BaseZohoClient:
         timeout: Optional[int] = None
     ) -> Any:
         url = override_url if override_url else f"{self.base_url}/{endpoint}"
+        if override_url:
+            target = urlsplit(override_url)
+            base = urlsplit(self.base_url)
+            allowed_hosts = {base.hostname, f"download.zoho.{self.domain}"}
+            if (
+                target.scheme != "https"
+                or target.hostname not in allowed_hosts
+                or target.port not in (None, 443)
+                or target.username is not None
+                or target.password is not None
+            ):
+                raise ValueError("Override URL must use an approved HTTPS Zoho host.")
         actual_is_mutation = self._determine_is_mutation(method, is_mutation)
         
         # Resolve dynamic authentication token (e.g. CatalystAuth)
@@ -285,11 +298,11 @@ class BaseZohoClient:
             return response
 
 
+        self._raise_for_status(response, endpoint=endpoint)
+
         # Empty body response handling
         if response.status_code == 204 or not response.text:
             return {}
-
-        self._raise_for_status(response, endpoint=endpoint)
 
         # Content types handling
         content_type = ""

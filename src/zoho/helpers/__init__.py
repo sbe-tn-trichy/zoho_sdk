@@ -42,6 +42,7 @@ from .items import (
     fetch_items_by_purchase_account,
     fetch_items_lookup,
     find_item_by_sku_or_name,
+    find_item_by_exact_sku,
 )
 from .transactions import (
     CLOSED_DOCUMENT_STATUSES,
@@ -67,6 +68,7 @@ __all__ = [
     "fetch_items_lookup",
     "fetch_items_by_purchase_account",
     "find_item_by_sku_or_name",
+    "find_item_by_exact_sku",
     "get_bins_for_items",
     "getBinsForItems",
     "get_bins_by_item_map",

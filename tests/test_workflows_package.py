@@ -1,5 +1,6 @@
 import importlib.util
 import unittest
+from pathlib import Path
 
 import workflows
 from workflows.bank_vendor_ledger_matching import match_ledger_entries
@@ -17,7 +18,8 @@ class TestWorkflowsPackage(unittest.TestCase):
 
     def test_bank_vendor_ledger_matching_is_canonical(self):
         self.assertIs(workflows.match_ledger_entries, match_ledger_entries)
-        self.assertIsNone(importlib.util.find_spec("workflows.bank_reconciliation"))
+        legacy = Path(workflows.__file__).parent / "bank_reconciliation"
+        self.assertFalse(any(legacy.rglob("*.py")))
 
     def test_workflow_subpackages_export_supported_apis(self):
         self.assertIs(workflows.process_polycab_credit_memos, process_polycab_credit_memos)

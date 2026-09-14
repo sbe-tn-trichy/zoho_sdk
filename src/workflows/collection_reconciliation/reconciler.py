@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..core.exceptions import ReconciliationError
 from ..core.matching import get_bank_reference, parse_date, to_decimal as _decimal
+from .identifiers import identifier as _identifier
+from .payments import customer_payment_payload
 from .schema import (
     AUDIT_FIELD_REQUIREMENTS,
     COLLECTION_FIELD_REQUIREMENTS,
@@ -59,24 +61,6 @@ class CollectionReconciliationConfig:
             raise ValueError("date_tolerance_days cannot be negative.")
         if Decimal(str(self.amount_tolerance)) < 0:
             raise ValueError("amount_tolerance cannot be negative.")
-
-
-def _identifier(payload: Any, keys: Sequence[str]) -> Optional[str]:
-    if isinstance(payload, dict):
-        for key in keys:
-            value = payload.get(key)
-            if value not in (None, "") and not isinstance(value, (dict, list)):
-                return str(value)
-        for value in payload.values():
-            found = _identifier(value, keys)
-            if found:
-                return found
-    elif isinstance(payload, list):
-        for value in payload:
-            found = _identifier(value, keys)
-            if found:
-                return found
-    return None
 
 
 def _record_id(record: Mapping[str, Any]) -> Optional[str]:
@@ -382,26 +366,17 @@ class CollectionReconciler:
     ) -> Dict[str, Any]:
         payment_date = parse_date(record.get("Payment_Date")) or parse_date(transaction.get("date"))
         amount = _decimal(record.get("Amount")) or _decimal(transaction.get("amount"))
-        if not payment_date or amount is None:
-            raise ReconciliationError("A valid payment date and amount are required.")
-        custom_fields = [
-            {"label": "Creator Record ID", "value": creator_id},
-        ]
-        creator_payment_id = record.get("Payment_ID")
-        if creator_payment_id not in (None, ""):
-            custom_fields.append(
-                {"label": "Creator Payment ID", "value": creator_payment_id}
-            )
-        return {
-            "customer_id": customer_id,
-            "payment_mode": _books_payment_mode(record.get("Payment_Mode")),
-            "date": payment_date.isoformat(),
-            "amount": float(abs(amount)),
-            "reference_number": str(record.get("Reference_Number") or ""),
-            "description": str(transaction.get("description") or "Creator reconciliation"),
-            "account_id": self.config.bank_account_id,
-            "custom_fields": custom_fields,
-        }
+        return customer_payment_payload(
+            customer_id=customer_id,
+            payment_mode=_books_payment_mode(record.get("Payment_Mode")),
+            payment_date=payment_date,
+            amount=amount,
+            reference_number=str(record.get("Reference_Number") or ""),
+            description=str(transaction.get("description") or "Creator reconciliation"),
+            account_id=self.config.bank_account_id,
+            creator_record_id=creator_id,
+            creator_payment_id=record.get("Payment_ID"),
+        )
 
     def _analytics_suggestions(self, record: Mapping[str, Any]) -> List[Dict[str, Any]]:
         if not self.analytics or not self.config.analytics_workspace_id:

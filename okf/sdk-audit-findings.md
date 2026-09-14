@@ -28,6 +28,12 @@ A comprehensive code audit across all `zoho_sdk` service clients identified key 
   sanitized authentication errors without replacing the active token. WorkDrive
   clients created through the workflow factory receive the same refresh support
   as Books, Creator, and Analytics clients.
+* **OAuth Refresh Error Redaction**: An OAuth token response missing an access
+  token raises `ValueError` without including the response payload.
+* **Authenticated URL Overrides**: The shared transport accepts override URLs
+  only over HTTPS on the client's API host or `download.zoho.<domain>`, with the
+  standard HTTPS port and no URL credentials. This applies to Analytics exports
+  and WorkDrive downloads before the OAuth header is attached.
 * **Sanitized Error Payloads**: Removed raw HTML error page formatting from exceptions to prevent internal gateway leakage.
 * **Mutation Token Routing**: `POST`, `PUT`, `PATCH`, and `DELETE` use the mutation-token path by default. Semantically read-only requests that happen to use POST must explicitly pass `is_mutation=False`; Zoho Sheet worksheet listing is the current exception.
 
@@ -44,6 +50,8 @@ A comprehensive code audit across all `zoho_sdk` service clients identified key 
 * **Structured Exception Fields**: `ZohoError` exposes `status_code`, `error_code`, `response_data`, and `endpoint`; both streamed and ordinary request failures retain endpoint context.
 * **Dependency-Light Imports**: Root workflow exports are lazy, so core authentication and the base SDK remain importable without PDF, spreadsheet, or dataframe extras.
 * **Uniform Request Contract**: Every concrete service client forwards the base transport options for form data, headers, files, streaming, URL overrides, mutation classification, and timeouts. Books and Inventory continue to add organization IDs without mutating caller-owned parameter dictionaries.
+* **Empty Error Responses**: HTTP errors are raised before the transport treats
+  an empty response body as a successful empty object.
 * **Portable Filenames**: Untrusted download names normalize both POSIX and Windows separators before basename extraction.
 * **Stable Output Roots**: Relative paths that already begin with the configured
   output root are not prefixed a second time.

@@ -19,6 +19,8 @@ from ..core.matching import (
     to_decimal as _decimal,
     to_text as _text,
 )
+from .identifiers import identifier as _identifier, identifiers as _identifiers
+from .payments import customer_payment_payload
 from .allocator import (
     CLOSED_INVOICE_STATUSES as _CLOSED_INVOICE_STATUSES,
     allocate_invoices_oldest_due_first,
@@ -30,40 +32,6 @@ from .types import InvoiceAllocation, PaymentProposal
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _identifier(payload: Any, keys: Sequence[str]) -> Optional[str]:
-    if isinstance(payload, Mapping):
-        for key in keys:
-            value = payload.get(key)
-            if value not in (None, "") and not isinstance(value, (dict, list)):
-                return str(value)
-        for value in payload.values():
-            found = _identifier(value, keys)
-            if found:
-                return found
-    elif isinstance(payload, list):
-        for value in payload:
-            found = _identifier(value, keys)
-            if found:
-                return found
-    return None
-
-
-def _identifiers(payload: Any, keys: Sequence[str]) -> set[str]:
-    """Return every scalar identifier stored under any of ``keys``."""
-    found: set[str] = set()
-    if isinstance(payload, Mapping):
-        for key in keys:
-            value = payload.get(key)
-            if value not in (None, "") and not isinstance(value, (dict, list)):
-                found.add(str(value))
-        for value in payload.values():
-            found.update(_identifiers(value, keys))
-    elif isinstance(payload, list):
-        for value in payload:
-            found.update(_identifiers(value, keys))
-    return found
 
 
 def _cheque_reference_suffixes(value: Any) -> set[str]:
@@ -871,33 +839,21 @@ class OnlinePaymentReviewService:
         creator = entry["creator"]
         payment_date = parse_date(creator.get("date"))
         amount = _decimal(creator.get("amount"))
-        if not payment_date or amount is None:
-            raise ReconciliationError("A valid payment date and amount are required.")
-        custom_fields = [{"label": "Creator Record ID", "value": entry["id"]}]
-        if creator.get("payment_id"):
-            custom_fields.append(
-                {"label": "Creator Payment ID", "value": creator["payment_id"]}
-            )
-        return {
-            "customer_id": creator["books_customer_id"],
-            "payment_mode": (
+        return customer_payment_payload(
+            customer_id=creator["books_customer_id"],
+            payment_mode=(
                 "check" if _text(entry.get("payment_type")).casefold() == "cheque"
                 else "banktransfer"
             ),
-            "date": payment_date.isoformat(),
-            "amount": float(abs(amount)),
-            "reference_number": creator["reference"],
-            "description": entry["bank"].get("description") or "Creator reconciliation",
-            "account_id": entry["bank_account_id"],
-            "invoices": [
-                {
-                    "invoice_id": allocation["invoice_id"],
-                    "amount_applied": allocation["amount_applied"],
-                }
-                for allocation in allocations
-            ],
-            "custom_fields": custom_fields,
-        }
+            payment_date=payment_date,
+            amount=amount,
+            reference_number=creator["reference"],
+            description=entry["bank"].get("description") or "Creator reconciliation",
+            account_id=entry["bank_account_id"],
+            creator_record_id=entry["id"],
+            creator_payment_id=creator.get("payment_id") or None,
+            invoices=allocations,
+        )
 
     def _open_invoices(self, books_customer_id: str) -> List[Mapping[str, Any]]:
         return fetch_open_invoices(self.books, books_customer_id)

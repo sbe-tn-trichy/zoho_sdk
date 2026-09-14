@@ -119,6 +119,30 @@ def find_item_by_sku_or_name(
     return None
 
 
+def find_item_by_exact_sku(
+    inventory_client: ZohoInventoryAPI,
+    sku: str,
+    purchase_account_id: str,
+) -> Optional[Dict[str, Any]]:
+    """Find an exact Inventory SKU in one purchase account, preferring active items."""
+    account_id = str(purchase_account_id or "").strip()
+    if not account_id:
+        raise ValueError("purchase_account_id is required for item lookup.")
+    candidate = str(sku or "").strip()
+    if not candidate:
+        return None
+    response = inventory_client.items.list(
+        params={"sku": candidate, "purchase_account_id": account_id}
+    )
+    items = response.get("items", []) if isinstance(response, dict) else []
+    matches = [
+        item for item in items
+        if str(item.get("sku") or "").upper() == candidate.upper()
+    ]
+    matches.sort(key=lambda item: item.get("status") != "active")
+    return matches[0] if matches else None
+
+
 from .bins import get_bins_by_item_map, get_bins_for_items, getBinsForItems
 
 __all__ = [

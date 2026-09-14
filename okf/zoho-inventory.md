@@ -16,6 +16,9 @@ service token and no longer implicitly falls back from Inventory to Books.
 non-empty purchase account and paginates the scoped results. Status filters use
 `filter_by=Status.All`, `Status.Active`, or `Status.Inactive`. Vendor catalog
 helpers accept `inventory_client` and preserve purchase-account scoping.
+`zoho.helpers.find_item_by_exact_sku` requires a purchase account, rejects
+non-exact SKU results, and prefers an active item among exact matches. Vendor
+workflows may supply their own SKU alias candidates before calling it.
 
 Neoseal audit, export, and naming update applications use Inventory. The audit
 includes active and inactive records by default for legacy duplicate detection;
