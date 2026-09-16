@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="csrf-token" content="__CSRF_TOKEN__">
+  <title>Customer beat allocation</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #173044; background: #f4f7f9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { background: #10344b; color: white; padding: 28px max(24px, calc((100vw - 1300px)/2)); }
+    h1 { margin: 0 0 8px; font-size: 1.7rem; }
+    header p { margin: 0; color: #d5e4ec; }
+    main { max-width: 1300px; margin: 24px auto; padding: 0 24px; }
+    .summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+    .stat { background: white; border: 1px solid #dce6eb; border-radius: 10px; padding: 12px 18px; min-width: 170px; }
+    .stat strong { display: block; font-size: 1.4rem; }
+    .stat span { color: #536b7c; font-size: .9rem; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+    input, select, button { font: inherit; border-radius: 7px; padding: 9px 11px; }
+    input, select { border: 1px solid #b8cbd5; background: white; color: #173044; }
+    #search { min-width: 280px; flex: 1; }
+    button { border: 1px solid #176e80; background: #176e80; color: white; cursor: pointer; }
+    button.secondary { background: white; color: #176e80; }
+    button:disabled { cursor: not-allowed; opacity: .5; }
+    .panel { background: white; border: 1px solid #dce6eb; border-radius: 10px; overflow: auto; }
+    table { border-collapse: collapse; width: 100%; min-width: 850px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e7edf0; vertical-align: middle; }
+    th { position: sticky; top: 0; background: #eef4f7; color: #496273; font-size: .85rem; }
+    tbody tr:hover { background: #f8fbfc; }
+    td.name { font-weight: 600; }
+    td.id { color: #5b7180; font-size: .85rem; white-space: nowrap; }
+    td select { min-width: 190px; width: 100%; }
+    .muted { color: #738591; }
+    .warning { color: #955900; }
+    .error { color: #a21d34; }
+    .success { color: #127055; }
+    #message { min-height: 26px; margin: 8px 0; }
+    .hint { color: #617684; font-size: .9rem; margin: 14px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Active customer beat allocation</h1>
+    <p>Choose a beat from the active customer's Books jurisdiction, then save it to Zoho Creator.</p>
+  </header>
+  <main>
+    <div class="summary">
+      <div class="stat"><strong id="total">—</strong><span>Active without a beat</span></div>
+      <div class="stat"><strong id="ready">—</strong><span>Beat choices available</span></div>
+      <div class="stat"><strong id="blocked">—</strong><span>Need jurisdiction or beats</span></div>
+    </div>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search customer name or Books ID" aria-label="Search customers">
+      <select id="jurisdiction" aria-label="Filter by jurisdiction"><option value="">All jurisdictions</option></select>
+      <label><input id="assignable-only" type="checkbox" checked> Assignable only</label>
+      <button id="save-all" type="button">Save visible selections</button>
+      <button id="refresh" type="button" class="secondary">Refresh</button>
+    </div>
+    <div id="message" role="status" aria-live="polite">Loading customers…</div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Customer</th><th>Books ID</th><th>Jurisdiction</th><th>Available beat</th><th>Action</th></tr></thead>
+        <tbody id="customers"></tbody>
+      </table>
+    </div>
+    <p class="hint">Customers without a Books jurisdiction or a matching beat remain visible but cannot be assigned here. Refresh to see current Creator assignments.</p>
+  </main>
+  <script>
+    const token = document.querySelector('meta[name="csrf-token"]').content;
+    const tbody = document.getElementById('customers');
+    const message = document.getElementById('message');
+    let customers = [];
+    let busy = false;
+
+    function setMessage(text, kind = '') {
+      message.textContent = text;
+      message.className = kind;
+    }
+
+    function render() {
+      const query = document.getElementById('search').value.trim().toLocaleLowerCase();
+      const jurisdiction = document.getElementById('jurisdiction').value;
+      const assignableOnly = document.getElementById('assignable-only').checked;
+      tbody.replaceChildren();
+      let shown = 0;
+      for (const customer of customers) {
+        if (jurisdiction && customer.jurisdiction !== jurisdiction) continue;
+        if (assignableOnly && !customer.beats.length) continue;
+        if (query && !(`${customer.name} ${customer.books_id}`.toLocaleLowerCase().includes(query))) continue;
+        shown++;
+        const tr = document.createElement('tr');
+        tr.dataset.creatorId = customer.creator_id;
+        for (const [value, className] of [[customer.name, 'name'], [customer.books_id, 'id'], [customer.jurisdiction || 'Missing in Books', customer.jurisdiction ? '' : 'warning']]) {
+          const td = document.createElement('td');
+          td.textContent = value;
+          td.className = className;
+          tr.append(td);
+        }
+        const choiceCell = document.createElement('td');
+        const actionCell = document.createElement('td');
+        if (customer.beats.length) {
+          const select = document.createElement('select');
+          select.setAttribute('aria-label', `Beat for ${customer.name}`);
+          select.add(new Option('Select beat', ''));
+          for (const beat of customer.beats) select.add(new Option(beat.name, beat.id));
+          choiceCell.append(select);
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = 'Save';
+          button.disabled = true;
+          select.addEventListener('change', () => { button.disabled = !select.value || busy; });
+          button.addEventListener('click', () => save(customer, select.value));
+          actionCell.append(button);
+        } else {
+          choiceCell.textContent = customer.jurisdiction ? 'No beats in this jurisdiction' : 'Jurisdiction required';
+          choiceCell.className = 'warning';
+        }
+        tr.append(choiceCell, actionCell);
+        tbody.append(tr);
+      }
+      if (!shown) setMessage('No customers match the filters.');
+      else if (!busy) setMessage(`${shown} customers shown.`);
+    }
+
+    async function load() {
+      if (busy) return;
+      setMessage('Loading customers…');
+      document.getElementById('refresh').disabled = true;
+      try {
+        const response = await fetch('/api/customers', {cache: 'no-store'});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load customers');
+        customers = data.customers;
+        document.getElementById('total').textContent = customers.length;
+        const ready = customers.filter(row => row.beats.length).length;
+        document.getElementById('ready').textContent = ready;
+        document.getElementById('blocked').textContent = customers.length - ready;
+        const filter = document.getElementById('jurisdiction');
+        const selected = filter.value;
+        filter.replaceChildren(new Option('All jurisdictions', ''));
+        for (const name of [...new Set(customers.map(row => row.jurisdiction).filter(Boolean))].sort()) filter.add(new Option(name, name));
+        filter.value = selected;
+        render();
+      } catch (error) { setMessage(error.message, 'error'); }
+      finally { document.getElementById('refresh').disabled = false; }
+    }
+
+    async function save(customer, beatId) {
+      if (!beatId || busy) return;
+      busy = true;
+      setMessage(`Saving ${customer.name}…`);
+      try {
+        const response = await fetch('/api/allocate', {
+          method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': token},
+          body: JSON.stringify({creator_id: customer.creator_id, books_id: customer.books_id, beat_id: beatId})
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Update failed');
+        customers = customers.filter(row => row.creator_id !== customer.creator_id);
+        document.getElementById('total').textContent = customers.length;
+        document.getElementById('ready').textContent = customers.filter(row => row.beats.length).length;
+        document.getElementById('blocked').textContent = customers.filter(row => !row.beats.length).length;
+        render();
+        setMessage(`${customer.name}: ${data.beat} saved.`, 'success');
+      } catch (error) { setMessage(`${customer.name}: ${error.message}`, 'error'); }
+      finally { busy = false; }
+    }
+
+    document.getElementById('save-all').addEventListener('click', async () => {
+      const selected = [...tbody.querySelectorAll('tr')].map(tr => {
+        const select = tr.querySelector('select');
+        return select && select.value ? [customers.find(row => row.creator_id === tr.dataset.creatorId), select.value] : null;
+      }).filter(Boolean);
+      for (const [customer, beatId] of selected) await save(customer, beatId);
+    });
+    document.getElementById('refresh').addEventListener('click', load);
+    document.getElementById('search').addEventListener('input', render);
+    document.getElementById('jurisdiction').addEventListener('change', render);
+    document.getElementById('assignable-only').addEventListener('change', render);
+    load();
+  </script>
+</body>
+</html>

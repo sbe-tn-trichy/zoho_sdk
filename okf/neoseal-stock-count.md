@@ -83,9 +83,20 @@ quantities are filled directly into their mapped cells in `StockCount`. In the d
 `Mapping` are preserved across refreshes, and intentionally unmapped items (`cell=""`)
 are protected from accidental fallback overwrites.
 The live count page's mapped QTY cells use Zoho Sheet `SUMIF` formulas against
-`Flat.B2:B1000` (SKU), each row's `Mapping.A` (SKU), and `Flat.E2:E1000`
-(`available_quantity`). The formula's Mapping row must match its target Cell in
-Mapping column B; unmapped product QTY cells remain fixed zeroes.
+Flat column B (SKU) and column E (`available_quantity`). The stable sync
+operation writes the SKU directly into each formula, so rebuilding or reordering
+Mapping cannot redirect it to another item. Multiple SKUs assigned to one line
+produce summed `SUMIF` terms. PACK formulas look up Flat column L (`packing`)
+by SKU and retain the previous displayed Pack when Flat packing is blank;
+unmapped lines use literal Pack formulas and zero QTY formulas.
+`apps/sync_neoseal_stockcount.py` is a dry-run by default and uses `--apply` for
+API mutations. It stores persistent count-line IDs in StockCount columns J/K
+and Mapping column F. On subsequent runs it finds moved lines by ID, corrects
+Mapping's QTY cell address in column B, and rebuilds formulas whose expressions
+changed. New Flat SKUs without Mapping rows are reported for placement; new
+StockCount product lines receive IDs when they have a product label and a PACK
+or QTY value. The formula range expands from the Flat used row with a buffer
+at each sync, rather than relying on a permanent 1,000-row ceiling.
 When multiple SKUs map to a single consolidated row in `StockCount` (such as multiple
 insulation tape colors or silicone colors), `fill_quantities_from_mapping` sums the
 available quantities across all matching items for that target cell.
@@ -151,6 +162,7 @@ It also exports `StockCountSheetResult`, `write_stock_count_to_sheet`,
 injected Inventory client. Applications construct the Inventory and Sheet
 clients using the auth factories.
 
-The workbook write is the only external mutation: it upserts Flat worksheet
-rows. It does not update Inventory quantities, create an
-inventory adjustment, or reconcile physical counts automatically.
+The main stock-count command's workbook write upserts Flat worksheet rows. The
+separate stable sync mutates StockCount and Mapping through the Sheet API. Neither
+operation updates Inventory quantities, creates an
+inventory adjustment, or reconciles physical counts automatically.

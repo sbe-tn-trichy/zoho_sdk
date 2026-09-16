@@ -66,3 +66,25 @@ The workflow still retrieves the complete Books customer set for deletion checks
 customers excluded by status or branch are preserved in Creator. Only customers
 absent from Books entirely are deletion candidates. Audit summaries include the
 filters and the count of Creator records preserved outside the selected scope.
+
+## Beat allocation review
+
+`python apps/allocate_customer_beats.py` serves a local review page at
+`http://127.0.0.1:8766`. It shows only active Books customers who have a Creator
+record without a Beat, looks up their `cf_jurisdiction` in Books, and offers only beats from the `All_Beats`
+report with the same jurisdiction. Customers with no jurisdiction or no matching
+beats remain visible without an allocation choice. Each save rechecks the
+customer, Books jurisdiction, and live beat list before updating only the
+Creator `Beat` lookup. It also rechecks that the Books customer is still active.
+The page can save one selection or all visible selections.
+
+## Creator-to-Books beat sync
+
+`python apps/sync_creator_beats.py` previews copying assigned Creator
+`Beat.Beat_Name` values from `All_Customers1` to the Books contact custom field
+`cf_beat`; `--apply` writes the changes. Creator `Customer_Id` matches Books
+`contact_id`. The sync covers active Books customers, skips blank Creator beats
+and inactive customers, and never clears a Books beat. It validates the Books
+field index and all candidates before writing; duplicate Creator customer links
+abort the run. A failed Books update stops the run without rolling back prior
+successful updates. `--books-field` and report/app flags override the defaults.

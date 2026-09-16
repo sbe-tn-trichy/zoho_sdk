@@ -54,6 +54,7 @@ _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
     "CreatorCustomerSyncConfig": (".creator_customer_sync", "CreatorCustomerSyncConfig"),
     "CreatorCustomerSyncer": (".creator_customer_sync", "CreatorCustomerSyncer"),
     "sync_creator_customers": (".creator_customer_sync", "sync_creator_customers"),
+    "CreatorBeatAllocationService": (".creator_beat_allocation", "CreatorBeatAllocationService"),
     "CreatorCustomerDeleteSyncConfig": (".creator_customer_delete_sync", "CreatorCustomerDeleteSyncConfig"),
     "CreatorCustomerDeleteSyncer": (".creator_customer_delete_sync", "CreatorCustomerDeleteSyncer"),
     "sync_creator_customer_deletions": (".creator_customer_delete_sync", "sync_creator_customer_deletions"),

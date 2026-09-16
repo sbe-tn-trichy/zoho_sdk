@@ -598,7 +598,7 @@ CUSTOM_STOCK_COUNT_MAPPING: dict[str, str] = {
     "Neoseal CN": "",
 }
 
-MAPPING_FIELDS = ("sku", "cell", "name", "item_id", "stock_on_hand_cell")
+MAPPING_FIELDS = ("sku", "cell", "name", "item_id", "stock_on_hand_cell", "line_id")
 
 
 def build_sku_cell_mappings(
@@ -710,6 +710,7 @@ def write_mapping_to_sheet(
             "name": page_name,
             "item_id": m.item_id,
             "stock_on_hand_cell": target_soh,
+            "line_id": str(prior_by_sku.get(m.sku, {}).get("line_id") or "").strip(),
         })
 
     if prior_rows:

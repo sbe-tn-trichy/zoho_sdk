@@ -33,6 +33,7 @@ from .reporting import (
     write_stock_count_to_sheet,
     zero_unmapped_stockcount_quantities,
 )
+from .stable_sync import CellChange, StableSyncPlan, build_stable_sync_plan, read_stable_sync_plan
 
 __all__ = [
     "FlatStockRow",
@@ -44,12 +45,15 @@ __all__ = [
     "MissingFlatItem",
     "CUSTOM_STOCK_COUNT_MAPPING",
     "CountPlacement",
+    "CellChange",
     "MAPPING_FIELDS",
     "SKUMappingRow",
     "StockCount",
     "StockCountFiles",
     "StockCountRow",
     "StockCountSheetResult",
+    "StableSyncPlan",
+    "build_stable_sync_plan",
     "build_sku_cell_mappings",
     "build_stock_count",
     "default_placement",
@@ -59,6 +63,7 @@ __all__ = [
     "format_custom_stock_count_sheet",
     "parse_cell_address",
     "render_stock_count",
+    "read_stable_sync_plan",
     "write_flat_stock_count_to_sheet",
     "write_mapping_to_sheet",
     "write_stock_count",

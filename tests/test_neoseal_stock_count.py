@@ -569,7 +569,7 @@ def test_write_mapping_to_sheet_creates_and_populates():
     assert result.rows_written == 1
     sheet.add_sheet.assert_called_once_with("wb", "Mapping")
     # Column C holds the name visible in StockCount.
-    assert sheet.set_cell.call_count == 5
+    assert sheet.set_cell.call_count == 6
     assert sheet.set_cell.call_args_list[2].args == ("wb", "Mapping", 1, 3, "name")
     rows = sheet.add_rows.call_args.args[2]
     assert rows[0]["sku"] == "SKU-1"
@@ -585,7 +585,8 @@ def test_write_mapping_preserves_custom_cells():
         {"row_index": 10, "row_details": [{"column_index": 1, "content": "Custom count label"}]},
     ]}
     sheet.get_rows.return_value = [
-        {"row_index": 2, "sku": "SKU-1", "cell": "D10", "stock_on_hand_cell": "E10"},
+        {"row_index": 2, "sku": "SKU-1", "cell": "D10", "stock_on_hand_cell": "E10",
+         "line_id": "SC-existing"},
     ]
     count = build_stock_count([item("1", sku="SKU-1")], purchase_account_id="account")
     result = write_mapping_to_sheet(
@@ -598,6 +599,7 @@ def test_write_mapping_preserves_custom_cells():
     assert rows[0]["cell"] == "D10"
     assert rows[0]["name"] == "Custom count label"
     assert rows[0]["stock_on_hand_cell"] == "E10"
+    assert rows[0]["line_id"] == "SC-existing"
 
 
 def test_write_mapping_refuses_missing_stockcount_name():

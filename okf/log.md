@@ -1,5 +1,20 @@
 # Knowledge Change Log
 
+## 2026-09-16
+
+- Added dry-run Creator-to-Books customer beat synchronization using the
+  Creator beat display value and the Books `cf_beat` contact custom field.
+
+- Limited the beat allocation page to active Books customers and rechecked
+  active status before each Creator Beat update.
+
+- Added a loopback customer beat allocation review page with jurisdiction-scoped
+  beat choices and per-customer live validation before Creator updates.
+
+## 2026-09-15
+
+- Added stable count-line IDs and an API sync for Mapping addresses and SKU-keyed QTY/PACK formulas, so Mapping reorder and StockCount row moves can be reconciled without redirecting formulas.
+
 ## 2026-09-14
 
 - Consolidated collection response-ID and Books payment payload helpers, moved
