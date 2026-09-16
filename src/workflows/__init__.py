@@ -61,6 +61,8 @@ _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
     "NeosealItemAuditor": (".neoseal_audit", "NeosealItemAuditor"),
     "audit_neoseal_items": (".neoseal_audit", "audit_neoseal_items"),
     "fetch_neoseal_stock_count": (".neoseal_stock_count", "fetch_neoseal_stock_count"),
+    "CreatorBooksPaymentLinkBackfill": (".creator_books_payment_link", "CreatorBooksPaymentLinkBackfill"),
+    "BackfillConfig": (".creator_books_payment_link", "BackfillConfig"),
 }
 
 
@@ -132,4 +134,6 @@ __all__ = [
     "NeosealItemAuditor",
     "audit_neoseal_items",
     "fetch_neoseal_stock_count",
+    "CreatorBooksPaymentLinkBackfill",
+    "BackfillConfig",
 ]

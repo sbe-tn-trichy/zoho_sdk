@@ -76,11 +76,36 @@ policy, concurrency, and organization selection remain deployment-controlled.
 
 # Existing Payment Link Backfill
 
-`apps/backfill_creator_matched_payments.py` traverses Creator's `matched`
+`workflows.creator_books_payment_link` powers
+`apps/backfill_creator_matched_payments.py`, which traverses Creator's `matched`
 payment report and resolves an existing Books customer payment by native Books
 payment ID/number or by an exact unique date, amount, reference, and customer
 combination. It then populates the unique `Creator Record ID` and `Creator
 Payment ID` custom fields on that existing payment.
+The workflow reads each resolved payment directly from Books before classifying
+its current custom fields. Missing Creator identifiers and conflicting existing
+Books values are reported without an update; fully linked payments are skipped.
+It derives the inclusive lower date bound from the oldest `Payment_Date` in the
+Creator `matched` report and requires a Books `--location-id`. The customer
+payments list API has no documented date-range or location filters, so the
+workflow applies both to the paginated response and verifies each scoped payment
+against a detail read immediately before a live update. Books list rows expose
+the `cf_creator_record_id` and `cf_creator_payment_id` values for a read-only
+audit, and this organization returns them under the `customerpayments` list key.
+It audits payments missing either Creator custom field,
+cross-checks unmatched Books payments in Creator `All_Payments`, and reports
+numeric `Payment_ID` gaps from `matched` with their presence or absence in
+`All_Payments`. Multiple Creator records claiming one Books payment block writes.
+Creator's `Customer_Name` lookup uses `zc_display_value` or `Name` for exact
+fallback matching; `PaymentNo` and `Books_Transaction_Id` may be empty in the
+matched report. The workflow takes native payment identifiers from the
+canonical `All_Payments` row when that report supplies them. A supplied Creator
+payment number that is absent from the scoped Books payments blocks fallback
+matching to a different number. The CLI accepts `--checkpoint-path` for a
+distinct audit file.
+Live Books detail reads, updates, and verification reads are paced to remain
+below Books' organization-level request limit. Code 44 pauses and retries; a
+persistent limit aborts the run so later payments can be resumed safely.
 
 The application never creates customer payments and never changes
 bank-transaction matches. Dry-run is the default. Writes require `--execute`;

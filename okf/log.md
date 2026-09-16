@@ -2,6 +2,24 @@
 
 ## 2026-09-16
 
+- Scoped the Creator payment-ID backfill by the oldest matched Creator payment
+  date and a required Books location; added missing-link discovery, sequence-gap
+  reporting, and `All_Payments` cross-checks before writes.
+
+- Corrected matched-payment lookup handling for Creator customer lookup values
+  and the Books `customerpayments` response shape; used list custom fields for
+  dry-run discovery and added configurable checkpoint paths.
+
+- Reconciled missing native payment numbers in Creator `matched` with
+  `All_Payments` and blocked detail fallback when a supplied payment number is
+  absent from the scoped Books list, removing false competing claims.
+
+- Paced live Books payment requests and retried code-44 rate limits before
+  continuing the Creator ID backfill.
+
+- Exposed the Creator-to-Books payment ID backfill as a workflow and added a
+  live payment read before writing missing Creator custom fields.
+
 - Added dry-run Creator-to-Books customer beat synchronization using the
   Creator beat display value and the Books `cf_beat` contact custom field.
 
