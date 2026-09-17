@@ -34,8 +34,31 @@
       margin: auto;
       padding: 12px 0;
       display: grid;
-      grid-template-rows: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
     }
+    .tabs {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      padding: 2px 2px 10px;
+      scrollbar-width: thin;
+    }
+    .tab {
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      color: var(--muted);
+      padding: 8px 12px;
+      font: 600 12px ui-sans-serif, system-ui;
+      cursor: pointer;
+    }
+    .tab[aria-selected="true"] {
+      background: var(--mint);
+      border-color: var(--mint);
+      color: #052117;
+    }
+    .tab-count { opacity: .7; margin-left: 5px; }
     header {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -134,9 +157,12 @@
     .grid {
       display: grid;
       grid-template-columns: 1fr;
-      grid-template-rows: repeat(var(--workflow-count, 1), minmax(0, 1fr));
+      grid-auto-rows: minmax(60px, auto);
+      align-content: start;
       gap: 5px;
       min-height: 0;
+      overflow-y: auto;
+      padding-right: 3px;
     }
     .card {
       position: relative;
@@ -154,6 +180,24 @@
     .card:hover {
       transform: translateY(-2px);
       border-color: #3b6f5f;
+    }
+    .favorite {
+      border: 0;
+      background: transparent;
+      color: #68857a;
+      padding: 3px;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .favorite[aria-pressed="true"] { color: var(--amber); }
+    .card-actions { display: flex; align-items: center; gap: 5px; }
+    .empty {
+      color: var(--muted);
+      padding: 20px 12px;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      text-align: center;
     }
     .num {
       display: grid;
@@ -280,6 +324,7 @@
 </head>
 <body>
   <main>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Workflow groups"></nav>
     <section class="workspace">
       <div class="workflow-list">
         <section class="callbox">
@@ -300,8 +345,50 @@
 
   <script>
     const token = document.querySelector('meta[name="launcher-token"]').content;
-    let state = { workflows: [], runs: [] }, selectedRun = null, activeCategory = 'All', query = '';
+    let state = { workflows: [], runs: [] }, selectedRun = null, activeTab = 'All', query = '';
+    const favoritesKey = 'zoho-sdk-dashboard-favorites';
+    let favorites = new Set();
+    try { favorites = new Set(JSON.parse(localStorage.getItem(favoritesKey) || '[]').map(Number)); } catch (_) { /* Browser storage may be unavailable. */ }
+    if (favorites.size) activeTab = 'Favorites';
+    const reconciliationWorkflows = new Set([
+      'collection_reconciliation',
+      'vendor_ledger_reconciliation', 'vendor_customer_offset'
+    ]);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function inTab(workflow, tab) {
+      if (tab === 'Favorites') return favorites.has(workflow.number);
+      if (tab === 'All') return true;
+      if (tab === 'Reconciliation') return reconciliationWorkflows.has(workflow.workflow);
+      return workflow.category === tab;
+    }
+
+    function renderTabs() {
+      const categories = [...new Set(state.workflows.map(w => w.category))]
+        .filter(category => category !== 'Reconciliation').sort();
+      const tabs = ['Favorites'];
+      if (state.workflows.some(w => inTab(w, 'Reconciliation'))) tabs.push('Reconciliation');
+      tabs.push(...categories, 'All');
+      if (!tabs.includes(activeTab)) activeTab = 'All';
+      const nav = document.getElementById('tabs');
+      const hadFocus = nav.contains(document.activeElement);
+      const scrollLeft = nav.scrollLeft;
+      nav.innerHTML = tabs.map((tab, index) => {
+        const count = state.workflows.filter(w => inTab(w, tab)).length;
+        return `<button class="tab" type="button" role="tab" id="tab-${index}"
+          aria-selected="${tab === activeTab}" tabindex="${tab === activeTab ? '0' : '-1'}"
+          data-tab="${esc(tab)}">${tab === 'Favorites' ? '★ ' : ''}${esc(tab)}<span class="tab-count">${count}</span></button>`;
+      }).join('');
+      nav.scrollLeft = scrollLeft;
+      if (hadFocus) nav.querySelector('.tab[aria-selected="true"]').focus();
+    }
+
+    function toggleFavorite(number) {
+      if (favorites.has(number)) favorites.delete(number);
+      else favorites.add(number);
+      try { localStorage.setItem(favoritesKey, JSON.stringify([...favorites])); } catch (_) { /* Favorites remain usable for this session. */ }
+      render();
+    }
 
     function latest(number) {
       return [...state.runs].reverse().find(r => r.workflow_number === number);
@@ -309,12 +396,13 @@
 
     function render() {
       const normalized = query.trim().toLowerCase();
+      renderTabs();
       const visible = state.workflows.filter(w =>
-        !normalized || `${w.number} ${w.name} ${w.description} ${w.category}`.toLowerCase().includes(normalized)
+        (normalized || inTab(w, activeTab)) &&
+        (!normalized || `${w.number} ${w.name} ${w.description} ${w.category}`.toLowerCase().includes(normalized))
       );
       const grid = document.getElementById('grid');
-      grid.style.setProperty('--workflow-count', Math.max(visible.length, 1));
-      grid.innerHTML = visible.map(w => {
+      grid.innerHTML = visible.length ? visible.map(w => {
         const r = latest(w.number), busy = r && ['starting', 'running'].includes(r.status);
         const detail = w.available ? w.description : `${w.description} ${w.setup}`;
         return `<article class="card" title="${esc(detail)}">
@@ -327,10 +415,13 @@
               <span class="tag">${esc(w.safety)}</span>
             </div>
           </div>
-          <button class="run ${w.available ? '' : 'setup'}" title="${esc(w.setup || w.description)}" ${busy || !w.available ? 'disabled' : ''} onclick="run(${w.number})">${busy ? 'Running' : w.available ? 'Run ' + w.number : 'Setup needed'}</button>
+          <div class="card-actions">
+            <button class="favorite" type="button" data-favorite="${w.number}" aria-pressed="${favorites.has(w.number)}" aria-label="${favorites.has(w.number) ? 'Remove' : 'Add'} ${esc(w.name)} ${favorites.has(w.number) ? 'from' : 'to'} favorites" title="${favorites.has(w.number) ? 'Remove from' : 'Add to'} favorites">${favorites.has(w.number) ? '★' : '☆'}</button>
+            <button class="run ${w.available ? '' : 'setup'}" title="${esc(w.setup || w.description)}" ${busy || !w.available ? 'disabled' : ''} onclick="run(${w.number})">${busy ? 'Running' : w.available ? 'Run ' + w.number : 'Setup needed'}</button>
+          </div>
           <div class="status ${esc(r?.status || '')}">${r ? esc(r.status) : w.available ? 'Ready to run' : `<span class="setup-note">${esc(w.setup)}</span>`}${r?.open_url && busy ? ` · <a class="open" href="${esc(r.open_url)}" target="_blank">Open UI ↗</a>` : ''}</div>
         </article>`;
-      }).join('');
+      }).join('') : `<div class="empty">${normalized ? 'No workflows match your search.' : activeTab === 'Favorites' ? 'No favorites yet. Open another tab and select ☆ on a workflow.' : 'No workflows in this group.'}</div>`;
       showConsole();
     }
 
@@ -375,7 +466,34 @@
     }
 
     document.getElementById('callButton').onclick = find;
-    document.getElementById('call').addEventListener('input', e => { query = e.target.value; render(); });
+    document.getElementById('tabs').addEventListener('click', e => {
+      const tab = e.target.closest('[data-tab]');
+      if (!tab) return;
+      activeTab = tab.dataset.tab;
+      query = '';
+      document.getElementById('call').value = '';
+      render();
+      document.querySelector('.tab[aria-selected="true"]').focus();
+    });
+    document.getElementById('tabs').addEventListener('keydown', e => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      const tabs = [...document.querySelectorAll('#tabs .tab')];
+      const index = tabs.indexOf(document.activeElement);
+      if (index < 0) return;
+      e.preventDefault();
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
+        : (index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      tabs[next].click();
+    });
+    document.getElementById('grid').addEventListener('click', e => {
+      const button = e.target.closest('[data-favorite]');
+      if (button) toggleFavorite(Number(button.dataset.favorite));
+    });
+    document.getElementById('call').addEventListener('input', e => {
+      query = e.target.value;
+      if (query.trim()) activeTab = 'All';
+      render();
+    });
     document.getElementById('call').addEventListener('keydown', e => { if (e.key === 'Enter') find(); });
     refresh();
     setInterval(refresh, 1500);

@@ -10,9 +10,12 @@ status: active
 
 `apps/dashboard.py` serves a local startup page at
 `http://127.0.0.1:8750`. The single-screen home page uses a compact workflow
-list on the left and a persistent run-output panel on the right. The catalogue
-contains every domain workflow and can be searched by name, number, or
-category. Safe, fully configured operations have a
+list on the left and a persistent run-output panel on the right. Tabs across the
+top show Favorites, Reconciliation, the available workflow categories, and All.
+The star on each workflow adds or removes it from Favorites; selections persist
+in that browser. Search spans all workflows by name, number, or category.
+Workflow number 4 is retired so other shortcut numbers remain stable.
+Safe, fully configured operations have a
 stable number and can be launched from their card (or by entering the exact
 number and pressing Enter). Operations requiring a source file, business
 parameters, or confirmation remain visible with a concise setup requirement
@@ -32,7 +35,7 @@ Workflow visibility is configured in the active `zoho_config.json` profile:
 An empty `include` list includes every registered domain. If `include` contains
 IDs, only those domains are shown. `exclude` is applied last and therefore wins
 when an ID is present in both lists. Supported IDs are
-`bank_vendor_ledger_matching`, `collection_reconciliation`,
+`collection_reconciliation`,
 `creator_customer_sync`, `duplicate_payment_check`, `gstr1_verification`,
 `neoseal_audit`, `neoseal_stock_count`, `polycab_credit_memos`, `polycab_rso`, `stock_transfer`,
 `vendor_customer_offset`, and `vendor_ledger_reconciliation`. Configuration
@@ -57,6 +60,11 @@ workflow can create changes only after the user separately confirms them in
 its own token-protected review interface.
 
 # Running
+
+Opening this repository as a trusted folder in VS Code runs the
+`Open project dashboard` task automatically. It uses the project `.venv`,
+starts the dashboard if needed, and opens the page in the default browser.
+The same task can be run manually through **Tasks: Run Task**.
 
 From the repository root:
 

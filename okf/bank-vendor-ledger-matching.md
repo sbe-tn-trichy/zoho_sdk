@@ -51,13 +51,3 @@ results.
 The same normalization is used by
 [Creator Collection Reconciliation](collection-reconciliation.md) when it
 matches pending collections and creates manual-resolution collection records.
-
-# ICICI Unmatched Export
-
-Run `apps/export_icici_unmatched.py` to fetch the configured ICICI
-account's current `Status.Uncategorized` transactions and write
-`output/bank_vendor_ledger_matching/icici_unmatched_transactions.csv`. The audit CSV
-includes both the raw Books `reference_number` and the normalized
-reconciliation reference, along with a `reference_source` indicator. Because
-the source is live Books state, row counts can change between runs as bank
-transactions are categorized.

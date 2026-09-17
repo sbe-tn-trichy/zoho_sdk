@@ -1,5 +1,16 @@
 # Knowledge Change Log
 
+## 2026-09-17
+
+- Removed the standalone ICICI unmatched-entry export and its dashboard entry;
+  kept shared bank reference normalization and reserved dashboard number 4.
+
+- Added dashboard tabs for favorites, reconciliation, and workflow categories,
+  with browser-persisted favorites and global search.
+
+- Added a shared VS Code folder-open task that launches the existing dashboard
+  homepage through the project virtual environment.
+
 ## 2026-09-16
 
 - Scoped the Creator payment-ID backfill by the oldest matched Creator payment

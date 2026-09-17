@@ -70,14 +70,6 @@ WORKFLOWS = (
         workflow="duplicate_payment_check",
     ),
     WorkflowSpec(
-        4,
-        "Export ICICI unmatched entries",
-        "Download uncategorized ICICI bank transactions to an audit CSV.",
-        (sys.executable, "apps/export_icici_unmatched.py"),
-        "Banking",
-        workflow="bank_vendor_ledger_matching",
-    ),
-    WorkflowSpec(
         5,
         "Collection reconciliation run",
         "Run single-step automated collection reconciliation against Books.",

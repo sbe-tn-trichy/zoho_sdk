@@ -1,5 +1,8 @@
 import sys
 import time
+import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -58,7 +61,6 @@ def test_registry_catalogues_every_domain_workflow():
     represented = {item["workflow"] for item in workflows}
 
     assert represented == {
-        "bank_vendor_ledger_matching",
         "collection_reconciliation",
         "creator_customer_sync",
         "duplicate_payment_check",
@@ -71,6 +73,14 @@ def test_registry_catalogues_every_domain_workflow():
         "vendor_customer_offset",
         "vendor_ledger_reconciliation",
     }
+
+
+def test_removed_icici_export_is_not_registered():
+    runner = WorkflowRunner()
+
+    assert all(item["number"] != 4 for item in runner.list_workflows())
+    with pytest.raises(ValueError, match="Unknown workflow number"):
+        runner.start(4)
 
 
 def test_dashboard_workflow_config_includes_selected_domains():
@@ -149,3 +159,80 @@ def test_homepage_launcher_starts_and_waits_for_dashboard(monkeypatch):
     monkeypatch.setattr(open_homepage.time, "sleep", lambda _seconds: None)
 
     assert open_homepage.main(["--no-browser"]) == 0
+
+
+def test_dashboard_tabs_favorites_and_search():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js is needed to exercise the dashboard JavaScript")
+
+    html = (Path(__file__).resolve().parents[1] / "apps/static/dashboard.html").read_text()
+    script = re.search(r"<script>(.*?)</script>", html, re.DOTALL).group(1)
+    harness = r"""
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const source = require('node:fs').readFileSync(0, 'utf8');
+const elements = new Map();
+function element(id) {
+  if (!elements.has(id)) elements.set(id, {
+    innerHTML: '', value: '', scrollLeft: 0,
+    addEventListener() {}, contains() { return false; },
+  });
+  return elements.get(id);
+}
+const stored = new Map();
+const context = {
+  assert,
+  document: {
+    activeElement: null,
+    querySelector() { return { content: 'test-token' }; },
+    getElementById: element,
+  },
+  localStorage: {
+    getItem(key) { return stored.get(key) || null; },
+    setItem(key, value) { stored.set(key, value); },
+  },
+  fetch() { return new Promise(() => {}); },
+  setInterval() {},
+};
+vm.runInNewContext(source + `
+  state = { workflows: [
+    { number: 1, name: 'Payment reconciliation', description: 'Payments', category: 'Collections', workflow: 'collection_reconciliation', available: true, safety: 'Read-only' },
+    { number: 2, name: 'Neoseal audit', description: 'Items', category: 'Inventory', workflow: 'neoseal_audit', available: true, safety: 'Read-only' }
+  ], runs: [] };
+  render();
+  assert.match(document.getElementById('tabs').innerHTML, /Reconciliation/);
+  assert.match(document.getElementById('tabs').innerHTML, /Inventory/);
+  assert.match(document.getElementById('grid').innerHTML, /Payment reconciliation/);
+  assert.match(document.getElementById('grid').innerHTML, /Neoseal audit/);
+  activeTab = 'Reconciliation'; render();
+  assert.match(document.getElementById('grid').innerHTML, /Payment reconciliation/);
+  assert.doesNotMatch(document.getElementById('grid').innerHTML, /Neoseal audit/);
+  toggleFavorite(2);
+  assert.equal(localStorage.getItem(favoritesKey), '[2]');
+  activeTab = 'Favorites'; render();
+  assert.match(document.getElementById('grid').innerHTML, /Neoseal audit/);
+  assert.doesNotMatch(document.getElementById('grid').innerHTML, /Payment reconciliation/);
+  query = 'payment'; activeTab = 'All'; render();
+  assert.match(document.getElementById('grid').innerHTML, /Payment reconciliation/);
+  assert.doesNotMatch(document.getElementById('grid').innerHTML, /Neoseal audit/);
+  query = ''; activeTab = 'Favorites'; toggleFavorite(2);
+  assert.match(document.getElementById('grid').innerHTML, /No favorites yet/);
+`, context);
+const blockedStorage = {
+  getItem() { throw new Error('storage blocked'); },
+  setItem() { throw new Error('storage blocked'); },
+};
+vm.runInNewContext(source + `
+  state = { workflows: [
+    { number: 2, name: 'Neoseal audit', description: 'Items', category: 'Inventory', workflow: 'neoseal_audit', available: true, safety: 'Read-only' }
+  ], runs: [] };
+  toggleFavorite(2);
+  activeTab = 'Favorites'; render();
+  assert.match(document.getElementById('grid').innerHTML, /Neoseal audit/);
+`, { ...context, localStorage: blockedStorage });
+"""
+    result = subprocess.run(
+        [node, "-e", harness], input=script, text=True, capture_output=True
+    )
+    assert result.returncode == 0, result.stderr

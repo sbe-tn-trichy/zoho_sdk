@@ -23,7 +23,9 @@ output/
 scripts/
 
 # IDE files
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/settings.json
 .idea/
 .DS_Store
 .codex/
