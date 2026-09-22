@@ -2,6 +2,8 @@
 
 ## 2026-09-22
 
+- Added GSTR-2 / GSTR-2B verification workflow and CLI runner (`apps/verify_gstr2.py`) to cross-check GST portal purchase data against Zoho Books bills and vendor credits, detecting value mismatches, unrecorded purchases, and Section 16(2)(aa) ITC risks.
+
 - Replaced full-table Analytics export with targeted historical SQL queries using remitter identifiers (UPI VPA, phone, remitter name); supports confirmation, conflict detection, and non-blocking new remitters while scaling gracefully to 100K+ rows.
 
 - Corrected bank-line direction handling to the production convention: debit means deposit and credit means withdrawal. Only credit `/TA` lines receive travel expense proposals.
