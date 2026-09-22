@@ -42,10 +42,11 @@ when an ID is present in both lists. Supported IDs are
 with unknown IDs or incorrectly typed values fails at dashboard startup rather
 than silently hiding the wrong operation.
 
-The numbered payment reconciliation preview uses
+The numbered Bank Statement Categorization preview uses
 `apps/payment_review.py --refresh-only`. It reads the production
 Creator `Online_Payments` and `Cheques` reports, rebuilds the local review
-state, prints a compact entry summary, and exits without writing to Zoho. The
+state, including other uncategorized bank lines and suggestions, prints a compact
+entry summary, and exits without writing to Zoho. The
 generic `Collection_Records` schema workflow is not registered because that
 form is not part of the production `order-management-new` Creator app.
 
@@ -73,4 +74,4 @@ python apps/dashboard.py
 ```
 
 See [Development Runbook](development-runbook.md) and
-[Creator Collection Reconciliation](collection-reconciliation.md).
+[Bank Statement Categorization](collection-reconciliation.md).

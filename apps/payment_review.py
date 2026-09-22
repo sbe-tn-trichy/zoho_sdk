@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve a local accept/reject queue for Creator Online and Cheque payment matches."""
+"""Serve the local Bank Statement Categorization review queue."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from workflows.collection_reconciliation import (
     OnlinePaymentReviewConfig,
     OnlinePaymentReviewService,
 )
-from workflows.core.auth import get_books_client, get_creator_client
+from workflows.core.auth import get_analytics_client, get_books_client, get_creator_client
 from workflows.core.config import Config
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "payment_review.html"
@@ -104,6 +104,10 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str):
                         )
                     )
                     return
+                if path.startswith("/api/bank-lines/") and path.endswith("/categorize-travel"):
+                    transaction_id = unquote(path[len("/api/bank-lines/"):-len("/categorize-travel")])
+                    self._json(service.categorize_travel_expense(transaction_id))
+                    return
                 prefix = "/api/entries/"
                 if not path.startswith(prefix):
                     raise ValueError("Unknown action.")
@@ -148,6 +152,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--token-url", default=Config.TOKEN_URL)
     parser.add_argument("--org-id", default=Config.ORG_ID)
+    parser.add_argument("--analytics-org-id", default=Config.ANALYTICS_ORG_ID)
     parser.add_argument("--domain", default=Config.DOMAIN)
     parser.add_argument(
         "--state",
@@ -195,12 +200,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             creator_checkpoint_report_link_name=Config.PAYMENT_CREATOR_REPORTS[
                 "checkpoint"
             ],
+            analytics_workspace_id="264324000000002043",
+            customer_finder_view_id="264324000006111037",
             state_path=args.state,
         ),
+        analytics_client=get_analytics_client(org_id=args.analytics_org_id, domain=args.domain, token_url=args.token_url),
     )
     if not args.no_refresh or not args.state.exists():
         batch = service.refresh()
-        logging.info("Loaded %s Creator payment review entries", len(batch["entries"]))
+        logging.info(
+            "Loaded %s Creator payments and %s other bank lines",
+            len(batch["entries"]),
+            len(batch.get("bank_suggestions", [])),
+        )
     else:
         batch = service.load()
     if args.refresh_only:
@@ -223,6 +235,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 {
                     "entries": len(entries),
                     "ready": ready,
+                    "other_bank_lines": len(batch.get("bank_suggestions", [])),
                     "state": str(args.state),
                 },
                 indent=2,

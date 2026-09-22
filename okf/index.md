@@ -18,7 +18,7 @@ okf_version: "0.2"
 * [Polycab RSO Import](polycab-rso-import.md) - Parse Polycab return-sales-order PDFs, create location-scoped Books sales orders, and attach the source PDF.
 * [Analytics Metadata Snapshots](analytics-metadata.md) - Complete workspace metadata collection, rate-limit handling, snapshot files, and relationship maps.
 * [Bank–Vendor Ledger Matching](bank-vendor-ledger-matching.md) - Books bank-withdrawal matching and ICICI UPI reference normalization.
-* [Creator Collection Reconciliation](collection-reconciliation.md) - Creator collection matching, Books customer-payment categorization, Analytics exceptions, schema contracts, and audit safety.
+* [Bank Statement Categorization](collection-reconciliation.md) - Creator payment matching, Analytics customer suggestions for other bank lines, TA expense review, and audit safety.
 * [GSTR-1 Verification](gstr1-verification.md) - Previous-month invoice and credit-note checks for drafts, number continuity, chronology, and e-invoice registration.
 * [Vendor-Customer Offset](vendor-customer-offset.md) - GSTIN-safe paired customer/vendor payments through a clearing bank account.
 * [Creator Customer Sync](creator-customer-delete-sync.md) - Books-to-Creator customer creation, update, and deletion reconciliation.

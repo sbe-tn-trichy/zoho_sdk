@@ -126,7 +126,7 @@ def test_payment_preview_uses_production_review_refresh():
         workflow for workflow in runner.list_workflows() if workflow["number"] == 2
     )
 
-    assert preview["name"] == "Payment reconciliation preview"
+    assert preview["name"] == "Bank Statement Categorization preview"
     assert "payment_review.py --refresh-only" in preview["command"]
 
 

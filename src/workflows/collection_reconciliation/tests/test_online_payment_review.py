@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -96,6 +97,61 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertEqual(entry["allocation_status"], "fully_allocated")
         self.assertEqual(entry["invoice_allocations"][0]["amount_applied"], 1250.0)
 
+    def test_analytics_customer_name_must_match_unique_bank_row(self):
+        analytics = MagicMock()
+        self.bank["description"] = "UPI/9876543210@okaxis/receipt"
+        self.service = OnlinePaymentReviewService(
+            self.creator,
+            self.books,
+            replace(
+                self.config,
+                analytics_workspace_id="workspace",
+                customer_finder_view_id="view",
+            ),
+            analytics_client=analytics,
+        )
+        row = {
+            "Customer Name": "Example Customer",
+            "Description": "UPI/9876543210@okaxis/receipt",
+        }
+        analytics.views.export_all.return_value = [row]
+        analytics.queries.execute.return_value = [row]
+        entry = self._refresh()["entries"][0]
+        self.assertTrue(entry["reviewable"])
+        self.assertTrue(entry["customer_name_valid"])
+
+        analytics.views.export_all.return_value = [{**row, "Customer Name": "Other Customer"}]
+        analytics.queries.execute.return_value = [{**row, "Customer Name": "Other Customer"}]
+        with self.assertRaisesRegex(ReconciliationError, "Conflict: Analytics historical records"):
+            self.service.accept_and_push(entry["id"])
+        self.books.customer_payments.create.assert_not_called()
+
+        entry = self._refresh()["entries"][0]
+        self.assertFalse(entry["reviewable"])
+        self.assertFalse(entry["customer_name_valid"])
+        with self.assertRaisesRegex(ReconciliationError, "Conflict: Analytics historical records"):
+            self.service.accept_and_push(entry["id"])
+
+    def test_analytics_no_history_keeps_entry_reviewable(self):
+        analytics = MagicMock()
+        self.bank["description"] = "UPI/brandnewremitter@okaxis/receipt"
+        self.service = OnlinePaymentReviewService(
+            self.creator,
+            self.books,
+            replace(
+                self.config,
+                analytics_workspace_id="workspace",
+                customer_finder_view_id="view",
+            ),
+            analytics_client=analytics,
+        )
+        analytics.views.export_all.return_value = []
+        analytics.queries.execute.return_value = []
+        entry = self._refresh()["entries"][0]
+        self.assertTrue(entry["reviewable"])
+        self.assertIsNone(entry["customer_name_valid"])
+        self.assertEqual(entry["customer_name_reason"], "No historical customer match found in Analytics.")
+
     def test_refresh_preserves_ambiguous_bank_candidates_for_review(self):
         second_bank = {
             **self.bank,
@@ -118,6 +174,32 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             ["bank-tx-1", "bank-tx-2"],
         )
         self.assertEqual(entry["possible_candidates"], [])
+
+    def test_ambiguous_candidates_show_analytics_customer_suggestions(self):
+        analytics = MagicMock()
+        self.service = OnlinePaymentReviewService(
+            self.creator,
+            self.books,
+            replace(self.config, analytics_workspace_id="workspace", customer_finder_view_id="view"),
+            analytics_client=analytics,
+        )
+        first = {**self.bank, "transaction_number": "TX-1", "description": "UPI/remitter1@okaxis"}
+        second = {**self.bank, "transaction_id": "bank-tx-2", "transaction_number": "TX-2", "description": "UPI/remitter2@okaxis"}
+        self.creator.get_all_records.side_effect = [[self.payment], [self.customer]]
+        self.books.bank_transactions.list_all.return_value = [first, second]
+        historical = [
+            {"Description": "UPI/remitter1@okaxis/receipt", "Customer Name": "Example Customer"},
+            {"Description": "UPI/remitter2@okaxis/receipt", "Customer Name": "Other Customer"},
+        ]
+        analytics.views.export_all.return_value = historical
+        analytics.queries.execute.return_value = historical
+
+        entry = self.service.refresh()["entries"][0]
+        self.assertFalse(entry["reviewable"])
+        self.assertEqual(
+            [candidate["suggested_customer_names"] for candidate in entry["ambiguous_candidates"]],
+            [["Example Customer"], ["Other Customer"]],
+        )
 
     def test_refresh_preserves_date_amount_candidate_when_reference_differs(self):
         self.bank["reference_number"] = "DIFFERENT-REFERENCE"

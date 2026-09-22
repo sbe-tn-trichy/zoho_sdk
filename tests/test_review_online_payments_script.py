@@ -22,6 +22,13 @@ class TestReviewOnlinePaymentsScript(unittest.TestCase):
         self.assertIn("selectPossibleCandidate", HTML)
         self.assertIn("allow_reference_override", HTML)
 
+    def test_html_offers_bank_line_suggestions_and_travel_categorization(self):
+        self.assertIn("Other uncategorized bank lines", HTML)
+        self.assertIn('id="bankRows"', HTML)
+        self.assertIn("categorizeTravel", HTML)
+        self.assertIn("/api/bank-lines/", HTML)
+        self.assertIn("/categorize-travel", HTML)
+
     @patch("apps.payment_review.get_books_client")
     @patch("apps.payment_review.get_creator_client")
     def test_clients_use_centralized_factories(self, creator_factory, books_factory):
@@ -37,6 +44,7 @@ class TestReviewOnlinePaymentsScript(unittest.TestCase):
         )
 
     @patch("apps.payment_review.OnlinePaymentReviewService")
+    @patch("apps.payment_review.get_analytics_client")
     @patch("apps.payment_review._clients")
     @patch.object(
         Config,
@@ -49,7 +57,7 @@ class TestReviewOnlinePaymentsScript(unittest.TestCase):
             "checkpoint": "Configured_All_Payments",
         },
     )
-    def test_refresh_only_updates_preview_and_exits(self, clients, service_class):
+    def test_refresh_only_updates_preview_and_exits(self, clients, analytics_factory, service_class):
         clients.return_value = (MagicMock(), MagicMock())
         service_class.return_value.refresh.return_value = {
             "entries": [
@@ -67,7 +75,7 @@ class TestReviewOnlinePaymentsScript(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(
             json.loads(stdout.getvalue()),
-            {"entries": 2, "ready": 1, "state": str(state)},
+            {"entries": 2, "ready": 1, "other_bank_lines": 0, "state": str(state)},
         )
         review_config = service_class.call_args.args[2]
         self.assertEqual(
@@ -87,6 +95,32 @@ class TestReviewOnlinePaymentsScript(unittest.TestCase):
             "Configured_All_Payments",
         )
         service_class.return_value.refresh.assert_called_once_with()
+
+    def test_handler_routes_categorize_travel_expense(self):
+        from apps.payment_review import make_handler
+
+        service = MagicMock()
+        service.categorize_travel_expense.return_value = {
+            "transaction_id": "tx-123",
+            "categorization_status": "categorized",
+        }
+        handler_cls = make_handler(service, "test-token")
+        handler = handler_cls.__new__(handler_cls)
+        body = json.dumps({"confirm": True}).encode("utf-8")
+        handler.headers = {"X-Review-Token": "test-token", "Content-Length": str(len(body))}
+        handler.rfile = io.BytesIO(body)
+        handler.wfile = io.BytesIO()
+        handler.path = "/api/bank-lines/tx-123/categorize-travel"
+        handler.send_response = MagicMock()
+        handler.send_header = MagicMock()
+        handler.end_headers = MagicMock()
+
+        handler.do_POST()
+
+        service.categorize_travel_expense.assert_called_once_with("tx-123")
+        handler.send_response.assert_called_once_with(200)
+        response = json.loads(handler.wfile.getvalue().decode("utf-8"))
+        self.assertEqual(response["categorization_status"], "categorized")
 
 
 if __name__ == "__main__":

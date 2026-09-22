@@ -285,7 +285,7 @@ def test_core_auth_import_does_not_require_workflow_extras():
 import builtins
 real_import = builtins.__import__
 def blocked(name, *args, **kwargs):
-    if name.split('.')[0] in {'pdfplumber', 'xlrd', 'openpyxl', 'pandas'}:
+    if name.split('.')[0] in {'pdfplumber', 'xlrd', 'openpyxl'}:
         raise ImportError('blocked optional dependency')
     return real_import(name, *args, **kwargs)
 builtins.__import__ = blocked

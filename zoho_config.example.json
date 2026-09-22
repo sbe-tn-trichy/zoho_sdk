@@ -5,6 +5,7 @@
       "core": {
         "token_url": "http://localhost:3000/server/new/tokens",
         "org_id": "<your-zoho-organization-id>",
+        "analytics_org_id": "<your-analytics-organization-id>",
         "domain": "in",
         "expected_location_id": "<location-id>",
         "expected_location_name": "<branch-name>",
@@ -64,6 +65,7 @@
       "core": {
         "token_url": "http://localhost:3000/server/new/tokens",
         "org_id": "<sandbox-organization-id>",
+        "analytics_org_id": "<sandbox-analytics-organization-id>",
         "domain": "in"
       }
     }

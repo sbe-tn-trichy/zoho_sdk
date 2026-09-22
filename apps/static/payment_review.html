@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="review-token" content="__TOKEN__">
-  <title>Online Payment Reconciliation</title>
+  <title>Bank Statement Categorization</title>
   <style>
     :root {
       color-scheme: light;
@@ -139,8 +139,8 @@
 </head>
 <body>
 <header>
-  <h1>Payment Reconciliation</h1>
-  <p>Review Online and Cheque payment matches across HDFC, ICICI, and IDFC. Nothing is pushed until you accept it.</p>
+  <h1>Bank Statement Categorization</h1>
+  <p>Review Creator payment matches, other deposits, and TA withdrawals across HDFC, ICICI, and IDFC.</p>
 </header>
 <main>
   <section class="summary" id="summary"></section>
@@ -183,6 +183,14 @@
       <tbody id="rows"></tbody>
     </table>
   </div>
+  <h2>Other uncategorized bank lines</h2>
+  <p class="muted">Customer names are suggestions from Analytics. TA withdrawals require approval before expense categorization.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Bank</th><th>Date</th><th>Amount</th><th>Description</th><th>Suggestion</th><th>Action</th></tr></thead>
+      <tbody id="bankRows"></tbody>
+    </table>
+  </div>
 </main>
 <div id="notice"></div>
 
@@ -211,7 +219,7 @@
   }
 
   function eligible(e) {
-    const hasCandidate = e.reviewable || (isPossible(e) && selectedPossibleCandidateId(e) && e.creator?.books_customer_id);
+    const hasCandidate = e.reviewable || (isPossible(e) && selectedPossibleCandidateId(e) && e.creator?.books_customer_id && e.customer_name_valid !== false);
     return hasCandidate && state(e) !== 'pushed' && !inProgress(e);
   }
 
@@ -219,7 +227,7 @@
     const b = e.bank;
     if (b) return `${esc(b.date)} · <span class="money">${money(b.amount)}</span><div class="ref">${esc(b.reference)}</div><div class="muted">${esc(b.description)}</div>`;
     const candidates = e.ambiguous_candidates || [];
-    if (candidates.length) return `<details open><summary class="warning">${candidates.length} matching bank lines</summary>${candidates.map(c => `<div class="candidate"><strong>${esc(c.bank_name || 'Bank')}</strong> · ${esc(c.date)} · <span class="money">${money(c.amount)}</span><div class="ref">${esc(c.reference)}</div><div class="muted">${esc(c.description)}</div></div>`).join('')}</details>`;
+    if (candidates.length) return `<details open><summary class="warning">${candidates.length} matching bank lines</summary>${candidates.map(c => `<div class="candidate"><strong>${esc(c.bank_name || 'Bank')}</strong> · ${esc(c.date)} · <span class="money">${money(c.amount)}</span><div class="ref">${esc(c.reference)}</div><div class="muted">${esc(c.description)}</div>${c.suggested_customer_names?.length ? `<div>Analytics suggests: ${c.suggested_customer_names.map(esc).join(', ')}</div>` : ''}</div>`).join('')}</details>`;
     const possible = e.possible_candidates || [];
     if (possible.length) {
       const chosen = selectedPossibleCandidateId(e);
@@ -308,6 +316,13 @@
     document.getElementById('selectVisible').checked = visibleEligible.length > 0 && visibleEligible.every(e => selected.has(e.id));
     document.getElementById('selectedCount').textContent = `${selected.size} selected`;
     document.getElementById('acceptSelected').disabled = selected.size === 0;
+    const bankRows = (batch.bank_suggestions || []).filter(row => !q || JSON.stringify(row).toLowerCase().includes(q));
+    document.getElementById('bankRows').innerHTML = bankRows.map(row => `<tr>
+      <td>${esc(row.bank_name)}</td><td>${esc(row.date)}</td><td class="money">${money(row.amount)}</td>
+      <td>${esc(row.description)}</td>
+      <td>${row.kind === 'travel_allowance' ? `Expense: ${esc(row.expense_account_name)}` : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
+      <td>${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : row.kind === 'travel_allowance' ? `<button class="accept" onclick="categorizeTravel('${esc(row.transaction_id)}')">Categorize expense</button>` : '<span class="muted">Review in Books</span>'}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">No other uncategorized bank lines.</td></tr>';
   }
 
   async function api(path, method = 'GET', body = {}) {
@@ -324,6 +339,17 @@
   async function load() {
     batch = await api('/api/batch');
     render();
+  }
+
+  async function categorizeTravel(transactionId) {
+    if (!confirm('Categorize this live TA withdrawal as Employee Travel Expense in Zoho Books?')) return;
+    try {
+      await api('/api/bank-lines/' + encodeURIComponent(transactionId) + '/categorize-travel', 'POST');
+      await load();
+      notify('Travel allowance expense categorized. Refresh to update the bank list.');
+    } catch (e) {
+      notify(e.message, true);
+    }
   }
 
   function toggleEntry(id, checked) {

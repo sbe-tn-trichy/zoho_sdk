@@ -36,6 +36,8 @@ class BankMatchCandidate(TypedDict, total=False):
     amount: str
     reference: str
     description: str
+    transaction_number: str
+    suggested_customer_names: List[str]
 
 
 class PaymentProposal(TypedDict, total=False):

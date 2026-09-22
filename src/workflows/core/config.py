@@ -128,6 +128,7 @@ class Config:
     # API Access
     TOKEN_URL = get_config("TOKEN_URL", "http://localhost:3000/server/new/tokens")
     ORG_ID = get_config("ORG_ID", "")
+    ANALYTICS_ORG_ID = get_config("ANALYTICS_ORG_ID", "60018545708")
     DOMAIN = get_config("DOMAIN", "in")
     CREATOR_OWNER_NAME = get_config(
         "CREATOR_OWNER_NAME", get_config("CREATOR_ACCOUNT_OWNER_NAME", "")

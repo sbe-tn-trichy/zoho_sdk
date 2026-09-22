@@ -27,7 +27,12 @@ from .allocator import (
     fetch_open_invoices,
 )
 from .cheques import attach_presented_dates, normalize_cheque_number
-from .types import InvoiceAllocation, PaymentProposal
+from .bank_statement import (
+    CustomerFinderIndex,
+    bank_line_kind,
+    extract_remitter_tokens,
+    is_travel_allowance_withdrawal,
+)
 
 
 def _now() -> str:
@@ -62,6 +67,9 @@ class OnlinePaymentReviewConfig:
     date_tolerance_days: int = 0
     cheque_date_tolerance_days: int = 7
     amount_tolerance: Decimal = Decimal("0")
+    analytics_workspace_id: str = ""
+    customer_finder_view_id: str = ""
+    travel_expense_account_name: str = "Employee Travel Expense"
     state_path: Path = Path(
         "output/collection_reconciliation/online_payments_review.json"
     )
@@ -90,9 +98,10 @@ class OnlinePaymentReviewConfig:
 class OnlinePaymentReviewService:
     """Build and mutate a persistent, explicitly approved payment review queue."""
 
-    def __init__(self, creator_client: Any, books_client: Any, config: OnlinePaymentReviewConfig):
+    def __init__(self, creator_client: Any, books_client: Any, config: OnlinePaymentReviewConfig, analytics_client: Any = None):
         self.creator = creator_client
         self.books = books_client
+        self.analytics = analytics_client
         self.config = config
         self._lock = threading.RLock()
 
@@ -122,10 +131,38 @@ class OnlinePaymentReviewService:
             bank_transactions = self._all_uncategorized_bank_transactions()
 
             used_transaction_ids = set()
-            invoice_cache: Dict[str, List[Mapping[str, Any]]] = {}
-            entries = []
+            raw_entries = []
             for payment in payments:
                 entry = self._proposal(payment, customer_ids, bank_transactions, used_transaction_ids)
+                raw_entries.append(entry)
+
+            # Collect remitter tokens for targeted historical lookup
+            all_tokens: set[str] = set()
+            for entry in raw_entries:
+                bank = entry.get("bank")
+                if bank:
+                    all_tokens.update(extract_remitter_tokens(bank.get("description")))
+                for cand in entry.get("ambiguous_candidates", []):
+                    all_tokens.update(extract_remitter_tokens(cand.get("description")))
+                for cand in entry.get("possible_candidates", []):
+                    all_tokens.update(extract_remitter_tokens(cand.get("description")))
+            for tx in bank_transactions:
+                if not is_travel_allowance_withdrawal(tx):
+                    all_tokens.update(extract_remitter_tokens(tx.get("description")))
+
+            customer_finder_rows = self._query_historical_customer_finder(sorted(all_tokens))
+            customer_finder = CustomerFinderIndex(customer_finder_rows)
+
+            invoice_cache: Dict[str, List[Mapping[str, Any]]] = {}
+            entries = []
+            for entry in raw_entries:
+                for candidate in entry["ambiguous_candidates"]:
+                    cand_tokens = extract_remitter_tokens(candidate.get("description"))
+                    candidate["suggested_customer_names"] = (
+                        self._suggest_names_for_tokens(cand_tokens, customer_finder_rows)
+                        or customer_finder.suggest(candidate)
+                    )
+                self._check_customer_name(entry, customer_finder_rows)
                 old = previous_entries.get(entry["id"])
                 if old and old.get("push_status") == "pushed":
                     terminal = dict(old)
@@ -134,6 +171,9 @@ class OnlinePaymentReviewService:
                     entries.append(terminal)
                     continue
                 self._attach_invoice_preview(entry, invoice_cache)
+                if entry.get("customer_name_valid") is False:
+                    entry["reviewable"] = False
+                    entry["reason"] = entry["customer_name_reason"]
                 if old and old.get("fingerprint") == entry["fingerprint"]:
                     for key in (
                         "decision",
@@ -171,6 +211,28 @@ class OnlinePaymentReviewService:
                     self._migrate_bank_identity(archived, previous)
                     entries.append(archived)
 
+            previous_bank = {
+                _text(row.get("transaction_id")): row
+                for row in previous.get("bank_suggestions", [])
+            }
+            bank_suggestions = []
+            for transaction in bank_transactions:
+                transaction_id = _text(transaction.get("transaction_id") or transaction.get("id"))
+                if not transaction_id or transaction_id in used_transaction_ids:
+                    continue
+                displayed = self._display_bank(transaction)
+                displayed.update({
+                    "bank_name": _text(transaction.get("_review_bank_name")),
+                    "bank_account_id": _text(transaction.get("_review_bank_account_id")),
+                    "kind": bank_line_kind(transaction),
+                    "customer_suggestions": customer_finder.suggest(transaction) if bank_line_kind(transaction) != "travel_allowance" else [],
+                    "expense_account_name": self.config.travel_expense_account_name if is_travel_allowance_withdrawal(transaction) else "",
+                    "categorization_status": "pending",
+                })
+                if previous_bank.get(transaction_id, {}).get("categorization_status") == "categorized":
+                    continue
+                bank_suggestions.append(displayed)
+
             batch = {
                 "version": 2,
                 "reports": [
@@ -183,9 +245,61 @@ class OnlinePaymentReviewService:
                 ],
                 "refreshed_at": _now(),
                 "entries": entries,
+                "bank_suggestions": bank_suggestions,
             }
             self._save(batch)
             return batch
+
+    def categorize_travel_expense(self, transaction_id: str) -> Dict[str, Any]:
+        """Categorize one reviewed TA withdrawal after validating live Books state."""
+        with self._lock:
+            batch = self.load()
+            proposal = next(
+                (row for row in batch.get("bank_suggestions", []) if _text(row.get("transaction_id")) == transaction_id),
+                None,
+            )
+            if not proposal or proposal.get("kind") != "travel_allowance":
+                raise ReconciliationError("No travel allowance proposal exists for this bank line.")
+            if proposal.get("categorization_status") == "categorized":
+                return proposal
+            account_id = _text(proposal.get("bank_account_id"))
+            current = self._current_bank_transaction(transaction_id, account_id)
+            if not is_travel_allowance_withdrawal(current):
+                raise ReconciliationError("The live bank line is no longer a TA withdrawal.")
+            if (
+                parse_date(current.get("date") or current.get("transaction_date")) != parse_date(proposal.get("date"))
+                or _decimal(current.get("amount")) != _decimal(proposal.get("amount"))
+                or _text(current.get("description") or current.get("narration")) != _text(proposal.get("description"))
+            ):
+                raise ReconciliationError("The live bank line changed. Refresh before categorizing.")
+            accounts = self.books.chart_of_accounts.list_all()
+            matching_accounts = [
+                row for row in accounts
+                if _text(row.get("account_name")).casefold() == self.config.travel_expense_account_name.casefold()
+                and _text(row.get("account_id"))
+                and _text(row.get("account_type")).casefold() in {"expense", "other_expense"}
+                and row.get("is_active") is not False
+            ]
+            if len(matching_accounts) != 1:
+                raise ReconciliationError("A unique active Employee Travel Expense account was not found in Books.")
+            amount = _decimal(current.get("amount"))
+            if amount is None or amount == 0:
+                raise ReconciliationError("The bank withdrawal has no valid amount.")
+            payload = {
+                "account_id": _text(matching_accounts[0]["account_id"]),
+                "paid_through_account_id": account_id,
+                "date": _text(current.get("date") or current.get("transaction_date")),
+                "amount": float(abs(amount)),
+                "description": _text(current.get("description") or current.get("narration")),
+                "reference_number": _text(current.get("reference_number")),
+            }
+            response = self.books.bank_transactions.categorize_as_expense(transaction_id, payload)
+            if not isinstance(response, Mapping) or _text(response.get("code")) != "0":
+                raise ReconciliationError("Books rejected the expense categorization.")
+            proposal["categorization_status"] = "categorized"
+            proposal["expense_account_id"] = payload["account_id"]
+            self._save(batch)
+            return proposal
 
     def reject(self, entry_id: str) -> Dict[str, Any]:
         with self._lock:
@@ -256,9 +370,15 @@ class OnlinePaymentReviewService:
                 raise ReconciliationError("This entry has no unique bank match to accept.")
             if not entry.get("reviewable"):
                 raise ReconciliationError(
+                    entry.get("customer_name_reason") if entry.get("customer_name_valid") is False else
                     entry.get("allocation_error")
                     or "This entry has no invoice allocation to accept."
                 )
+            live_tokens = extract_remitter_tokens(entry["bank"].get("description"))
+            self._check_customer_name(entry, self._query_historical_customer_finder(live_tokens))
+            if entry.get("customer_name_valid") is False:
+                self._save(batch)
+                raise ReconciliationError(entry["customer_name_reason"])
             if entry.get("push_status") == "pushed":
                 return entry
 
@@ -565,6 +685,141 @@ class OnlinePaymentReviewService:
                     f"Creator rejected the checkpoint update (code={code})"
                     + (f": {message}" if message else ".")
                 )
+
+    def _query_historical_customer_finder(
+        self, tokens: Sequence[str]
+    ) -> List[Mapping[str, Any]]:
+        if not self.config.customer_finder_view_id or not tokens:
+            return []
+        if not self.analytics or not self.config.analytics_workspace_id:
+            raise ReconciliationError("Analytics customer-name validation is not configured.")
+
+        unique_tokens = sorted({t.strip() for t in tokens if t and len(t.strip()) >= 3})
+        if not unique_tokens:
+            return []
+
+        # If queries.execute is available, run targeted SQL
+        if hasattr(self.analytics, "queries") and callable(getattr(self.analytics.queries, "execute", None)):
+            try:
+                all_rows: List[Mapping[str, Any]] = []
+                chunk_size = 35
+                for i in range(0, len(unique_tokens), chunk_size):
+                    chunk = unique_tokens[i:i + chunk_size]
+                    clauses = []
+                    for token in chunk:
+                        safe = token.replace("'", "''")
+                        clauses.append(f'"Description" LIKE \'%{safe}%\'')
+                    where_clause = " OR ".join(clauses)
+                    table_name = "Payment Customer Finder"
+                    sql = (
+                        f'SELECT "Customer Name", "Description" '
+                        f'FROM "{table_name}" '
+                        f'WHERE "Customer Name" IS NOT NULL AND "Customer Name" != \'\' '
+                        f'AND ({where_clause})'
+                    )
+                    rows = self.analytics.queries.execute(
+                        self.config.analytics_workspace_id,
+                        sql,
+                    )
+                    if isinstance(rows, list):
+                        all_rows.extend(rows)
+                if all_rows or not hasattr(self.analytics, "views"):
+                    return all_rows
+            except Exception:
+                if not hasattr(self.analytics, "views"):
+                    raise
+
+        # Fallback to views.export_all (e.g. mock views in tests or when SQL is unavailable)
+        if hasattr(self.analytics, "views") and callable(getattr(self.analytics.views, "export_all", None)):
+            rows = self.analytics.views.export_all(
+                self.config.analytics_workspace_id,
+                self.config.customer_finder_view_id,
+                max_attempts=60,
+            )
+            if isinstance(rows, list):
+                return rows
+
+        return []
+
+    def _customer_finder_rows(self) -> List[Mapping[str, Any]]:
+        """Fallback for callers requesting all rows."""
+        return self._query_historical_customer_finder(["UPI", "NEFT", "IMPS", "CHQ"])
+
+    @staticmethod
+    def _suggest_names_for_tokens(
+        tokens: Sequence[str], historical_rows: Sequence[Mapping[str, Any]]
+    ) -> List[str]:
+        if not tokens or not historical_rows:
+            return []
+        tokens_lower = [t.casefold() for t in tokens if t]
+        names = {
+            _text(row.get("Customer Name")).strip()
+            for row in historical_rows
+            if isinstance(row, Mapping) and _text(row.get("Customer Name"))
+            and any(t in _text(row.get("Description")).casefold() for t in tokens_lower)
+        }
+        return sorted((n for n in names if n), key=str.casefold)
+
+    def _check_customer_name(
+        self, entry: Dict[str, Any], historical_rows: Sequence[Mapping[str, Any]]
+    ) -> None:
+        """Verify Creator customer name against historical Analytics remitter records."""
+        if not self.config.customer_finder_view_id or not entry.get("bank"):
+            return
+
+        bank_desc = entry["bank"].get("description")
+        tokens = extract_remitter_tokens(bank_desc)
+        if not tokens:
+            entry["customer_name_valid"] = None
+            entry["customer_name_reason"] = "No remitter identifiers in bank narration for Analytics lookup."
+            entry["historical_customer_names"] = []
+            return
+
+        tokens_lower = [t.casefold() for t in tokens if t]
+        matching_rows = [
+            row for row in historical_rows
+            if isinstance(row, Mapping) and _text(row.get("Customer Name"))
+            and any(t in _text(row.get("Description")).casefold() for t in tokens_lower)
+        ]
+
+        if not matching_rows:
+            entry["customer_name_valid"] = None
+            entry["customer_name_reason"] = "No historical customer match found in Analytics."
+            entry["historical_customer_names"] = []
+            return
+
+        historical_names = sorted(
+            {
+                _text(row.get("Customer Name")).strip()
+                for row in matching_rows
+                if _text(row.get("Customer Name")).strip()
+            },
+            key=str.casefold,
+        )
+        entry["historical_customer_names"] = historical_names
+
+        expected = " ".join(_text(entry["creator"].get("customer_name")).split()).casefold()
+
+        def _matches_expected(name: str) -> bool:
+            clean_name = " ".join(name.split()).casefold()
+            return (
+                clean_name == expected
+                or expected.startswith(clean_name + " ")
+                or clean_name.startswith(expected + " ")
+                or clean_name.split(" - ")[0] == expected.split(" - ")[0]
+            )
+
+        has_match = any(_matches_expected(n) for n in historical_names)
+        if has_match:
+            entry["customer_name_valid"] = True
+            entry["customer_name_reason"] = "Customer name confirmed by Analytics history."
+        else:
+            other_names = ", ".join(historical_names)
+            entry["customer_name_valid"] = False
+            entry["customer_name_reason"] = (
+                f"Conflict: Analytics historical records for this remitter belong to "
+                f"'{other_names}', not '{entry['creator'].get('customer_name')}'."
+            )
 
     def _proposal(
         self,
@@ -934,6 +1189,7 @@ class OnlinePaymentReviewService:
         account_id = _text(transaction.get("_review_bank_account_id"))
         return {
             "transaction_id": _text(transaction.get("transaction_id") or transaction.get("id")),
+            "transaction_number": _text(transaction.get("transaction_number") or transaction.get("transaction_no")),
             "date": _text(transaction.get("date") or transaction.get("transaction_date")),
             "amount": _text(transaction.get("amount")),
             "reference": _text(

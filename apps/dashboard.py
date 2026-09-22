@@ -40,8 +40,8 @@ class WorkflowSpec:
 WORKFLOWS = (
     WorkflowSpec(
         1,
-        "Payment reconciliation",
-        "Open the human review queue for online and cheque payments.",
+        "Bank Statement Categorization",
+        "Review Creator payments, other bank lines, and travel allowance withdrawals.",
         (sys.executable, "apps/payment_review.py"),
         "Collections",
         "Review required",
@@ -50,8 +50,8 @@ WORKFLOWS = (
     ),
     WorkflowSpec(
         2,
-        "Payment reconciliation preview",
-        "Refresh production online and cheque payment matches without writing to Zoho.",
+        "Bank Statement Categorization preview",
+        "Refresh Creator matches and uncategorized bank suggestions without writing to Zoho.",
         (sys.executable, "apps/payment_review.py", "--refresh-only"),
         "Collections",
         workflow="collection_reconciliation",

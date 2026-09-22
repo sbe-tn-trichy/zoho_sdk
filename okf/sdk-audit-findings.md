@@ -48,7 +48,7 @@ A comprehensive code audit across all `zoho_sdk` service clients identified key 
 * **Configurable Cliq Error Handling**: `ZohoCliqAPI.send_notification` supports `raise_on_error: bool = False` to allow callers to catch `ZohoCliqError` when desired.
 * **Type Annotations**: Corrected `ZohoSheetAPI.list_sheets` signature to `List[str]`.
 * **Structured Exception Fields**: `ZohoError` exposes `status_code`, `error_code`, `response_data`, and `endpoint`; both streamed and ordinary request failures retain endpoint context.
-* **Dependency-Light Imports**: Root workflow exports are lazy, so core authentication and the base SDK remain importable without PDF, spreadsheet, or dataframe extras.
+* **Dependency-Light Imports**: Root workflow exports are lazy, so core authentication and the base SDK remain importable without PDF or spreadsheet extras. Pandas is not used by project code and is not a workflow dependency.
 * **Uniform Request Contract**: Every concrete service client forwards the base transport options for form data, headers, files, streaming, URL overrides, mutation classification, and timeouts. Books and Inventory continue to add organization IDs without mutating caller-owned parameter dictionaries.
 * **Empty Error Responses**: HTTP errors are raised before the transport treats
   an empty response body as a successful empty object.

@@ -1,7 +1,7 @@
 ---
 type: Concept
-title: Creator Collection Reconciliation
-description: Safe Creator-to-Books collection matching with Analytics-assisted manual exceptions.
+title: Bank Statement Categorization
+description: Creator payment matching, Analytics-assisted bank suggestions, and reviewed TA expense categorization.
 tags: [creator, books, analytics, collections, reconciliation, audit]
 sources:
   - id: collection-reconciler
@@ -12,7 +12,7 @@ sources:
 status: active
 ---
 
-# Collection Reconciliation Workflow
+# Bank Statement Categorization Workflow
 
 `workflows.collection_reconciliation` reconciles pending collection records in
 Zoho Creator against uncategorized incoming bank lines in Zoho Books. It is a
@@ -117,6 +117,20 @@ matches are never written automatically.
 
 # Online Payments Human Review
 
+The production UI is named **Bank Statement Categorization**. It retains the
+Creator online and cheque payment matching flow and adds other uncategorized
+Books bank lines to a separate review table. Bank narrations are compared
+with distinct customer names from Analytics Payment Customer Finder; complete
+name matches are suggestions only. A withdrawal whose description ends in
+`/TA` is proposed as Employee Travel Expense. A reviewer must explicitly
+approve it, after which the workflow re-reads the uncategorized bank line,
+checks its date, amount, and description, resolves one active expense account
+with that exact name, and calls Books' categorize-as-expense endpoint. The
+proposal state prevents a repeat click from posting twice.
+In the production bank feed and Finder view, `debit` means deposit and
+`credit` means withdrawal. The `/TA` expense proposal applies only to credit
+lines.
+
 `apps/payment_review.py` serves a loopback-only review queue for the
 production Creator `Online_Payments` report. It maps `Payment_Amount`,
 `Reference`, and the `Customer_Name` lookup to reconciliation values, resolving
@@ -124,6 +138,19 @@ the lookup through `All_Customers1.Customer_Id` before any Books payment is
 proposed.
 
 Only a unique date, amount, and reference match is eligible for acceptance.
+The production review queue also validates the Creator customer name against
+historical categorized records in Analytics `Payment Customer Finder` view
+`264324000006111037` in workspace `264324000000002043`. The workflow extracts
+remitter identifiers (UPI VPA, phone numbers, remitter names) from the bank line
+narration and executes targeted SQL queries against the Finder view rather than
+downloading the full table. If historical records exist for that remitter, they
+must confirm the Creator customer name; if historical records belong to a different
+customer, acceptance is blocked as a conflict. If no prior records exist for that
+remitter, the exact date, amount, and reference match remains reviewable.
+A targeted lookup is also re-executed immediately before a push so a stale preview
+cannot authorize a payment.
+The review app uses the separate Analytics organization ID from
+`ANALYTICS_ORG_ID`; its default corresponds to the configured Finder view.
 The browser UI presents Creator and bank values side by side. Rejection changes
 only the atomic local state file. `Accept & Push` revalidates that the bank line
 is still uncategorized and refreshes the customer's open Books invoices. The
@@ -145,6 +172,10 @@ provides a dedicated `Ambiguous` filter and shows each candidate's bank, date,
 amount, reference, and narration for inspection. These entries remain
 non-reviewable for pushing until matching becomes unique, so viewing ambiguity
 does not weaken the workflow's mutation safety.
+When configured, the Analytics Payment Customer Finder view adds customer-name
+suggestions to each ambiguous bank candidate using its transaction number where
+available, plus date, amount, and reference. Suggestions are informational and
+do not select a bank line automatically.
 
 When date and amount agree but the reference predicate fails, the queue retains
 the bank lines under a separate `Possible matches` filter. This exposes likely

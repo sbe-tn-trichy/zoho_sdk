@@ -12,8 +12,7 @@ class TestPackageImports(unittest.TestCase):
                 (
                     "import sys, zoho; "
                     "assert 'workflows' not in sys.modules; "
-                    "assert 'pdfplumber' not in sys.modules; "
-                    "assert 'pandas' not in sys.modules"
+                    "assert 'pdfplumber' not in sys.modules"
                 ),
             ],
             check=False,

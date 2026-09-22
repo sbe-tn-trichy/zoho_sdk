@@ -74,7 +74,7 @@ def __getattr__(name: str):
     try:
         module = import_module(module_name, __name__)
     except ModuleNotFoundError as exc:
-        if exc.name in {"pdfplumber", "xlrd", "openpyxl", "pandas", "dotenv"}:
+        if exc.name in {"pdfplumber", "xlrd", "openpyxl", "dotenv"}:
             raise ModuleNotFoundError(
                 f"Workflow {name!r} requires optional dependencies; install "
                 "zoho-sdk[workflows]."

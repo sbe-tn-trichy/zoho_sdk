@@ -196,8 +196,8 @@ for manual exceptions. Set `dry_run=False` only after reviewing the validation
 and match output. Pass `create_missing_books_fields=True` to explicitly create
 missing Books fields; Creator form fields must be configured in Creator.
 
-For the production Creator `Online_Payments` report, launch the local human
-review queue instead:
+For the production bank statement categorization workflow, launch the local
+human review queue:
 
 ```bash
 python apps/payment_review.py
@@ -224,6 +224,11 @@ the originating bank in a dedicated column. It also combines Creator's
 `Presented_Date` from Creator's `All_Cheque_Details` report and Books `check`
 payment mode for cheque rows. Cheque details are joined uniquely by normalized
 cheque number and customer; an unpresented or ambiguous cheque is not eligible.
+The page also lists uncategorized bank lines that did not receive a unique Creator
+match. Analytics Payment Customer Finder suggests customer names from narration
+or matching view descriptions. Credit lines ending in `/TA` can be categorized as
+Employee Travel Expense after explicit review; the live bank line and target
+expense account are checked again before the Books update.
 
 Install workflow and test dependencies with:
 

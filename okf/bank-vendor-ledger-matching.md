@@ -49,5 +49,5 @@ fallback. Raw transaction dictionaries remain unchanged in reconciliation
 results.
 
 The same normalization is used by
-[Creator Collection Reconciliation](collection-reconciliation.md) when it
+[Bank Statement Categorization](collection-reconciliation.md) when it
 matches pending collections and creates manual-resolution collection records.

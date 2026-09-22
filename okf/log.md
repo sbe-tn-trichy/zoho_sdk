@@ -1,5 +1,19 @@
 # Knowledge Change Log
 
+## 2026-09-22
+
+- Replaced full-table Analytics export with targeted historical SQL queries using remitter identifiers (UPI VPA, phone, remitter name); supports confirmation, conflict detection, and non-blocking new remitters while scaling gracefully to 100K+ rows.
+
+- Corrected bank-line direction handling to the production convention: debit means deposit and credit means withdrawal. Only credit `/TA` lines receive travel expense proposals.
+
+- Renamed the production review UI to Bank Statement Categorization; added Analytics narration-based customer suggestions for other bank lines and an explicitly approved Employee Travel Expense action for `/TA` withdrawals.
+
+- Show Analytics customer-name suggestions beside ambiguous bank candidates without making them automatically eligible for posting.
+
+- Added Analytics Payment Customer Finder name validation to the production payment review queue; proposals require one matching view row and are rechecked before pushing.
+
+- Removed pandas from the workflow extra after confirming no project code imports it; retained the PDF and spreadsheet dependencies used by specific workflows.
+
 ## 2026-09-17
 
 - Removed the standalone ICICI unmatched-entry export and its dashboard entry;
