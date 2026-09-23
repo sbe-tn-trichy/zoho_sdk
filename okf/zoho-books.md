@@ -9,6 +9,17 @@ description: Public resource access patterns for the Zoho Books client.
 Resources inherit standard CRUD operations and the paginated `list_all()` helper
 from `BaseResource`.
 
+## Reducing a paid bill
+
+`workflows.update_bill_with_payment_reallocation()` supports bill updates that
+reduce the total below applied vendor payments. It defaults to a dry run and
+requires an expected new total. For a decrease, it temporarily unlinks the
+bill from each vendor payment, updates the bill, then reapplies payments up to
+the new total. Other bill allocations and each bank payment amount are retained;
+any excess remains as unapplied vendor payment credit. For a non-decrease it
+updates the bill directly. Recheck the returned Books bill and payment credit
+after a live run; the API operations are sequential rather than atomic.
+
 ## Sales order attachments
 
 `sales_orders.add_attachment(sales_order_id, file_path)` uploads a local file to

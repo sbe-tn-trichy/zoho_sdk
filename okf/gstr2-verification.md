@@ -18,9 +18,9 @@ status: active
 cross-check between a downloaded GSTR-2 or GSTR-2B return JSON file and Zoho Books
 purchases (bills, GST-bearing expenses, and vendor credits).
 
-The verifier reads a static Books location-ID to registered-GSTIN snapshot from
+The verifier reads a static registered-GSTIN to Books-location-ID-list snapshot from
 `GSTR2_LOCATION_GSTIN_MAP`. The map is maintained in the active configuration
-profile and includes each location's display name and owning GSTIN. It is
+profile. It is
 expected to change rarely and should be reviewed when Books locations or GST
 registrations change. The workflow does not call the Locations API at runtime.
 
@@ -29,7 +29,7 @@ location belongs to the recipient GSTIN in the portal JSON. A document's
 `gst_no` identifies the supplier, not the recipient registration. An empty or
 invalid map, unknown or missing document locations, or a missing recipient
 GSTIN marks the run incomplete; the CLI preserves any existing report in that
-case. The report lists the configured Books locations included in scope.
+case. The report lists the configured Books location IDs included in scope.
 
 Bills are assigned to a return month by Zoho Books `txn_value_date`
 (transaction posting date), falling back to bill `date` when no posting date is
@@ -62,6 +62,9 @@ matched portal-document and Books-purchase counts remain distinct.
 1. **Exact & Normalized Matches**:
    Invoices where document numbers match (via exact or non-alphanumeric normalized
    comparison) and total amounts agree within the configured tolerance (default ±₹1.00).
+   The verifier also accepts number substring matches when the supplier matches,
+   but never matches solely on supplier and amount; that would conflate separate
+   invoices with identical values.
 
 2. **Value Mismatches**:
    Documents identified by document number and supplier, but exhibiting differences in

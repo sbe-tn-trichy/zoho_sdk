@@ -22,6 +22,32 @@ def test_normalize_doc_number():
     assert normalize_doc_number("") == ""
 
 
+def test_same_vendor_and_amount_do_not_override_different_expense_reference():
+    verifier = GSTR2Verifier(MagicMock())
+    gstin = "33AAACH2702H1Z7"
+    expense = {
+        "expense_id": "expense-1", "expense_number": "",
+        "reference_number": "EPR2605308968789",
+        "norm_number": "", "norm_ref_number": "EPR2605308968789",
+        "gst_no": gstin, "vendor_name": "HDFC BANK LIMITED", "total": 236.0,
+    }
+
+    wrong_portal_doc = {
+        "doc_number": "EPR2603769782832",
+        "norm_number": "EPR2603769782832",
+        "supplier_gstin": gstin, "supplier_name": "HDFC BANK LIMITED",
+        "total_value": 236.0,
+    }
+    correct_portal_doc = {
+        **wrong_portal_doc,
+        "doc_number": "EPR2605308968789",
+        "norm_number": "EPR2605308968789",
+    }
+
+    assert verifier._find_best_match(wrong_portal_doc, [expense], set()) is None
+    assert verifier._find_best_match(correct_portal_doc, [expense], set()) is expense
+
+
 def test_bills_use_transaction_posting_date_for_month_selection():
     books = MagicMock()
     books.bills.list_all.return_value = [
@@ -61,8 +87,8 @@ def test_books_documents_are_scoped_by_location_registration_not_vendor_gstin():
                        "docdata": {"b2b": [], "cdnr": []}}}
 
     config = GSTR2VerificationConfig(location_gstin_map={
-        "loc-target": {"name": "Sri Bharath Electricals", "gstin": "33AATFB2164K1Z9"},
-        "loc-other": {"name": "SBE", "gstin": "33AFSFS0069L1ZH"},
+        "33AATFB2164K1Z9": ["loc-target"],
+        "33AFSFS0069L1ZH": ["loc-other"],
     })
     result = GSTR2Verifier(books, config).run(portal)
     summary = result["reconciliation"]["summary"]
@@ -71,7 +97,7 @@ def test_books_documents_are_scoped_by_location_registration_not_vendor_gstin():
     assert summary["books_total_expenses_count"] == 0
     assert summary["books_total_credits_count"] == 0
     assert result["metadata"]["included_locations"] == [
-        {"location_id": "loc-target", "location_name": "Sri Bharath Electricals"},
+        {"location_id": "loc-target"},
     ]
     books.locations.list_all.assert_not_called()
 
@@ -89,7 +115,7 @@ def test_unknown_books_location_is_reported_as_incomplete():
                        "docdata": {"b2b": [], "cdnr": []}}}
 
     config = GSTR2VerificationConfig(location_gstin_map={
-        "loc-target": {"name": "Target", "gstin": "33AATFB2164K1Z9"},
+        "33AATFB2164K1Z9": ["loc-target"],
     })
     result = GSTR2Verifier(books, config).run(portal)
     assert any(error["source"] == "locations" for error in result["fetch_errors"])
@@ -109,6 +135,41 @@ def test_empty_static_location_map_marks_run_incomplete():
         "GSTR2_LOCATION_GSTIN_MAP is empty",
     }
     books.locations.list_all.assert_not_called()
+
+
+def test_location_map_rejects_scalar_location_list():
+    verifier = GSTR2Verifier(
+        MagicMock(),
+        GSTR2VerificationConfig(location_gstin_map={
+            "33AATFB2164K1Z9": "loc-target",
+        }),
+    )
+    errors = []
+
+    assert verifier._configured_location_gstins(errors) == {}
+    assert errors == [{
+        "source": "locations",
+        "error": "Invalid static location mapping for GSTIN '33AATFB2164K1Z9'",
+    }]
+
+
+def test_location_map_rejects_location_assigned_to_multiple_gstins():
+    verifier = GSTR2Verifier(
+        MagicMock(),
+        GSTR2VerificationConfig(location_gstin_map={
+            "33AATFB2164K1Z9": ["loc-shared"],
+            "33AFSFS0069L1ZH": ["loc-shared"],
+        }),
+    )
+    errors = []
+
+    locations = verifier._configured_location_gstins(errors)
+
+    assert locations["loc-shared"]["gstin"] == "33AATFB2164K1Z9"
+    assert errors == [{
+        "source": "locations",
+        "error": "Location loc-shared is mapped to multiple GSTINs",
+    }]
 
 
 @pytest.mark.parametrize(

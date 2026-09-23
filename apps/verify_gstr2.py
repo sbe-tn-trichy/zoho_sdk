@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
@@ -20,6 +21,7 @@ from workflows.core.config import Config
 from workflows.gstr2_verification import (
     AggregatePurchaseMapping,
     GSTR2VerificationConfig,
+    GSTR2Verifier,
     render_markdown_report,
     verify_gstr2,
 )
@@ -253,15 +255,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     json_path = args.explicit_json_path or args.json_file
     if not json_path:
-        print("Error: Please provide a GSTR-2B JSON file path.", file=sys.stderr)
+        print("Error: Please provide a GSTR-2B JSON file or directory path.", file=sys.stderr)
         return 1
 
     path_obj = Path(json_path)
     if not path_obj.exists():
-        print(f"Error: File not found at '{path_obj}'", file=sys.stderr)
+        print(f"Error: Path not found at '{path_obj}'", file=sys.stderr)
         return 1
-
-    print(f"Loading GSTR-2B data from: {path_obj}")
 
     mappings = ()
     if args.aggregate_map.is_file():
@@ -281,70 +281,104 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         location_gstin_map=Config.GSTR2_LOCATION_GSTIN_MAP,
     )
 
-    print("Running GSTR-2B verification against Zoho Books...")
-    result = verify_gstr2(
-        books_client=books,
-        gstr2_source=path_obj,
-        month=args.month,
-        config=config,
-    )
+    # Collect items/files to process
+    items_to_process: list[tuple[str, Path | Mapping[str, Any]]] = []
+    if path_obj.is_dir():
+        candidate_files = list(path_obj.glob("*.json"))
+        # Parse return periods to sort chronologically and filter out non-return files
+        parsed_candidates = []
+        for cf in candidate_files:
+            try:
+                data = json.loads(cf.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    prd = str(data.get("rtnprd") or (data.get("data", {}).get("rtnprd") if isinstance(data.get("data"), dict) else "") or "")
+                    if len(prd) == 6 and prd.isdigit():
+                        sort_key = (int(prd[2:6]), int(prd[0:2]))
+                    else:
+                        sort_key = (9999, 99)
+                    parsed_candidates.append((sort_key, cf.name, cf))
+                elif isinstance(data, list) and not candidate_files:
+                    # If only combined files exist
+                    pass
+            except Exception:
+                continue
 
-    critical_fetch_errors = [
-        error for error in result.get("fetch_errors", [])
-        if error.get("source") in {"locations", "bills", "expenses", "vendor_credits"}
-    ]
-    if critical_fetch_errors:
-        for error in critical_fetch_errors:
-            print(f"Error fetching {error['source']}: {error['error']}", file=sys.stderr)
-        print("Reconciliation incomplete; existing report was not overwritten.", file=sys.stderr)
-        return 1
+        parsed_candidates.sort(key=lambda x: (x[0], x[1]))
+        for _, name, cf in parsed_candidates:
+            items_to_process.append((name, cf))
 
-    # Render and save the month plus cumulative category histories.
-    report_md = render_markdown_report(result)
-    try:
-        monthly_path, cumulative_paths = write_reconciliation_outputs(
-            result,
-            report_md,
-            output_root=args.output_root,
-            monthly_override=args.output,
+        if not items_to_process:
+            print(f"Error: No valid GSTR-2B return JSON files found in '{path_obj}'", file=sys.stderr)
+            return 1
+    else:
+        # Check if single file is a combined list
+        try:
+            raw = json.loads(path_obj.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                for idx, elem in enumerate(raw, 1):
+                    prd = str(elem.get("rtnprd") or (elem.get("data", {}).get("rtnprd") if isinstance(elem.get("data"), dict) else "") or f"item_{idx}")
+                    items_to_process.append((f"{path_obj.name} [{prd}]", elem))
+            else:
+                items_to_process.append((path_obj.name, path_obj))
+        except Exception:
+            items_to_process.append((path_obj.name, path_obj))
+
+    total = len(items_to_process)
+    print(f"Found {total} return(s) to process.")
+
+    verifier = GSTR2Verifier(books, config=config)
+    exit_code = 0
+    for idx, (label, source) in enumerate(items_to_process, 1):
+        print(f"\n{'=' * 70}")
+        print(f"[{idx}/{total}] Processing: {label}")
+        print(f"{'=' * 70}")
+
+        result = verifier.run(
+            gstr2_source=source,
+            month=args.month,
         )
-    except (OSError, ValueError) as exc:
-        print(f"Error writing reconciliation outputs: {exc}", file=sys.stderr)
-        return 1
-    print(f"\nMonthly reconciliation report written to: {monthly_path.resolve()}")
-    print(f"Cumulative category files updated: {cumulative_paths[0].parent.resolve()}")
 
-    # Print summary to terminal
-    meta = result["metadata"]
-    rec = result["reconciliation"]
-    summary = rec["summary"]
+        critical_fetch_errors = [
+            error for error in result.get("fetch_errors", [])
+            if error.get("source") in {"locations", "bills", "expenses", "vendor_credits"}
+        ]
+        if critical_fetch_errors:
+            for error in critical_fetch_errors:
+                print(f"Error fetching {error['source']}: {error['error']}", file=sys.stderr)
+            print("Reconciliation incomplete; existing report was not overwritten.", file=sys.stderr)
+            exit_code = 1
+            continue
 
-    print("\n" + "=" * 70)
-    print(f"GSTR-2B vs Zoho Books Verification Summary ({meta['target_month']})")
-    print("=" * 70)
-    print(f"Recipient GSTIN:       {meta['recipient_gstin']}")
-    print(f"Portal Return Period:  {meta['return_period']}")
-    print(f"GSTR-2B Documents:     {summary['gstr2_total_docs']} (Total Value: Rs. {summary['gstr2_total_value']:,.2f})")
-    print(f"GSTR-2B Eligible ITC:  Rs. {summary['gstr2_total_tax']:,.2f} (Taxable: Rs. {summary['gstr2_total_taxable']:,.2f})")
-    print(f"  - IGST:              Rs. {summary['gstr2_total_igst']:,.2f}")
-    print(f"  - CGST:              Rs. {summary['gstr2_total_cgst']:,.2f}")
-    print(f"  - SGST:              Rs. {summary['gstr2_total_sgst']:,.2f}")
-    print("-" * 70)
-    print(f"Books Bills Fetched:   {summary['books_total_bills_count']} (Total Amount: Rs. {summary['books_total_bills_amount']:,.2f})")
-    print(f"Books GST Expenses:    {summary['books_total_expenses_count']} (Total Amount: Rs. {summary['books_total_expenses_amount']:,.2f})")
-    print(f"Books Credits Fetched: {summary['books_total_credits_count']} (Total Amount: Rs. {summary['books_total_credits_amount']:,.2f})")
-    print("-" * 70)
-    print(f"Fully Matched Purchases:{summary['matched_count']} (ITC: Rs. {summary['matched_tax']:,.2f})")
-    print(f"Value Mismatches:      {summary['value_mismatch_count']}")
-    print(f"Missing in Books:      {summary['missing_in_books_count']} (Portal ITC: Rs. {summary['missing_in_books_tax']:,.2f})")
-    print(f"Missing in GSTR-2B:    {summary['missing_in_gstr2_bills_count']} (Taxable Total: Rs. {summary['missing_in_gstr2_bills_amount']:,.2f}) [ITC AT RISK]")
-    print(f"GST Expenses Missing:  {summary['missing_in_gstr2_expenses_count']} (Total: Rs. {summary['missing_in_gstr2_expenses_amount']:,.2f}) [ITC AT RISK]")
-    print(f"Zero-Tax Bills:        {summary.get('zero_tax_bills_count', 0)} [No GSTR-2 ITC Impact]")
-    print(f"Ineligible ITC:        {summary['ineligible_itc_count']}")
-    print(f"Reverse Charge (RCM):  {summary['rcm_count']}")
-    print("=" * 70)
+        report_md = render_markdown_report(result)
+        try:
+            monthly_path, cumulative_paths = write_reconciliation_outputs(
+                result,
+                report_md,
+                output_root=args.output_root,
+                monthly_override=args.output if total == 1 else None,
+            )
+        except (OSError, ValueError) as exc:
+            print(f"Error writing reconciliation outputs: {exc}", file=sys.stderr)
+            exit_code = 1
+            continue
 
-    return 0
+        print(f"Monthly report written to: {monthly_path.resolve()}")
+        print(f"Cumulative files updated in: {cumulative_paths[0].parent.resolve()}")
+
+        meta = result["metadata"]
+        rec = result["reconciliation"]
+        summary = rec["summary"]
+
+        print(f"Target Month:          {meta['target_month']} (Return Period: {meta['return_period']})")
+        print(f"GSTR-2B Documents:     {summary['gstr2_total_docs']} (Total Value: Rs. {summary['gstr2_total_value']:,.2f})")
+        print(f"GSTR-2B Eligible ITC:  Rs. {summary['gstr2_total_tax']:,.2f}")
+        print(f"Matched Purchases:     {summary['matched_count']} (ITC: Rs. {summary['matched_tax']:,.2f})")
+        print(f"Value Mismatches:      {summary['value_mismatch_count']}")
+        print(f"Missing in Books:      {summary['missing_in_books_count']} (Portal ITC: Rs. {summary['missing_in_books_tax']:,.2f})")
+        print(f"Missing in GSTR-2B:    {summary['missing_in_gstr2_bills_count']} bills, {summary['missing_in_gstr2_expenses_count']} expenses")
+        time.sleep(2.5)
+
+    return exit_code
 
 
 if __name__ == "__main__":

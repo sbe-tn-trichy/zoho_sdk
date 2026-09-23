@@ -42,7 +42,7 @@ class GSTR2VerificationConfig:
     include_drafts: bool = False
     fiscal_year_start_month: int = 4
     aggregate_mappings: tuple[AggregatePurchaseMapping, ...] = ()
-    location_gstin_map: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
+    location_gstin_map: Mapping[str, Sequence[str]] = field(default_factory=dict)
 
 
 def normalize_doc_number(value: Any) -> str:
@@ -89,6 +89,8 @@ class GSTR2Verifier:
     ):
         self.books = books_client
         self.config = config or GSTR2VerificationConfig()
+        self._cached_bills: Optional[List[Dict[str, Any]]] = None
+        self._expense_cache: Dict[str, Mapping[str, Any]] = {}
 
     @staticmethod
     def _books_net_taxable(document: Mapping[str, Any]) -> Optional[float]:
@@ -169,7 +171,7 @@ class GSTR2Verifier:
                 "return_period": rtnprd,
                 "recipient_gstin": recipient_gstin,
                 "included_locations": [
-                    {"location_id": location_id, "location_name": location["name"]}
+                    {"location_id": location_id}
                     for location_id, location in location_gstins.items()
                     if location["gstin"] == recipient_gstin
                 ],
@@ -326,7 +328,7 @@ class GSTR2Verifier:
     def _configured_location_gstins(
         self, errors: List[Dict[str, str]],
     ) -> Dict[str, Dict[str, str]]:
-        """Normalize the configured Books location-to-registration snapshot."""
+        """Invert the configured registration-to-location mapping."""
         configured = self.config.location_gstin_map
         if not configured:
             errors.append({
@@ -336,25 +338,31 @@ class GSTR2Verifier:
             return {}
 
         locations: Dict[str, Dict[str, str]] = {}
-        for raw_location_id, raw_location in configured.items():
-            location_id = str(raw_location_id or "").strip()
-            if not location_id or not isinstance(raw_location, Mapping):
+        for raw_gstin, raw_location_ids in configured.items():
+            gstin = normalize_gstin(raw_gstin)
+            if (not gstin or isinstance(raw_location_ids, (str, bytes))
+                    or not isinstance(raw_location_ids, Sequence)):
                 errors.append({
                     "source": "locations",
-                    "error": f"Invalid static location mapping for {raw_location_id!r}",
+                    "error": f"Invalid static location mapping for GSTIN {raw_gstin!r}",
                 })
                 continue
-            gstin = normalize_gstin(raw_location.get("gstin"))
-            if not gstin:
-                errors.append({
-                    "source": "locations",
-                    "error": f"Static location {location_id} has no GSTIN",
-                })
-                continue
-            locations[location_id] = {
-                "name": str(raw_location.get("name") or raw_location.get("location_name") or ""),
-                "gstin": gstin,
-            }
+            for raw_location_id in raw_location_ids:
+                location_id = str(raw_location_id or "").strip()
+                if not location_id:
+                    errors.append({
+                        "source": "locations",
+                        "error": f"GSTIN {gstin} contains a blank location ID",
+                    })
+                    continue
+                existing = locations.get(location_id)
+                if existing and existing["gstin"] != gstin:
+                    errors.append({
+                        "source": "locations",
+                        "error": f"Location {location_id} is mapped to multiple GSTINs",
+                    })
+                    continue
+                locations[location_id] = {"name": "", "gstin": gstin}
         return locations
 
     @staticmethod
@@ -383,14 +391,18 @@ class GSTR2Verifier:
         recipient_gstin: str = "",
     ) -> List[Dict[str, Any]]:
         """Fetch bills whose transaction posting date falls in the period."""
-        try:
-            # Books date_start/date_end filter the bill date, which can differ
-            # from the accounting period in txn_value_date.
-            raw_bills = self.books.bills.list_all()
-        except Exception as exc:
-            logger.error("Failed to fetch bills from Zoho Books: %s", exc)
-            errors.append({"source": "bills", "error": str(exc)})
-            return []
+        if self._cached_bills is not None:
+            raw_bills = self._cached_bills
+        else:
+            try:
+                # Books date_start/date_end filter the bill date, which can differ
+                # from the accounting period in txn_value_date.
+                raw_bills = self.books.bills.list_all()
+                self._cached_bills = raw_bills
+            except Exception as exc:
+                logger.error("Failed to fetch bills from Zoho Books: %s", exc)
+                errors.append({"source": "bills", "error": str(exc)})
+                return []
 
         cleaned_bills: List[Dict[str, Any]] = []
         for b in raw_bills:
@@ -439,6 +451,13 @@ class GSTR2Verifier:
         """Return forward-tax amount, or ``None`` when the response is inconclusive."""
         if expense.get("tax_amount") not in (None, ""):
             return _to_float(expense.get("tax_amount"))
+
+        # When total and total_without_tax are present in the list response
+        total = expense.get("total")
+        total_without_tax = expense.get("total_without_tax")
+        if total not in (None, "") and total_without_tax not in (None, ""):
+            if round(_to_float(total) - _to_float(total_without_tax), 2) == 0.0:
+                return 0.0
 
         taxes = expense.get("taxes")
         if isinstance(taxes, list):
@@ -501,14 +520,19 @@ class GSTR2Verifier:
             expense: Mapping[str, Any] = summary
             tax_amount = self._expense_tax_amount(expense)
             if tax_amount is None and expense_id:
-                try:
-                    response = self.books.expenses.get(expense_id)
-                    expense = response.get("expense", response) if isinstance(response, Mapping) else {}
+                if expense_id in self._expense_cache:
+                    expense = self._expense_cache[expense_id]
                     tax_amount = self._expense_tax_amount(expense)
-                except Exception as exc:
-                    logger.warning("Could not determine GST for expense %s: %s", expense_id, exc)
-                    errors.append({"source": f"expense:{expense_id}", "error": str(exc)})
-                    continue
+                else:
+                    try:
+                        response = self.books.expenses.get(expense_id)
+                        expense = response.get("expense", response) if isinstance(response, Mapping) else {}
+                        self._expense_cache[expense_id] = expense
+                        tax_amount = self._expense_tax_amount(expense)
+                    except Exception as exc:
+                        logger.warning("Could not determine GST for expense %s: %s", expense_id, exc)
+                        errors.append({"source": f"expense:{expense_id}", "error": str(exc)})
+                        continue
 
             # Reverse-charge tax is deliberately not treated as supplier-filed GST.
             if tax_amount is None:
@@ -913,13 +937,12 @@ class GSTR2Verifier:
         1. Exact number match on bill_number or reference_number.
         2. Normalized number match.
         3. Suffix / substring match when supplier/vendor also matches.
-        4. Exact amount match when GSTIN or vendor name matches.
+        Amount alone never establishes document identity.
         """
         g_num = g_doc["doc_number"].strip()
         g_norm = g_doc["norm_number"]
         g_gstin = g_doc["supplier_gstin"]
         g_name = g_doc["supplier_name"].casefold()
-        g_val = g_doc["total_value"]
 
         # Filter available candidates
         candidates = [
@@ -954,16 +977,6 @@ class GSTR2Verifier:
                     return b
                 if g_norm and b_norm_ref and (g_norm in b_norm_ref or b_norm_ref in g_norm):
                     return b
-
-        # Stage 4: Exact amount match if Vendor/GSTIN clearly matches and doc number has strong similarity
-        for b in candidates:
-            vendor_match = (
-                (g_gstin and b.get("gst_no") == g_gstin)
-                or (g_name and g_name in b.get("vendor_name", "").casefold())
-            )
-            if vendor_match and abs(b["total"] - g_val) <= self.config.amount_tolerance:
-                # If date is within month, accept as likely match
-                return b
 
         return None
 
@@ -1167,7 +1180,7 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
     rec = result["reconciliation"]
     summary = rec["summary"]
     included_locations = ", ".join(
-        f"{location['location_name']} (`{location['location_id']}`)"
+        f"`{location['location_id']}`"
         for location in meta.get("included_locations", [])
     ) or "None"
 

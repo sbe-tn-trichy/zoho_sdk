@@ -1,6 +1,18 @@
 # Knowledge Change Log
 
+## 2026-09-24
+
+- Removed amount-only GSTR-2 purchase matching so distinct supplier documents
+  with the same value cannot consume each other's Books expense.
+
 ## 2026-09-23
+
+- Added a guarded paid-bill update workflow that temporarily unlinks vendor
+  payment allocations for reductions, then reapplies payment up to the new
+  bill total and leaves any excess as unapplied vendor payment credit.
+
+- Simplified `GSTR2_LOCATION_GSTIN_MAP` to map each recipient GSTIN directly
+  to its list of Books location IDs.
 
 - Switched cumulative GSTR-2 category and summary outputs from JSON to CSV,
   preserving month-keyed upserts and migrating existing histories.

@@ -23,6 +23,8 @@ from .core.models import DotDict
 
 
 _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "BillUpdateResult": (".bill_updates", "BillUpdateResult"),
+    "update_bill_with_payment_reallocation": (".bill_updates", "update_bill_with_payment_reallocation"),
     "CollectionReconciler": (".collection_reconciliation", "CollectionReconciler"),
     "CollectionReconciliationConfig": (".collection_reconciliation", "CollectionReconciliationConfig"),
     "OnlinePaymentReviewConfig": (".collection_reconciliation", "OnlinePaymentReviewConfig"),
@@ -89,6 +91,8 @@ def __dir__():
     return sorted(set(globals()) | set(_LAZY_EXPORTS))
 
 __all__ = [
+    "BillUpdateResult",
+    "update_bill_with_payment_reallocation",
     "fetch_access_tokens",
     "get_books_client",
     "get_inventory_client",

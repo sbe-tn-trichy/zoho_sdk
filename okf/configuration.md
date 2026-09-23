@@ -48,8 +48,8 @@ Supported configuration keys:
 - `DASHBOARD_WORKFLOWS`: Object with `include` and `exclude` lists controlling
   which domain workflows appear on the local dashboard. An empty `include`
   list means all workflows; `exclude` takes precedence.
-- `GSTR2_LOCATION_GSTIN_MAP`: Static object keyed by Books location ID. Each
-  value contains `name` and `gstin`. GSTR-2 verification uses this snapshot to
+- `GSTR2_LOCATION_GSTIN_MAP`: Static object keyed by recipient GSTIN. Each
+  value is a list of Books location IDs owned by that registration. GSTR-2 verification uses this snapshot to
   select the Books documents owned by the recipient registration and fails
   closed when the map is empty, invalid, or missing a document location.
 - `FILES_DIR`: Directory containing Polycab credit memo PDFs.

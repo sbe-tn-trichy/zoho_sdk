@@ -20,10 +20,9 @@
       },
       "gstr2": {
         "gstr2_location_gstin_map": {
-          "<books-location-id>": {
-            "name": "<books-location-name>",
-            "gstin": "<recipient-gstin>"
-          }
+          "<recipient-gstin>": [
+            "<books-location-id>"
+          ]
         }
       },
       "creator": {
