@@ -18,12 +18,31 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
+class AggregatePurchaseMapping:
+    """Approved many-to-one portal invoices represented by one Books bill."""
+
+    month: str
+    bill_id: str
+    bill_number: str
+    portal_doc_type: str
+    portal_doc_date: str
+    portal_doc_number_pattern: str
+    supplier_gstins: tuple[str, ...]
+    expected_count: int
+    expected_taxable: float
+    expected_tax: float
+    expected_total: float
+
+
+@dataclass(frozen=True)
 class GSTR2VerificationConfig:
     """Configuration settings for GSTR-2/2B verification."""
 
     amount_tolerance: float = 1.0  # Allowed difference in Rupees (rounding)
     include_drafts: bool = False
     fiscal_year_start_month: int = 4
+    aggregate_mappings: tuple[AggregatePurchaseMapping, ...] = ()
+    location_gstin_map: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
 
 
 def normalize_doc_number(value: Any) -> str:
@@ -71,6 +90,21 @@ class GSTR2Verifier:
         self.books = books_client
         self.config = config or GSTR2VerificationConfig()
 
+    @staticmethod
+    def _books_net_taxable(document: Mapping[str, Any]) -> Optional[float]:
+        """Return taxable subtotal after an entity-level, pre-tax discount."""
+        subtotal = document.get("sub_total")
+        if subtotal in (None, ""):
+            return None
+        taxable = _to_float(subtotal)
+        if (document.get("discount_type") == "entity_level"
+                and document.get("is_discount_before_tax") is True):
+            discount = document.get("discount_total")
+            if discount in (None, ""):
+                discount = document.get("discount_amount")
+            taxable -= _to_float(discount)
+        return round(taxable, 2)
+
     def run(
         self,
         gstr2_source: str | Path | Mapping[str, Any],
@@ -105,16 +139,28 @@ class GSTR2Verifier:
         gstr2_docs = self._parse_portal_documents(portal_data)
         itc_summary_portal = portal_data.get("itcsumm", {})
 
-        # 3. Fetch Zoho Books Bills and Vendor Credits
+        # 3. Fetch Zoho Books bills, GST-bearing expenses, and vendor credits
         fetch_errors: List[Dict[str, str]] = []
-        books_bills = self._fetch_books_bills(start_date, end_date, fetch_errors)
-        books_credits = self._fetch_books_vendor_credits(start_date, end_date, fetch_errors)
+        if not recipient_gstin:
+            fetch_errors.append({"source": "locations", "error": "Portal recipient GSTIN is missing"})
+        location_gstins = self._configured_location_gstins(fetch_errors)
+        books_bills = self._fetch_books_bills(
+            start_date, end_date, fetch_errors, location_gstins, recipient_gstin,
+        )
+        books_expenses = self._fetch_books_expenses(
+            start_date, end_date, fetch_errors, location_gstins, recipient_gstin,
+        )
+        books_credits = self._fetch_books_vendor_credits(
+            start_date, end_date, fetch_errors, location_gstins, recipient_gstin,
+        )
 
         # 4. Perform Matching & Classification
         reconciliation = self._reconcile(
             gstr2_docs=gstr2_docs,
             books_bills=books_bills,
+            books_expenses=books_expenses,
             books_credits=books_credits,
+            target_month=target_month,
         )
 
         return {
@@ -122,6 +168,11 @@ class GSTR2Verifier:
                 "target_month": target_month,
                 "return_period": rtnprd,
                 "recipient_gstin": recipient_gstin,
+                "included_locations": [
+                    {"location_id": location_id, "location_name": location["name"]}
+                    for location_id, location in location_gstins.items()
+                    if location["gstin"] == recipient_gstin
+                ],
                 "portal_generation_date": generation_date,
                 "start_date": start_date.isoformat(),
                 "end_date": end_date.isoformat(),
@@ -272,21 +323,70 @@ class GSTR2Verifier:
 
         return documents
 
+    def _configured_location_gstins(
+        self, errors: List[Dict[str, str]],
+    ) -> Dict[str, Dict[str, str]]:
+        """Normalize the configured Books location-to-registration snapshot."""
+        configured = self.config.location_gstin_map
+        if not configured:
+            errors.append({
+                "source": "locations",
+                "error": "GSTR2_LOCATION_GSTIN_MAP is empty",
+            })
+            return {}
+
+        locations: Dict[str, Dict[str, str]] = {}
+        for raw_location_id, raw_location in configured.items():
+            location_id = str(raw_location_id or "").strip()
+            if not location_id or not isinstance(raw_location, Mapping):
+                errors.append({
+                    "source": "locations",
+                    "error": f"Invalid static location mapping for {raw_location_id!r}",
+                })
+                continue
+            gstin = normalize_gstin(raw_location.get("gstin"))
+            if not gstin:
+                errors.append({
+                    "source": "locations",
+                    "error": f"Static location {location_id} has no GSTIN",
+                })
+                continue
+            locations[location_id] = {
+                "name": str(raw_location.get("name") or raw_location.get("location_name") or ""),
+                "gstin": gstin,
+            }
+        return locations
+
+    @staticmethod
+    def _belongs_to_recipient(
+        document: Mapping[str, Any],
+        location_gstins: Mapping[str, Mapping[str, str]],
+        recipient_gstin: str,
+        errors: List[Dict[str, str]],
+    ) -> bool:
+        location_id = str(document.get("location_id") or document.get("branch_id") or "")
+        if not location_id or location_id not in location_gstins:
+            errors.append({
+                "source": "locations",
+                "error": f"Cannot resolve location {location_id or '(missing)'} "
+                         f"for Books document {document.get('bill_id') or document.get('expense_id') or document.get('vendor_credit_id') or ''}",
+            })
+            return True  # Keep visible, but the CLI must reject the incomplete report.
+        return location_gstins[location_id]["gstin"] == recipient_gstin
+
     def _fetch_books_bills(
         self,
         start_date: date,
         end_date: date,
         errors: List[Dict[str, str]],
+        location_gstins: Optional[Mapping[str, Mapping[str, str]]] = None,
+        recipient_gstin: str = "",
     ) -> List[Dict[str, Any]]:
-        """Fetch bills from Zoho Books for the period."""
+        """Fetch bills whose transaction posting date falls in the period."""
         try:
-            params = {
-                "date_start": start_date.isoformat(),
-                "date_end": end_date.isoformat(),
-                "from_date": start_date.isoformat(),
-                "to_date": end_date.isoformat(),
-            }
-            raw_bills = self.books.bills.list_all(params=params)
+            # Books date_start/date_end filter the bill date, which can differ
+            # from the accounting period in txn_value_date.
+            raw_bills = self.books.bills.list_all()
         except Exception as exc:
             logger.error("Failed to fetch bills from Zoho Books: %s", exc)
             errors.append({"source": "bills", "error": str(exc)})
@@ -295,7 +395,11 @@ class GSTR2Verifier:
         cleaned_bills: List[Dict[str, Any]] = []
         for b in raw_bills:
             b_date = parse_date(b.get("date"))
-            if b_date and (b_date < start_date or b_date > end_date):
+            posting_date = parse_date(b.get("txn_value_date") or b.get("date"))
+            if not posting_date or posting_date < start_date or posting_date > end_date:
+                continue
+            if (location_gstins is not None and recipient_gstin
+                    and not self._belongs_to_recipient(b, location_gstins, recipient_gstin, errors)):
                 continue
 
             status = str(b.get("status") or "").strip().lower()
@@ -318,6 +422,7 @@ class GSTR2Verifier:
                 "norm_ref_number": normalize_doc_number(ref_num),
                 "date": b_date.isoformat() if b_date else str(b.get("date") or ""),
                 "parsed_date": b_date,
+                "posting_date": posting_date.isoformat(),
                 "vendor_id": str(b.get("vendor_id") or ""),
                 "vendor_name": str(b.get("vendor_name") or "").strip(),
                 "gst_no": normalize_gstin(b.get("gst_no") or b.get("gst_treatment")),
@@ -329,11 +434,129 @@ class GSTR2Verifier:
 
         return cleaned_bills
 
+    @staticmethod
+    def _expense_tax_amount(expense: Mapping[str, Any]) -> Optional[float]:
+        """Return forward-tax amount, or ``None`` when the response is inconclusive."""
+        if expense.get("tax_amount") not in (None, ""):
+            return _to_float(expense.get("tax_amount"))
+
+        taxes = expense.get("taxes")
+        if isinstance(taxes, list):
+            return sum(
+                _to_float(tax.get("tax_amount"))
+                for tax in taxes
+                if isinstance(tax, Mapping)
+            )
+
+        line_items = expense.get("line_items")
+        if not isinstance(line_items, list):
+            line_item = expense.get("line_item")
+            line_items = [line_item] if isinstance(line_item, Mapping) else None
+        if isinstance(line_items, list):
+            return sum(
+                _to_float(item.get("tax_amount") or item.get("tax_total") or item.get("item_tax_amount"))
+                for item in line_items
+                if isinstance(item, Mapping)
+            )
+        return None
+
+    def _fetch_books_expenses(
+        self,
+        start_date: date,
+        end_date: date,
+        errors: List[Dict[str, str]],
+        location_gstins: Optional[Mapping[str, Mapping[str, str]]] = None,
+        recipient_gstin: str = "",
+    ) -> List[Dict[str, Any]]:
+        """Fetch period expenses and retain only those with positive forward GST."""
+        params = {
+            "date_start": start_date.isoformat(),
+            "date_end": end_date.isoformat(),
+            "from_date": start_date.isoformat(),
+            "to_date": end_date.isoformat(),
+        }
+        try:
+            raw_expenses = self.books.expenses.list_all(params=params)
+        except Exception as exc:
+            logger.error("Failed to fetch expenses from Zoho Books: %s", exc)
+            errors.append({"source": "expenses", "error": str(exc)})
+            return []
+
+        cleaned_expenses: List[Dict[str, Any]] = []
+        for summary in raw_expenses:
+            expense_date = parse_date(summary.get("date"))
+            if expense_date and (expense_date < start_date or expense_date > end_date):
+                continue
+            if (location_gstins is not None and recipient_gstin
+                    and not self._belongs_to_recipient(summary, location_gstins, recipient_gstin, errors)):
+                continue
+
+            status = str(summary.get("status") or "").strip().lower()
+            if status == "void":
+                continue
+            if not self.config.include_drafts and status == "draft":
+                continue
+
+            expense_id = str(summary.get("expense_id") or summary.get("id") or "")
+            expense: Mapping[str, Any] = summary
+            tax_amount = self._expense_tax_amount(expense)
+            if tax_amount is None and expense_id:
+                try:
+                    response = self.books.expenses.get(expense_id)
+                    expense = response.get("expense", response) if isinstance(response, Mapping) else {}
+                    tax_amount = self._expense_tax_amount(expense)
+                except Exception as exc:
+                    logger.warning("Could not determine GST for expense %s: %s", expense_id, exc)
+                    errors.append({"source": f"expense:{expense_id}", "error": str(exc)})
+                    continue
+
+            # Reverse-charge tax is deliberately not treated as supplier-filed GST.
+            if tax_amount is None:
+                errors.append({
+                    "source": f"expense:{expense_id or 'unknown'}",
+                    "error": "Could not determine forward GST amount",
+                })
+                continue
+            if tax_amount <= 0.0:
+                continue
+
+            merged = {**summary, **dict(expense)}
+            reference = str(
+                merged.get("reference_number")
+                or merged.get("expense_number")
+                or merged.get("transaction_id")
+                or ""
+            ).strip()
+            total = _to_float(merged.get("total") or merged.get("amount"))
+            cleaned_expenses.append({
+                "source": "zoho_books",
+                "doc_type": "expense",
+                "expense_id": expense_id,
+                "expense_number": reference,
+                "reference_number": reference,
+                "norm_number": normalize_doc_number(reference),
+                "norm_ref_number": normalize_doc_number(reference),
+                "date": expense_date.isoformat() if expense_date else str(merged.get("date") or ""),
+                "parsed_date": expense_date,
+                "vendor_id": str(merged.get("vendor_id") or ""),
+                "vendor_name": str(merged.get("vendor_name") or merged.get("merchant_name") or "").strip(),
+                "gst_no": normalize_gstin(merged.get("gst_no")),
+                "sub_total": _to_float(merged.get("sub_total")) or max(total - tax_amount, 0.0),
+                "tax_total": tax_amount,
+                "total": total,
+                "status": status,
+                "raw": merged,
+            })
+
+        return cleaned_expenses
+
     def _fetch_books_vendor_credits(
         self,
         start_date: date,
         end_date: date,
         errors: List[Dict[str, str]],
+        location_gstins: Optional[Mapping[str, Mapping[str, str]]] = None,
+        recipient_gstin: str = "",
     ) -> List[Dict[str, Any]]:
         """Fetch vendor credits from Zoho Books for the period."""
         try:
@@ -343,7 +566,9 @@ class GSTR2Verifier:
                 "from_date": start_date.isoformat(),
                 "to_date": end_date.isoformat(),
             }
-            raw_credits = self.books.vendor_credits.list_all(params=params)
+            raw_credits = self.books.vendor_credits.list_all(
+                params=params, resource_key="vendor_credits"
+            )
         except Exception as exc:
             logger.error("Failed to fetch vendor credits from Zoho Books: %s", exc)
             errors.append({"source": "vendor_credits", "error": str(exc)})
@@ -353,6 +578,9 @@ class GSTR2Verifier:
         for c in raw_credits:
             c_date = parse_date(c.get("date"))
             if c_date and (c_date < start_date or c_date > end_date):
+                continue
+            if (location_gstins is not None and recipient_gstin
+                    and not self._belongs_to_recipient(c, location_gstins, recipient_gstin, errors)):
                 continue
 
             status = str(c.get("status") or "").strip().lower()
@@ -388,7 +616,9 @@ class GSTR2Verifier:
         self,
         gstr2_docs: List[Dict[str, Any]],
         books_bills: List[Dict[str, Any]],
+        books_expenses: List[Dict[str, Any]],
         books_credits: List[Dict[str, Any]],
+        target_month: str,
     ) -> Dict[str, Any]:
         """Perform bi-directional reconciliation between GSTR-2B and Zoho Books."""
         matched_items: List[Dict[str, Any]] = []
@@ -398,7 +628,9 @@ class GSTR2Verifier:
         rcm_items: List[Dict[str, Any]] = []
 
         used_books_bill_ids: Set[str] = set()
+        used_books_expense_ids: Set[str] = set()
         used_books_credit_ids: Set[str] = set()
+        purchase_documents = [*books_bills, *books_expenses]
 
         # Reconcile each GSTR-2B document
         for g_doc in gstr2_docs:
@@ -408,15 +640,20 @@ class GSTR2Verifier:
                 rcm_items.append(g_doc)
 
             is_credit = g_doc["doc_type"] == "credit_note"
-            books_pool = books_credits if is_credit else books_bills
-            used_ids = used_books_credit_ids if is_credit else used_books_bill_ids
+            books_pool = books_credits if is_credit else purchase_documents
+            used_ids = used_books_credit_ids if is_credit else (used_books_bill_ids | used_books_expense_ids)
 
             matched_books_doc = self._find_best_match(g_doc, books_pool, used_ids)
 
             if matched_books_doc is not None:
-                doc_id = matched_books_doc.get("credit_id") if is_credit else matched_books_doc.get("bill_id")
+                doc_id = self._books_doc_id(matched_books_doc)
                 if doc_id:
-                    used_ids.add(doc_id)
+                    if is_credit:
+                        used_books_credit_ids.add(doc_id)
+                    elif matched_books_doc.get("doc_type") == "expense":
+                        used_books_expense_ids.add(doc_id)
+                    else:
+                        used_books_bill_ids.add(doc_id)
 
                 # Check amount match: first check gross total, then taxable & GST (for TDS/deductions)
                 books_amount = matched_books_doc["total"]
@@ -427,6 +664,8 @@ class GSTR2Verifier:
                 tds_detected = 0.0
                 taxable_val = g_doc["taxable_value"]
                 tax_val = g_doc["tax_total"]
+                books_taxable = matched_books_doc.get("sub_total")
+                books_tax = matched_books_doc.get("tax_total")
                 notes = ""
 
                 # If gross total differs, inspect full bill to check Taxable Value, GST, and TDS
@@ -434,22 +673,35 @@ class GSTR2Verifier:
                     try:
                         if is_credit:
                             full_doc = self.books.vendor_credits.get(doc_id).get("vendor_credit", {})
+                        elif matched_books_doc.get("doc_type") == "expense":
+                            full_doc = self.books.expenses.get(doc_id).get("expense", {})
                         else:
                             full_doc = self.books.bills.get(doc_id).get("bill", {})
 
-                        b_subtotal = _to_float(full_doc.get("sub_total"))
-                        b_tax = _to_float(full_doc.get("tax_total"))
+                        net_taxable = self._books_net_taxable(full_doc)
+                        if net_taxable is not None:
+                            books_taxable = net_taxable
+                        detail_tax = full_doc.get("tax_total")
+                        if detail_tax in (None, "") and matched_books_doc.get("doc_type") == "expense":
+                            detail_tax = full_doc.get("tax_amount")
+                        if detail_tax in (None, "") and isinstance(full_doc.get("taxes"), list):
+                            detail_tax = sum(
+                                _to_float(tax.get("tax_amount"))
+                                for tax in full_doc["taxes"]
+                                if isinstance(tax, Mapping)
+                            )
+                        if detail_tax not in (None, ""):
+                            books_tax = _to_float(detail_tax)
                         tds_detected = _to_float(
                             full_doc.get("tds_amount")
                             or full_doc.get("tax_amount_withheld")
                             or full_doc.get("tds_tax_amount")
                         )
 
-                        taxable_diff = round(b_subtotal - taxable_val, 2)
-                        tax_diff = round(b_tax - tax_val, 2)
-
-                        # Match on taxable value and GST alone as requested
-                        if abs(taxable_diff) <= self.config.amount_tolerance and abs(tax_diff) <= self.config.amount_tolerance:
+                        # Only classify by components when both amounts were actually returned.
+                        if (books_taxable is not None and books_tax is not None
+                                and abs(round(_to_float(books_taxable) - taxable_val, 2)) <= self.config.amount_tolerance
+                                and abs(round(_to_float(books_tax) - tax_val, 2)) <= self.config.amount_tolerance):
                             is_tax_and_taxable_matched = True
                             if tds_detected > 0 or abs(abs(diff) - tds_detected) <= self.config.amount_tolerance or abs(diff) == 450.0:
                                 notes = f"TDS of ₹{tds_detected or abs(diff):,.2f} deducted in Books; Taxable & GST match exactly"
@@ -463,6 +715,10 @@ class GSTR2Verifier:
                     "books_doc": matched_books_doc,
                     "books_amount": books_amount,
                     "gstr2_amount": gstr2_amount,
+                    "gstr2_taxable": taxable_val,
+                    "gstr2_tax": tax_val,
+                    "books_taxable": _to_float(books_taxable) if books_taxable not in (None, "") else None,
+                    "books_tax": _to_float(books_tax) if books_tax not in (None, "") else None,
                     "diff": diff,
                     "notes": notes,
                 }
@@ -480,6 +736,10 @@ class GSTR2Verifier:
         ]
         missing_in_gstr2_credits = [
             c for c in books_credits if c.get("credit_id") not in used_books_credit_ids
+        ]
+        missing_in_gstr2_expenses = [
+            expense for expense in books_expenses
+            if expense.get("expense_id") not in used_books_expense_ids
         ]
 
         missing_in_gstr2_bills: List[Dict[str, Any]] = []
@@ -503,7 +763,7 @@ class GSTR2Verifier:
                         if tax_total == 0.0 and fb.get("line_items"):
                             tax_total = sum(_to_float(it.get("tax_total") or it.get("item_tax_amount")) for it in fb["line_items"])
                         b["tax_total"] = tax_total
-                        b["sub_total"] = _to_float(fb.get("sub_total"))
+                        b["sub_total"] = self._books_net_taxable(fb) or 0.0
                         tax_checked = True
                 except Exception as exc:
                     logger.debug("Error checking tax on bill %s: %s", b_id, exc)
@@ -513,6 +773,57 @@ class GSTR2Verifier:
                 zero_tax_bills.append({**b, "tax_total": 0.0, "reason": "No tax component (exempt / non-GST)"})
             else:
                 missing_in_gstr2_bills.append(b)
+
+        aggregate_matches: List[Dict[str, Any]] = []
+        aggregate_warnings: List[str] = []
+        cents = lambda value: Decimal(str(value)).quantize(Decimal("0.01"))
+        for mapping in self.config.aggregate_mappings:
+            if mapping.month != target_month:
+                continue
+            bills = [b for b in missing_in_gstr2_bills
+                     if b["bill_id"] == mapping.bill_id
+                     and b["bill_number"] == mapping.bill_number]
+            docs = [d for d in missing_in_books
+                    if d["doc_type"] == mapping.portal_doc_type
+                    and d["doc_date"] == mapping.portal_doc_date
+                    and d["supplier_gstin"] in mapping.supplier_gstins
+                    and re.fullmatch(mapping.portal_doc_number_pattern, d["doc_number"])]
+            totals = {
+                "taxable": sum((cents(d["taxable_value"]) for d in docs), Decimal("0")),
+                "tax": sum((cents(d["tax_total"]) for d in docs), Decimal("0")),
+                "total": sum((cents(d["total_value"]) for d in docs), Decimal("0")),
+            }
+            expected = {
+                "taxable": cents(mapping.expected_taxable),
+                "tax": cents(mapping.expected_tax),
+                "total": cents(mapping.expected_total),
+            }
+            bill = bills[0] if len(bills) == 1 else None
+            if (bill is None or bill["date"] != mapping.portal_doc_date
+                    or bill["gst_no"] not in mapping.supplier_gstins
+                    or len(docs) != mapping.expected_count
+                    or {d["supplier_gstin"] for d in docs} != set(mapping.supplier_gstins)
+                    or totals != expected
+                    or bill.get("sub_total") is None
+                    or cents(bill["sub_total"]) != expected["taxable"]
+                    or cents(bill.get("tax_total", 0)) != expected["tax"]
+                    or cents(bill["total"]) != expected["total"]):
+                aggregate_warnings.append(
+                    f"Aggregate map {mapping.bill_number} was not applied: "
+                    "bill or portal document count/amounts changed."
+                )
+                continue
+            aggregate_matches.append({
+                "bill": bill, "documents": docs, "count": len(docs),
+                "taxable": float(totals["taxable"]),
+                "tax": float(totals["tax"]),
+                "total": float(totals["total"]),
+                "supplier_gstins": sorted({d["supplier_gstin"] for d in docs}),
+            })
+            matched_doc_ids = {id(d) for d in docs}
+            missing_in_books = [d for d in missing_in_books if id(d) not in matched_doc_ids]
+            missing_in_gstr2_bills = [b for b in missing_in_gstr2_bills
+                                      if b["bill_id"] != mapping.bill_id]
 
         # Calculate Summary Totals
         gstr2_total_taxable = sum(d["taxable_value"] for d in gstr2_docs)
@@ -524,14 +835,18 @@ class GSTR2Verifier:
         gstr2_total_value = sum(d["total_value"] for d in gstr2_docs)
 
         books_total_bills = sum(b["total"] for b in books_bills)
+        books_total_expenses = sum(e["total"] for e in books_expenses)
         books_total_credits = sum(c["total"] for c in books_credits)
 
-        matched_gstr2_tax = sum(m["gstr2_doc"]["tax_total"] for m in matched_items)
+        matched_gstr2_tax = (sum(m["gstr2_doc"]["tax_total"] for m in matched_items)
+                            + sum(m["tax"] for m in aggregate_matches))
         missing_books_tax = sum(d["tax_total"] for d in missing_in_books)
 
         # Build vendor summaries
         vendor_summaries = self._build_vendor_summary(
-            gstr2_docs, books_bills, matched_items, missing_in_books, missing_in_gstr2_bills
+            gstr2_docs, purchase_documents, matched_items, missing_in_books,
+            [*missing_in_gstr2_bills, *missing_in_gstr2_expenses],
+            aggregate_matches,
         )
 
         return {
@@ -548,27 +863,44 @@ class GSTR2Verifier:
                 "books_total_bills_amount": round(books_total_bills, 2),
                 "books_total_credits_count": len(books_credits),
                 "books_total_credits_amount": round(books_total_credits, 2),
-                "matched_count": len(matched_items),
+                "books_total_expenses_count": len(books_expenses),
+                "books_total_expenses_amount": round(books_total_expenses, 2),
+                "matched_count": len(matched_items) + sum(m["count"] for m in aggregate_matches),
+                "matched_books_count": len(matched_items) + len(aggregate_matches),
                 "matched_tax": round(matched_gstr2_tax, 2),
                 "value_mismatch_count": len(value_mismatches),
                 "missing_in_books_count": len(missing_in_books),
                 "missing_in_books_tax": round(missing_books_tax, 2),
                 "missing_in_gstr2_bills_count": len(missing_in_gstr2_bills),
                 "missing_in_gstr2_bills_amount": round(sum(b["total"] for b in missing_in_gstr2_bills), 2),
+                "missing_in_gstr2_expenses_count": len(missing_in_gstr2_expenses),
+                "missing_in_gstr2_expenses_amount": round(sum(e["total"] for e in missing_in_gstr2_expenses), 2),
                 "zero_tax_bills_count": len(zero_tax_bills),
                 "ineligible_itc_count": len(ineligible_itc_items),
                 "rcm_count": len(rcm_items),
             },
             "matched_documents": matched_items,
+            "aggregate_matches": aggregate_matches,
+            "aggregate_warnings": aggregate_warnings,
             "value_mismatches": value_mismatches,
             "missing_in_books": missing_in_books,
             "missing_in_gstr2_bills": missing_in_gstr2_bills,
             "missing_in_gstr2_credits": missing_in_gstr2_credits,
+            "missing_in_gstr2_expenses": missing_in_gstr2_expenses,
             "zero_tax_bills": zero_tax_bills,
             "ineligible_itc_documents": ineligible_itc_items,
             "rcm_documents": rcm_items,
             "vendor_summaries": vendor_summaries,
         }
+
+    @staticmethod
+    def _books_doc_id(document: Mapping[str, Any]) -> str:
+        return str(
+            document.get("bill_id")
+            or document.get("expense_id")
+            or document.get("credit_id")
+            or ""
+        )
 
     def _find_best_match(
         self,
@@ -592,12 +924,12 @@ class GSTR2Verifier:
         # Filter available candidates
         candidates = [
             b for b in books_docs
-            if (b.get("bill_id") or b.get("credit_id")) not in used_ids
+            if self._books_doc_id(b) not in used_ids
         ]
 
         # Stage 1: Exact string match on bill_number or reference_number
         for b in candidates:
-            b_num = b.get("bill_number") or b.get("credit_number") or ""
+            b_num = b.get("bill_number") or b.get("expense_number") or b.get("credit_number") or ""
             b_ref = b.get("reference_number") or ""
             if g_num and (g_num.casefold() == b_num.casefold() or g_num.casefold() == b_ref.casefold()):
                 return b
@@ -642,6 +974,7 @@ class GSTR2Verifier:
         matched_items: List[Dict[str, Any]],
         missing_in_books: List[Dict[str, Any]],
         missing_in_gstr2: List[Dict[str, Any]],
+        aggregate_matches: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """Build vendor-wise comparative breakdown."""
         vendor_map: Dict[str, Dict[str, Any]] = {}
@@ -685,6 +1018,12 @@ class GSTR2Verifier:
             key = m["gstr2_doc"]["supplier_gstin"] or m["gstr2_doc"]["supplier_name"]
             if key in vendor_map:
                 vendor_map[key]["matched_count"] += 1
+
+        for aggregate in aggregate_matches:
+            for doc in aggregate["documents"]:
+                key = doc["supplier_gstin"] or doc["supplier_name"]
+                if key in vendor_map:
+                    vendor_map[key]["matched_count"] += 1
 
         for mis in missing_in_books:
             key = mis["supplier_gstin"] or mis["supplier_name"]
@@ -747,9 +1086,13 @@ class GSTR2Verifier:
 
         # 2. Search vendor credits
         try:
-            matched_vcs = self.books.vendor_credits.list_all(params={"vendor_credit_number": query})
+            matched_vcs = self.books.vendor_credits.list_all(
+                params={"vendor_credit_number": query}, resource_key="vendor_credits"
+            )
             if not matched_vcs:
-                matched_vcs = self.books.vendor_credits.list_all(params={"reference_number": query})
+                matched_vcs = self.books.vendor_credits.list_all(
+                    params={"reference_number": query}, resource_key="vendor_credits"
+                )
             for vc in matched_vcs:
                 vc_id = vc.get("vendor_credit_id")
                 fvc = self.books.vendor_credits.get(vc_id).get("vendor_credit", {})
@@ -823,11 +1166,16 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
     meta = result["metadata"]
     rec = result["reconciliation"]
     summary = rec["summary"]
+    included_locations = ", ".join(
+        f"{location['location_name']} (`{location['location_id']}`)"
+        for location in meta.get("included_locations", [])
+    ) or "None"
 
     lines: List[str] = [
         f"# GSTR-2B vs Zoho Books Reconciliation Report ({meta['target_month']})",
         "",
         f"- **Recipient GSTIN:** `{meta['recipient_gstin']}`",
+        f"- **Books Locations in Scope:** {included_locations}",
         f"- **Return Period:** `{meta['return_period']}` ({meta['start_date']} to {meta['end_date']})",
         f"- **Portal Generation Date:** `{meta['portal_generation_date']}`",
         f"- **Amount Match Tolerance:** ±₹{meta['config']['amount_tolerance']:.2f}",
@@ -836,16 +1184,17 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
         "",
         "| Metric | GSTR-2B (Portal) | Zoho Books | Status / Variance |",
         "| :--- | :--- | :--- | :--- |",
-        f"| **Total Documents** | {summary['gstr2_total_docs']} documents | {summary['books_total_bills_count']} bills / {summary['books_total_credits_count']} credits | - |",
+        f"| **Total Documents** | {summary['gstr2_total_docs']} documents | {summary['books_total_bills_count']} bills / {summary['books_total_expenses_count']} GST expenses / {summary['books_total_credits_count']} credits | - |",
         f"| **Total Taxable Value** | ₹{summary['gstr2_total_taxable']:,.2f} | - | - |",
         f"| **Total IGST** | ₹{summary['gstr2_total_igst']:,.2f} | - | - |",
         f"| **Total CGST** | ₹{summary['gstr2_total_cgst']:,.2f} | - | - |",
         f"| **Total SGST** | ₹{summary['gstr2_total_sgst']:,.2f} | - | - |",
         f"| **Total ITC Available** | **₹{summary['gstr2_total_tax']:,.2f}** | - | Portal Total ITC |",
-        f"| **Matched Invoices** | {summary['matched_count']} docs (₹{summary['matched_tax']:,.2f} ITC) | {summary['matched_count']} bills | :white_check_mark: Reconciled |",
-        f"| **Value Mismatches** | {summary['value_mismatch_count']} docs | {summary['value_mismatch_count']} bills | :warning: Discrepancy Found |",
-        f"| **Missing in Books** | {summary['missing_in_books_count']} docs (₹{summary['missing_in_books_tax']:,.2f} ITC) | 0 bills | :grey_question: In Portal, Not Booked |",
+        f"| **Matched Purchases** | {summary['matched_count']} docs (₹{summary['matched_tax']:,.2f} ITC) | {summary['matched_books_count']} purchase documents | :white_check_mark: Reconciled |",
+        f"| **Value Mismatches** | {summary['value_mismatch_count']} docs | {summary['value_mismatch_count']} purchase documents | :warning: Discrepancy Found |",
+        f"| **Missing in Books** | {summary['missing_in_books_count']} docs (₹{summary['missing_in_books_tax']:,.2f} ITC) | 0 purchase documents | :grey_question: In Portal, Not Booked |",
         f"| **Missing in GSTR-2B** | 0 docs | {summary['missing_in_gstr2_bills_count']} bills (₹{summary['missing_in_gstr2_bills_amount']:,.2f} Total) | :x: **ITC Claim At Risk!** |",
+        f"| **GST Expenses Missing in GSTR-2B** | 0 docs | {summary['missing_in_gstr2_expenses_count']} expenses (₹{summary['missing_in_gstr2_expenses_amount']:,.2f} Total) | :x: **ITC Claim At Risk!** |",
         "",
     ]
 
@@ -861,25 +1210,59 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
     if summary["missing_in_books_count"] > 0:
         lines.extend([
             "> [!IMPORTANT]",
-            f"> **{summary['missing_in_books_count']} invoice(s)** with ₹{summary['missing_in_books_tax']:,.2f} ITC are present in GSTR-2B but have **not been recorded in Zoho Books**.",
+            f"> **{summary['missing_in_books_count']} document(s)** with ₹{summary['missing_in_books_tax']:,.2f} ITC are present in GSTR-2B but have **not been recorded in Zoho Books**.",
             "> These should be reviewed to ensure eligible expenses and purchase credits are not missed.",
             "",
         ])
+
+    if summary["missing_in_gstr2_expenses_count"] > 0:
+        lines.extend([
+            "> [!WARNING]",
+            f"> **{summary['missing_in_gstr2_expenses_count']} GST-bearing expense(s)** totaling ₹{summary['missing_in_gstr2_expenses_amount']:,.2f} are recorded in Zoho Books but do **not appear in GSTR-2B**.",
+            "> Review supplier filing and ITC eligibility before claiming the related credit.",
+            "",
+        ])
+
+    if rec.get("aggregate_matches"):
+        lines.extend([
+            "## Consolidated Purchase Matches",
+            "",
+            "| Books Bill | Portal Documents | Supplier GSTINs | Taxable | Tax | Total |",
+            "| :--- | ---: | :--- | ---: | ---: | ---: |",
+        ])
+        for match in rec["aggregate_matches"]:
+            lines.append(
+                f"| `{match['bill']['bill_number']}` | {match['count']} | "
+                f"{', '.join(f'`{gstin}`' for gstin in match['supplier_gstins'])} | "
+                f"₹{match['taxable']:,.2f} | ₹{match['tax']:,.2f} | ₹{match['total']:,.2f} |"
+            )
+        lines.extend(["", "These mapped documents are omitted from the individual missing and matched tables.", ""])
+
+    if rec.get("aggregate_warnings"):
+        lines.extend(["## Consolidated Mapping Warnings", ""])
+        lines.extend(f"- {warning}" for warning in rec["aggregate_warnings"])
+        lines.append("")
 
     if summary["value_mismatch_count"] > 0:
         lines.extend([
             "## 1. Value Mismatches",
             "",
-            "| Supplier | GSTIN | Doc Number | Date | 2B Total | Books Total | Difference | Action |",
-            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+            "| Supplier | GSTIN | Doc Number | Date | 2B Taxable | Books Taxable | 2B Tax | Books Tax | 2B Total | Books Total | Difference | Action |",
+            "| :--- | :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | :--- |",
         ])
         for item in rec["value_mismatches"]:
             g = item["gstr2_doc"]
             b = item["books_doc"]
+            books_type = b.get("doc_type", "bill").replace("_", " ")
+            books_number = b.get("bill_number") or b.get("expense_number") or b.get("credit_number") or b.get("reference_number") or ""
+            books_taxable = item.get("books_taxable")
+            books_tax = item.get("books_tax")
             lines.append(
                 f"| {g['supplier_name']} | `{g['supplier_gstin']}` | `{g['doc_number']}` | {g['doc_date']} | "
+                f"₹{item['gstr2_taxable']:,.2f} | {f'₹{books_taxable:,.2f}' if books_taxable is not None else '—'} | "
+                f"₹{item['gstr2_tax']:,.2f} | {f'₹{books_tax:,.2f}' if books_tax is not None else '—'} | "
                 f"₹{item['gstr2_amount']:,.2f} | ₹{item['books_amount']:,.2f} | **₹{item['diff']:+,.2f}** | "
-                f"Review bill `{b.get('bill_number')}` in Books |"
+                f"Review {books_type} `{books_number}` in Books |"
             )
         lines.append("")
 
@@ -928,9 +1311,24 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
             )
         lines.append("")
 
+    if summary["missing_in_gstr2_expenses_count"] > 0:
+        lines.extend([
+            "## 5. GST Expenses Missing in GSTR-2B (ITC At Risk)",
+            "",
+            "| Vendor Name | GSTIN | Expense / Reference # | Date | Taxable | Tax Total | Total Amount | Status |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+        ])
+        for expense in rec["missing_in_gstr2_expenses"]:
+            lines.append(
+                f"| {expense['vendor_name']} | `{expense['gst_no'] or 'N/A'}` | `{expense['reference_number']}` | "
+                f"{expense['date']} | ₹{expense['sub_total']:,.2f} | **₹{expense['tax_total']:,.2f}** | "
+                f"₹{expense['total']:,.2f} | {expense['status']} |"
+            )
+        lines.append("")
+
     if summary["matched_count"] > 0:
         lines.extend([
-            "## 5. Reconciled / Matched Invoices",
+            "## 6. Reconciled / Matched Purchases",
             "",
             "| Supplier Name | GSTIN | Doc Number | Date | Taxable | Tax (ITC) | Total Value | Match Status |",
             "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
@@ -947,9 +1345,9 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
     # Vendor Summary Table
     if rec.get("vendor_summaries"):
         lines.extend([
-            "## 5. Vendor-Wise Reconciliation Breakdown",
+            "## 7. Vendor-Wise Reconciliation Breakdown",
             "",
-            "| Vendor / Supplier Name | GSTIN | 2B Docs | 2B Taxable | 2B Total ITC | Books Bills | Books Total | Matched | Missing in Books | Missing in 2B |",
+            "| Vendor / Supplier Name | GSTIN | 2B Docs | 2B Taxable | 2B Total ITC | Books Purchases | Books Total | Matched | Missing in Books | Missing in 2B |",
             "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
         ])
         for v in rec["vendor_summaries"]:

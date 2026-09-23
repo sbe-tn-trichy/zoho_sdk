@@ -18,6 +18,14 @@
           "exclude": []
         }
       },
+      "gstr2": {
+        "gstr2_location_gstin_map": {
+          "<books-location-id>": {
+            "name": "<books-location-name>",
+            "gstin": "<recipient-gstin>"
+          }
+        }
+      },
       "creator": {
         "creator_owner_name": "<your-creator-account-owner>",
         "payment_creator_app_link_name": "order-management-new",

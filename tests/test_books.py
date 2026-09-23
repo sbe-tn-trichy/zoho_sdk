@@ -10,6 +10,7 @@ from zoho.books.resources.gst import GST, parse_doc_number
 from zoho.books.resources.projects import Projects, TimeEntries
 from zoho.books.resources.banking import BankTransactions
 from zoho.books.resources.settings import CustomFields
+from zoho.books.resources.purchases import Expenses
 
 class TestZohoBooksAPI(unittest.TestCase):
     def setUp(self):
@@ -162,6 +163,22 @@ class TestBooksBaseResource(unittest.TestCase):
 
 
 class TestBooksReconciliationResources(unittest.TestCase):
+    def test_expenses_use_books_expenses_endpoint(self):
+        client = MagicMock()
+        resource = Expenses(client)
+
+        resource.list(params={"date_start": "2026-09-01"})
+        resource.get("expense-1")
+
+        self.assertEqual(resource.endpoint, "expenses")
+        self.assertEqual(
+            client.request.call_args_list,
+            [
+                unittest.mock.call("GET", "expenses", params={"date_start": "2026-09-01"}),
+                unittest.mock.call("GET", "expenses/expense-1", params=None),
+            ],
+        )
+
     def test_custom_fields_list_and_create(self):
         client = MagicMock()
         client.request.return_value = {"fields": [{"label": "Creator_Record_ID"}]}

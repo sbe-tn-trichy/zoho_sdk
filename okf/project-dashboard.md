@@ -23,6 +23,11 @@ instead of being launched with guessed inputs. The page displays process state
 and a bounded recent-output log. Workflows that serve their own local interface
 expose an Open link after launch.
 
+GSTR-2 verification is an exception to the generic setup-only treatment for
+file-dependent workflows: entry 17 provides a JSON file field, validates the
+selected file, stores it only in a temporary file for the duration of the run,
+and deletes that temporary source after the verifier exits.
+
 Workflow visibility is configured in the active `zoho_config.json` profile:
 
 ```json
@@ -37,6 +42,7 @@ IDs, only those domains are shown. `exclude` is applied last and therefore wins
 when an ID is present in both lists. Supported IDs are
 `collection_reconciliation`,
 `creator_customer_sync`, `duplicate_payment_check`, `gstr1_verification`,
+`gstr2_verification`,
 `neoseal_audit`, `neoseal_stock_count`, `polycab_credit_memos`, `polycab_rso`, `stock_transfer`,
 `vendor_customer_offset`, and `vendor_ledger_reconciliation`. Configuration
 with unknown IDs or incorrectly typed values fails at dashboard startup rather

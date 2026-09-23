@@ -9,6 +9,7 @@ import os
 import secrets
 import subprocess
 import sys
+import tempfile
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -35,6 +36,7 @@ class WorkflowSpec:
     open_url: Optional[str] = None
     workflow: str = ""
     setup: Optional[str] = None
+    file_accept: Optional[str] = None
 
 
 WORKFLOWS = (
@@ -178,6 +180,18 @@ WORKFLOWS = (
         "Inventory",
         workflow="neoseal_stock_count",
     ),
+    WorkflowSpec(
+        17,
+        "GSTR-2 verification",
+        "Cross-check GSTR-2 / GSTR-2B against Books bills, GST expenses, and vendor credits.",
+        (
+            sys.executable,
+            "apps/verify_gstr2.py",
+        ),
+        "Compliance",
+        workflow="gstr2_verification",
+        file_accept=".json,application/json",
+    ),
 )
 
 
@@ -239,6 +253,7 @@ class WorkflowRunner:
         self.workflows = {item.number: item for item in workflows}
         self._runs: dict[int, dict[str, Any]] = {}
         self._processes: dict[int, subprocess.Popen[str]] = {}
+        self._temporary_sources: dict[int, Path] = {}
         self._next_run_id = 1
         self._lock = threading.Lock()
 
@@ -254,6 +269,7 @@ class WorkflowRunner:
                 "workflow": item.workflow,
                 "available": item.command is not None,
                 "setup": item.setup,
+                "file_accept": item.file_accept,
                 "command": (
                     " ".join(
                         Path(part).name if i == 0 else part
@@ -266,17 +282,51 @@ class WorkflowRunner:
             for item in self.workflows.values()
         ]
 
-    def start(self, number: int) -> dict[str, Any]:
+    def start(
+        self,
+        number: int,
+        source_file: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
         spec = self.workflows.get(number)
         if spec is None:
             raise ValueError(f"Unknown workflow number: {number}")
         if spec.command is None:
             raise ValueError(spec.setup or f"{spec.name} needs setup before it can run.")
 
+        command = list(spec.command)
+        temporary_source: Optional[Path] = None
+        if spec.file_accept:
+            if not isinstance(source_file, dict):
+                raise ValueError(f"Choose a source file for {spec.name}.")
+            filename = source_file.get("name")
+            content = source_file.get("content")
+            if not isinstance(filename, str) or not filename.lower().endswith(".json"):
+                raise ValueError("Choose a JSON file.")
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("The selected JSON file is empty.")
+            if len(content.encode("utf-8")) > 20 * 1024 * 1024:
+                raise ValueError("The selected JSON file exceeds the 20 MB limit.")
+            try:
+                json.loads(content)
+            except json.JSONDecodeError as exc:
+                raise ValueError("The selected file is not valid JSON.") from exc
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                prefix="zoho-gstr2-",
+                suffix=".json",
+                delete=False,
+            ) as upload:
+                upload.write(content)
+                temporary_source = Path(upload.name)
+            command.append(str(temporary_source))
+
         with self._lock:
             for run_id, process in self._processes.items():
                 run = self._runs[run_id]
                 if run["workflow_number"] == number and process.poll() is None:
+                    if temporary_source is not None:
+                        temporary_source.unlink(missing_ok=True)
                     return dict(run)
 
             run_id = self._next_run_id
@@ -298,7 +348,7 @@ class WorkflowRunner:
         environment["PYTHONUNBUFFERED"] = "1"
         try:
             process = subprocess.Popen(
-                spec.command,
+                command,
                 cwd=self.repo_root,
                 env=environment,
                 stdout=subprocess.PIPE,
@@ -308,6 +358,8 @@ class WorkflowRunner:
                 start_new_session=True,
             )
         except Exception as exc:
+            if temporary_source is not None:
+                temporary_source.unlink(missing_ok=True)
             with self._lock:
                 run.update(
                     status="failed",
@@ -318,6 +370,8 @@ class WorkflowRunner:
 
         with self._lock:
             self._processes[run_id] = process
+            if temporary_source is not None:
+                self._temporary_sources[run_id] = temporary_source
             run["status"] = "running"
         threading.Thread(target=self._capture, args=(run_id, process), daemon=True).start()
         return self.get(run_id)
@@ -330,6 +384,9 @@ class WorkflowRunner:
                 logs.append(line.rstrip())
                 del logs[:-MAX_LOG_LINES]
         exit_code = process.wait()
+        temporary_source = self._temporary_sources.pop(run_id, None)
+        if temporary_source is not None:
+            temporary_source.unlink(missing_ok=True)
         with self._lock:
             run = self._runs[run_id]
             run["exit_code"] = exit_code
@@ -397,7 +454,7 @@ def make_handler(runner: WorkflowRunner, launcher_token: str):
                 parts = urlparse(self.path).path.strip("/").split("/")
                 if len(parts) != 4 or parts[:2] != ["api", "workflows"] or parts[3] != "run":
                     raise ValueError("Unknown action.")
-                self._json(runner.start(int(parts[2])))
+                self._json(runner.start(int(parts[2]), body.get("source_file")))
             except (ValueError, json.JSONDecodeError) as exc:
                 self._json({"error": str(exc)}, 400)
 

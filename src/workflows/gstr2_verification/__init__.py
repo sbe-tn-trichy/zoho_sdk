@@ -1,6 +1,7 @@
 """GSTR-2 verification package."""
 
 from .verifier import (
+    AggregatePurchaseMapping,
     GSTR2VerificationConfig,
     GSTR2Verifier,
     normalize_doc_number,
@@ -9,6 +10,7 @@ from .verifier import (
 )
 
 __all__ = [
+    "AggregatePurchaseMapping",
     "GSTR2VerificationConfig",
     "GSTR2Verifier",
     "normalize_doc_number",

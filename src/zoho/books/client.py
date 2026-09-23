@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 from zoho.base_client import BaseZohoClient
 from .resources.contacts import Contacts, Organizations, ChartOfAccounts, Vendors
 from .resources.sales import Invoices, Estimates, SalesOrders, CreditNotes, VendorCredits, SalesReturns, CustomerPayments
-from .resources.purchases import Bills, PurchaseOrders, VendorPayments
+from .resources.purchases import Bills, Expenses, PurchaseOrders, VendorPayments
 from .resources.banking import BankAccounts, BankTransactions, Journals
 from .resources.projects import Projects, Tasks, TimeEntries
 from .resources.gst import GST
@@ -55,6 +55,7 @@ class ZohoBooksAPI(BaseZohoClient):
         self.bills = Bills(self)
         self.purchase_orders = PurchaseOrders(self)
         self.vendor_payments = VendorPayments(self)
+        self.expenses = Expenses(self)
         self.bank_accounts = BankAccounts(self)
         self.bank_transactions = BankTransactions(self)
         self.journals = Journals(self)

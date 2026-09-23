@@ -354,6 +354,12 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 | `mark_as_billed` | `(po_id)` | POST status/billed |
 | `mark_as_cancelled` | `(po_id)` | POST status/cancelled |
 
+**`expenses` (Expenses)**
+
+| Method | Signature | Notes |
+|---|---|---|
+| Standard CRUD | BaseResource methods | `/expenses` |
+
 **`bank_transactions` (BankTransactions)**
 
 | Method | Signature | Notes |

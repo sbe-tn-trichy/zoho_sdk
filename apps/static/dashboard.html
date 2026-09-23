@@ -192,6 +192,19 @@
     }
     .favorite[aria-pressed="true"] { color: var(--amber); }
     .card-actions { display: flex; align-items: center; gap: 5px; }
+    .source-picker {
+      max-width: 145px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--blue);
+      padding: 5px 8px;
+      cursor: pointer;
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .source-picker input { display: none; }
     .empty {
       color: var(--muted);
       padding: 20px 12px;
@@ -346,6 +359,7 @@
   <script>
     const token = document.querySelector('meta[name="launcher-token"]').content;
     let state = { workflows: [], runs: [] }, selectedRun = null, activeTab = 'All', query = '';
+    const selectedSources = new Map();
     const favoritesKey = 'zoho-sdk-dashboard-favorites';
     let favorites = new Set();
     try { favorites = new Set(JSON.parse(localStorage.getItem(favoritesKey) || '[]').map(Number)); } catch (_) { /* Browser storage may be unavailable. */ }
@@ -404,6 +418,7 @@
       const grid = document.getElementById('grid');
       grid.innerHTML = visible.length ? visible.map(w => {
         const r = latest(w.number), busy = r && ['starting', 'running'].includes(r.status);
+        const source = selectedSources.get(w.number);
         const detail = w.available ? w.description : `${w.description} ${w.setup}`;
         return `<article class="card" title="${esc(detail)}">
           <div class="num">${w.number}</div>
@@ -416,8 +431,12 @@
             </div>
           </div>
           <div class="card-actions">
+            ${w.file_accept ? `<label class="source-picker" title="${esc(source?.name || 'Choose a JSON file')}">
+              ${esc(source?.name || 'Choose JSON')}
+              <input type="file" accept="${esc(w.file_accept)}" onchange="selectSource(${w.number}, this)">
+            </label>` : ''}
             <button class="favorite" type="button" data-favorite="${w.number}" aria-pressed="${favorites.has(w.number)}" aria-label="${favorites.has(w.number) ? 'Remove' : 'Add'} ${esc(w.name)} ${favorites.has(w.number) ? 'from' : 'to'} favorites" title="${favorites.has(w.number) ? 'Remove from' : 'Add to'} favorites">${favorites.has(w.number) ? '★' : '☆'}</button>
-            <button class="run ${w.available ? '' : 'setup'}" title="${esc(w.setup || w.description)}" ${busy || !w.available ? 'disabled' : ''} onclick="run(${w.number})">${busy ? 'Running' : w.available ? 'Run ' + w.number : 'Setup needed'}</button>
+            <button class="run ${w.available ? '' : 'setup'}" title="${esc(w.setup || w.description)}" ${busy || !w.available || (w.file_accept && !source) ? 'disabled' : ''} onclick="run(${w.number})">${busy ? 'Running' : w.available ? 'Run ' + w.number : 'Setup needed'}</button>
           </div>
           <div class="status ${esc(r?.status || '')}">${r ? esc(r.status) : w.available ? 'Ready to run' : `<span class="setup-note">${esc(w.setup)}</span>`}${r?.open_url && busy ? ` · <a class="open" href="${esc(r.open_url)}" target="_blank">Open UI ↗</a>` : ''}</div>
         </article>`;
@@ -442,17 +461,30 @@
       render();
     }
 
+    async function selectSource(number, input) {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (file.size > 20 * 1024 * 1024) {
+        alert('The selected JSON file exceeds the 20 MB limit.');
+        return;
+      }
+      selectedSources.set(number, { name: file.name, content: await file.text() });
+      render();
+    }
+
     async function run(number) {
+      const source = selectedSources.get(number);
       const response = await fetch('/api/workflows/' + number + '/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Launcher-Token': token },
-        body: JSON.stringify({ confirm: true })
+        body: JSON.stringify({ confirm: true, source_file: source })
       });
       const data = await response.json();
       if (!response.ok) {
         alert(data.error || 'Unable to start workflow');
         return;
       }
+      selectedSources.delete(number);
       selectedRun = data.run_id;
       await refresh();
       if (data.open_url) setTimeout(() => window.open(data.open_url, '_blank'), 700);

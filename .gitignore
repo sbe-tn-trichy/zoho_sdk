@@ -18,6 +18,7 @@ logs/
 
 # SDK-generated output files
 output/
+Output/
 
 # Ephemeral scratch scripts
 scripts/

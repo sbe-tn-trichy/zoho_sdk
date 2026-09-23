@@ -148,6 +148,7 @@ class Config:
         "DASHBOARD_WORKFLOWS",
         {"include": [], "exclude": []},
     )
+    GSTR2_LOCATION_GSTIN_MAP = get_mapping_config("GSTR2_LOCATION_GSTIN_MAP")
 
     # Zoho WorkDrive Configurations
     POLYCAB_FOLDER_ID = get_config("POLYCAB_FOLDER_ID", "")

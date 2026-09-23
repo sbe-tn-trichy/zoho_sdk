@@ -65,6 +65,7 @@ def test_registry_catalogues_every_domain_workflow():
         "creator_customer_sync",
         "duplicate_payment_check",
         "gstr1_verification",
+        "gstr2_verification",
         "neoseal_audit",
         "neoseal_stock_count",
         "polycab_credit_memos",
@@ -117,6 +118,65 @@ def test_runner_explains_when_workflow_needs_setup():
 
     with pytest.raises(ValueError, match="Choose a return month"):
         runner.start(9)
+
+
+def test_gstr2_verification_is_visible_with_json_file_input():
+    runner = WorkflowRunner()
+
+    workflow = next(
+        item
+        for item in runner.list_workflows()
+        if item["workflow"] == "gstr2_verification"
+    )
+
+    assert workflow["number"] == 17
+    assert workflow["category"] == "Compliance"
+    assert workflow["available"] is True
+    assert workflow["file_accept"] == ".json,application/json"
+
+
+def test_runner_passes_validated_json_source_file(tmp_path: Path):
+    spec = WorkflowSpec(
+        number=17,
+        name="JSON workflow",
+        description="Read a JSON file.",
+        command=(
+            sys.executable,
+            "-c",
+            "import json,sys; print(json.load(open(sys.argv[1]))['ready'])",
+        ),
+        category="Test",
+        file_accept=".json,application/json",
+    )
+    runner = WorkflowRunner(repo_root=tmp_path, workflows=(spec,))
+
+    started = runner.start(
+        17,
+        {"name": "return.json", "content": '{"ready": true}'},
+    )
+    deadline = time.monotonic() + 5
+    result = started
+    while result["status"] in {"starting", "running"} and time.monotonic() < deadline:
+        time.sleep(0.02)
+        result = runner.get(started["run_id"])
+
+    assert result["status"] == "succeeded"
+    assert result["logs"] == ["True"]
+
+
+def test_runner_rejects_invalid_json_source_file(tmp_path: Path):
+    spec = WorkflowSpec(
+        number=17,
+        name="JSON workflow",
+        description="Read a JSON file.",
+        command=(sys.executable, "-c", "pass"),
+        category="Test",
+        file_accept=".json,application/json",
+    )
+    runner = WorkflowRunner(repo_root=tmp_path, workflows=(spec,))
+
+    with pytest.raises(ValueError, match="not valid JSON"):
+        runner.start(17, {"name": "return.json", "content": "not-json"})
 
 
 def test_payment_preview_uses_production_review_refresh():

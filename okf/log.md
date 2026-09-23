@@ -1,5 +1,35 @@
 # Knowledge Change Log
 
+## 2026-09-23
+
+- Switched cumulative GSTR-2 category and summary outputs from JSON to CSV,
+  preserving month-keyed upserts and migrating existing histories.
+
+- Assigned GSTR-2 bills to return months by transaction posting date, fetching
+  across bill dates so later-posted bills remain in scope.
+
+- Organized GSTR-2 output into month-keyed reports and cumulative category JSON
+  histories under `Output/GSTR2 Verification`, with reruns replacing an
+  existing month's data instead of producing duplicates.
+
+- Replaced runtime GSTR-2 location discovery with a fail-closed static
+  `GSTR2_LOCATION_GSTIN_MAP` configuration snapshot, including location names
+  and owning GST registrations.
+
+- Scoped GSTR-2 Books bills, expenses, and vendor credits by the recipient GSTIN mapped from Books locations, with incomplete-report protection for unresolved locations.
+
+- Added guarded many-to-one GSTR-2 purchase mappings so a validated consolidated Books bill can account for multiple portal invoices without cluttering missing-item report sections.
+
+- Corrected GSTR-2 Books net-taxable display for entity-level discounts, subtracting pre-tax discounts but not after-tax or already-net item-level discounts.
+
+- Expanded GSTR-2 value-mismatch rows with side-by-side portal and Books taxable and tax amounts, including vendor-credit tax summaries; the CLI now preserves existing reports when core Books fetches fail.
+
+- Corrected GSTR-2 vendor-credit retrieval to use the Books `vendor_credits` response key; the endpoint-name default had silently produced zero credits.
+
+- Expanded GSTR-2 / GSTR-2B verification to reconcile GST-bearing Books expenses alongside bills and vendor credits, using positive forward tax rather than GST registration alone.
+
+- Exposed GSTR-2 / GSTR-2B verification as runnable dashboard entry 17 with a validated JSON file picker and temporary-source cleanup.
+
 ## 2026-09-22
 
 - Added GSTR-2 / GSTR-2B verification workflow and CLI runner (`apps/verify_gstr2.py`) to cross-check GST portal purchase data against Zoho Books bills and vendor credits, detecting value mismatches, unrecorded purchases, and Section 16(2)(aa) ITC risks.

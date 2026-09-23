@@ -96,3 +96,10 @@ class PurchaseOrders(BaseResource, StatusMixin):
 class VendorPayments(BaseResource):
     def __init__(self, client: Any):
         super().__init__(client, 'vendorpayments')
+
+
+class Expenses(BaseResource):
+    """Zoho Books expenses resource."""
+
+    def __init__(self, client: Any):
+        super().__init__(client, 'expenses')

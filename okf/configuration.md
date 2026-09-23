@@ -48,6 +48,10 @@ Supported configuration keys:
 - `DASHBOARD_WORKFLOWS`: Object with `include` and `exclude` lists controlling
   which domain workflows appear on the local dashboard. An empty `include`
   list means all workflows; `exclude` takes precedence.
+- `GSTR2_LOCATION_GSTIN_MAP`: Static object keyed by Books location ID. Each
+  value contains `name` and `gstin`. GSTR-2 verification uses this snapshot to
+  select the Books documents owned by the recipient registration and fails
+  closed when the map is empty, invalid, or missing a document location.
 - `FILES_DIR`: Directory containing Polycab credit memo PDFs.
 - `POLYCAB_LEDGER_PATH`: Polycab reconciliation ledger path.
 - `ZEISS_LEDGER_PATH`: Zeiss reconciliation ledger path.
@@ -91,6 +95,9 @@ or a batch; the workflow does not rely on the Books organization default.
 Polycab RSO sales-order import uses `RSO_CUSTOMER_ID` and
 `EXPECTED_LOCATION_ID`. Both values are included explicitly in the creation
 payload and can be overridden per import.
+
+Review `GSTR2_LOCATION_GSTIN_MAP` when locations or GST registrations change.
+Normal GSTR-2 runs do not refresh it from the Books Locations API.
 
 # Collection Reconciliation Configuration
 
