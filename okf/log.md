@@ -1,5 +1,11 @@
 # Knowledge Change Log
 
+## 2026-09-25
+
+- Included reverse-charge Books expenses in matching against RCM portal invoices,
+  using detail-only reverse-charge tax while keeping them separate from forward-GST
+  expense matching and supplier-filing risk reporting.
+
 ## 2026-09-24
 
 - Added a readable IST last-run timestamp to each generated GSTR-2 monthly Markdown report.

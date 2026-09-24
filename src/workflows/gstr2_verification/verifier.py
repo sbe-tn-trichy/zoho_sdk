@@ -151,6 +151,9 @@ class GSTR2Verifier:
         )
         books_expenses = self._fetch_books_expenses(
             start_date, end_date, fetch_errors, location_gstins, recipient_gstin,
+            rcm_doc_numbers={
+                doc["norm_number"] for doc in gstr2_docs if doc["reverse_charge"]
+            },
         )
         books_credits = self._fetch_books_vendor_credits(
             start_date, end_date, fetch_errors, location_gstins, recipient_gstin,
@@ -486,8 +489,9 @@ class GSTR2Verifier:
         errors: List[Dict[str, str]],
         location_gstins: Optional[Mapping[str, Mapping[str, str]]] = None,
         recipient_gstin: str = "",
+        rcm_doc_numbers: Optional[Set[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """Fetch period expenses and retain only those with positive forward GST."""
+        """Fetch period expenses with forward GST or recorded reverse-charge tax."""
         params = {
             "date_start": start_date.isoformat(),
             "date_end": end_date.isoformat(),
@@ -519,7 +523,12 @@ class GSTR2Verifier:
             expense_id = str(summary.get("expense_id") or summary.get("id") or "")
             expense: Mapping[str, Any] = summary
             tax_amount = self._expense_tax_amount(expense)
-            if tax_amount is None and expense_id:
+            reference = str(summary.get("reference_number") or summary.get("expense_number") or "")
+            may_be_rcm = (
+                (tax_amount is None or tax_amount <= 0.0)
+                and normalize_doc_number(reference) in (rcm_doc_numbers or set())
+            )
+            if (tax_amount is None or may_be_rcm) and expense_id:
                 if expense_id in self._expense_cache:
                     expense = self._expense_cache[expense_id]
                     tax_amount = self._expense_tax_amount(expense)
@@ -534,14 +543,17 @@ class GSTR2Verifier:
                         errors.append({"source": f"expense:{expense_id}", "error": str(exc)})
                         continue
 
-            # Reverse-charge tax is deliberately not treated as supplier-filed GST.
-            if tax_amount is None:
+            reverse_charge_tax = _to_float(
+                expense.get("reverse_charge_tax_amount")
+                or expense.get("reverse_charge_tax_total")
+            )
+            if tax_amount is None and reverse_charge_tax <= 0.0:
                 errors.append({
                     "source": f"expense:{expense_id or 'unknown'}",
                     "error": "Could not determine forward GST amount",
                 })
                 continue
-            if tax_amount <= 0.0:
+            if (tax_amount or 0.0) <= 0.0 and reverse_charge_tax <= 0.0:
                 continue
 
             merged = {**summary, **dict(expense)}
@@ -566,7 +578,8 @@ class GSTR2Verifier:
                 "vendor_name": str(merged.get("vendor_name") or merged.get("merchant_name") or "").strip(),
                 "gst_no": normalize_gstin(merged.get("gst_no")),
                 "sub_total": _to_float(merged.get("sub_total")) or max(total - tax_amount, 0.0),
-                "tax_total": tax_amount,
+                "tax_total": reverse_charge_tax if reverse_charge_tax > 0.0 else tax_amount,
+                "reverse_charge": reverse_charge_tax > 0.0,
                 "total": total,
                 "status": status,
                 "raw": merged,
@@ -664,7 +677,11 @@ class GSTR2Verifier:
                 rcm_items.append(g_doc)
 
             is_credit = g_doc["doc_type"] == "credit_note"
-            books_pool = books_credits if is_credit else purchase_documents
+            books_pool = books_credits if is_credit else [
+                doc for doc in purchase_documents
+                if doc.get("doc_type") != "expense"
+                or bool(doc.get("reverse_charge")) == g_doc["reverse_charge"]
+            ]
             used_ids = used_books_credit_ids if is_credit else (used_books_bill_ids | used_books_expense_ids)
 
             matched_books_doc = self._find_best_match(g_doc, books_pool, used_ids)
@@ -707,7 +724,11 @@ class GSTR2Verifier:
                             books_taxable = net_taxable
                         detail_tax = full_doc.get("tax_total")
                         if detail_tax in (None, "") and matched_books_doc.get("doc_type") == "expense":
-                            detail_tax = full_doc.get("tax_amount")
+                            detail_tax = (
+                                full_doc.get("reverse_charge_tax_amount")
+                                if matched_books_doc.get("reverse_charge")
+                                else full_doc.get("tax_amount")
+                            )
                         if detail_tax in (None, "") and isinstance(full_doc.get("taxes"), list):
                             detail_tax = sum(
                                 _to_float(tax.get("tax_amount"))
@@ -764,6 +785,7 @@ class GSTR2Verifier:
         missing_in_gstr2_expenses = [
             expense for expense in books_expenses
             if expense.get("expense_id") not in used_books_expense_ids
+            and not expense.get("reverse_charge")
         ]
 
         missing_in_gstr2_bills: List[Dict[str, Any]] = []

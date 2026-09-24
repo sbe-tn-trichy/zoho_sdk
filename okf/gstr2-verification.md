@@ -39,10 +39,14 @@ locally. Reports retain the supplier bill date for document matching.
 
 Expenses are read from the Books Expenses API for the return period. An expense
 joins the ordinary supplier-invoice matching pool only when its forward
-`tax_amount`, tax summary, or summed line-item tax is positive. The workflow
-loads full expense detail only when the list response is inconclusive. A GSTIN
-or `business_gst` treatment alone is not sufficient because an expense may be
-exempt or zero-rated. Reverse-charge tax is not treated as supplier-filed GST.
+`tax_amount`, tax summary, or summed line-item tax is positive. Expenses with
+positive `reverse_charge_tax_amount` join only reverse-charge portal matches;
+they are excluded from the ordinary supplier-filed GST expense risk list when
+unmatched. The workflow loads full expense detail when the list response is
+inconclusive or a zero-tax summary has a reference matching a portal RCM
+invoice, as Zoho may omit reverse-charge fields from the list. A GSTIN or
+`business_gst` treatment alone is not sufficient because an expense may be
+exempt or zero-rated.
 
 The Books vendor-credit endpoint is `vendorcredits`, but its list response uses
 `vendor_credits`. The verifier explicitly selects that response key when it

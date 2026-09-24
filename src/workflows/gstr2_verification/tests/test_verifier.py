@@ -587,6 +587,62 @@ def test_gst_expense_is_matched_and_zero_tax_expense_is_excluded():
     books.expenses.get.assert_not_called()
 
 
+def test_reverse_charge_expense_matches_rcm_portal_invoice():
+    books = MagicMock()
+    books.bills.list_all.return_value = []
+    books.vendor_credits.list_all.return_value = []
+    books.expenses.list_all.return_value = [{
+        "expense_id": "vrl-1", "reference_number": "1092213251",
+        "date": "2025-09-27", "vendor_name": "VRL LOGISTICS LIMITED",
+        "gst_no": "33AABCV3609C1ZU", "sub_total": 810.0,
+        "total": 810.0, "total_without_tax": 810.0,
+        "status": "nonbillable",
+    }]
+    books.expenses.get.return_value = {"expense": {
+        "expense_id": "vrl-1", "reference_number": "1092213251",
+        "date": "2025-09-27", "vendor_name": "VRL LOGISTICS LIMITED",
+        "gst_no": "33AABCV3609C1ZU", "sub_total": 810.0,
+        "tax_amount": 0.0, "reverse_charge_tax_amount": 40.5,
+        "total": 810.0, "status": "nonbillable",
+    }}
+    portal = {"data": {"rtnprd": "092025", "docdata": {"b2b": [{
+        "ctin": "33AABCV3609C1ZU", "trdnm": "VRL LOGISTICS LIMITED",
+        "inv": [{"inum": "1092213251", "dt": "27-09-2025", "val": 810.0,
+                 "txval": 810.0, "cgst": 20.25, "sgst": 20.25,
+                 "rev": "Y", "itcavl": "Y"}],
+    }], "cdnr": []}}}
+
+    rec = GSTR2Verifier(books).run(portal)["reconciliation"]
+
+    assert rec["summary"]["matched_count"] == 1
+    assert rec["summary"]["missing_in_books_count"] == 0
+    assert rec["summary"]["missing_in_gstr2_expenses_count"] == 0
+    assert rec["matched_documents"][0]["books_tax"] == 40.5
+    assert rec["matched_documents"][0]["books_doc"]["reverse_charge"] is True
+
+
+def test_reverse_charge_expense_does_not_match_forward_tax_invoice():
+    books = MagicMock()
+    books.bills.list_all.return_value = []
+    books.vendor_credits.list_all.return_value = []
+    books.expenses.list_all.return_value = [{
+        "expense_id": "rcm-1", "reference_number": "INV-1",
+        "date": "2025-09-27", "gst_no": "33AABCV3609C1ZU", "total": 810.0,
+        "tax_amount": 0.0, "reverse_charge_tax_amount": 40.5,
+    }]
+    portal = {"data": {"rtnprd": "092025", "docdata": {"b2b": [{
+        "ctin": "33AABCV3609C1ZU", "inv": [{"inum": "INV-1", "dt": "27-09-2025",
+        "val": 810.0, "txval": 810.0, "cgst": 20.25, "sgst": 20.25,
+        "rev": "N", "itcavl": "Y"}],
+    }], "cdnr": []}}}
+
+    rec = GSTR2Verifier(books).run(portal)["reconciliation"]
+
+    assert rec["summary"]["matched_count"] == 0
+    assert rec["summary"]["missing_in_books_count"] == 1
+    assert rec["summary"]["missing_in_gstr2_expenses_count"] == 0
+
+
 def test_unmatched_itemized_gst_expense_is_loaded_and_reported():
     books = MagicMock()
     books.bills.list_all.return_value = []
