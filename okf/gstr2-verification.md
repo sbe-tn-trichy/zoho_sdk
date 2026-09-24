@@ -107,7 +107,8 @@ verification process exits.
 
 Each successful run writes or replaces exactly one month report at
 `Output/GSTR2 Verification/monthly/YYYY-MM.md`. Re-running a month updates that
-file instead of creating a duplicate. The same run upserts that month's data
+file instead of creating a duplicate. The report header records the last run
+time in IST. The same run upserts that month's data
 into category-specific CSV histories under
 `Output/GSTR2 Verification/cumulative/`, including value mismatches, missing
 Books documents, missing GSTR-2B bills/credits/expenses, zero-tax bills,

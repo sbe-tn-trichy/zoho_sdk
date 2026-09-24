@@ -1176,6 +1176,10 @@ class GSTR2Verifier:
 
 def render_markdown_report(result: Dict[str, Any]) -> str:
     """Render a comprehensive GitHub Flavored Markdown report."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    last_run = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %I:%M %p IST")
     meta = result["metadata"]
     rec = result["reconciliation"]
     summary = rec["summary"]
@@ -1187,6 +1191,7 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
     lines: List[str] = [
         f"# GSTR-2B vs Zoho Books Reconciliation Report ({meta['target_month']})",
         "",
+        f"- **Last Run:** {last_run}",
         f"- **Recipient GSTIN:** `{meta['recipient_gstin']}`",
         f"- **Books Locations in Scope:** {included_locations}",
         f"- **Return Period:** `{meta['return_period']}` ({meta['start_date']} to {meta['end_date']})",

@@ -1,6 +1,7 @@
 """Unit tests for GSTR-2 verification workflow."""
 
 from datetime import date
+import re
 from unittest.mock import MagicMock
 import pytest
 from workflows.gstr2_verification.verifier import (
@@ -251,6 +252,7 @@ def test_aggregate_purchase_mapping_requires_exact_count_and_components(
     )).run(portal)
     rec = result["reconciliation"]
     report = render_markdown_report(result)
+    assert re.search(r"\*\*Last Run:\*\* \d{2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} [AP]M IST", report)
     if changed_amount:
         assert rec["aggregate_matches"] == []
         assert rec["summary"]["missing_in_books_count"] == 2

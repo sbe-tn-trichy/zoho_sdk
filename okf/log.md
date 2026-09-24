@@ -2,6 +2,8 @@
 
 ## 2026-09-24
 
+- Added a readable IST last-run timestamp to each generated GSTR-2 monthly Markdown report.
+
 - Removed amount-only GSTR-2 purchase matching so distinct supplier documents
   with the same value cannot consume each other's Books expense.
 
