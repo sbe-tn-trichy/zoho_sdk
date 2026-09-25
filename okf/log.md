@@ -2,9 +2,15 @@
 
 ## 2026-09-25
 
+- Excluded zero-tax / commercial vendor credits from Missing in GSTR-2B alerts and categorized them under non-GST documents, ensuring only vendor credits with active GST tax are tracked for portal reconciliation.
+
+- Updated GSTR-2 monthly report filenames to include 3-letter Mon-YYYY and an IST run timestamp suffix (`<Mon>-<YYYY>_<DDMM>_<HHMM>.md`, e.g. `Apr-2025_2509_1417.md`).
+
 - Included reverse-charge Books expenses in matching against RCM portal invoices,
   using detail-only reverse-charge tax while keeping them separate from forward-GST
   expense matching and supplier-filing risk reporting.
+
+- Added a read-only GSTR-3B versus Zoho Books P&L workflow and CLI that compare monthly and FY outward taxable value with the scoped Sales account hierarchy, verify annual reconciliation, and export CSV; COGS is shown separately because GSTR-3B lacks an ordinary purchase total.
 
 ## 2026-09-24
 

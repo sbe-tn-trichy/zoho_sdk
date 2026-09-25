@@ -1,6 +1,7 @@
-import logging
 import collections.abc
+import logging
 import threading
+import time
 from urllib.parse import urlsplit
 import requests
 from typing import Any, Dict, Optional
@@ -277,6 +278,41 @@ class BaseZohoClient:
                 retry_kwargs = {**req_kwargs}
                 retry_kwargs["headers"] = req_headers
                 response = _execute_http(method, retry_kwargs)
+
+        # Handle 429 or rate-limit code 44 with backoff
+        for attempt in range(3):
+            is_rate_limit = False
+            if response.status_code == 429:
+                is_rate_limit = True
+            elif response.status_code >= 400:
+                try:
+                    err_json = response.json()
+                    if isinstance(err_json, dict) and (
+                        err_json.get("code") in (44, 429)
+                        or "maximum number of requests" in str(err_json.get("message", "")).lower()
+                    ):
+                        is_rate_limit = True
+                except Exception:
+                    pass
+
+            if is_rate_limit:
+                retry_after = 12
+                if hasattr(response, "headers") and isinstance(response.headers, collections.abc.Mapping):
+                    header_val = response.headers.get("Retry-After")
+                    if header_val:
+                        try:
+                            retry_after = min(int(header_val), 60)
+                        except Exception:
+                            pass
+                self.logger.warning(
+                    f"{self.service_name.capitalize()} rate limit reached (status {response.status_code}); "
+                    f"sleeping for {retry_after}s before retry (attempt {attempt + 1}/3)..."
+                )
+                response.close()
+                time.sleep(retry_after)
+                response = _execute_http(method, req_kwargs)
+            else:
+                break
 
         self.logger.info(f"Response: {response.status_code}")
 

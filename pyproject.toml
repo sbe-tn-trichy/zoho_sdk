@@ -29,3 +29,6 @@ testpaths = [
     "tests",
     "src/workflows",
 ]
+pythonpath = [".", "src"]
+addopts = ["--import-mode=importlib"]
+

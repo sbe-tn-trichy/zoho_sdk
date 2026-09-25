@@ -50,21 +50,30 @@ def test_unresolved_location_does_not_overwrite_report(tmp_path, monkeypatch):
     assert report.read_text(encoding="utf-8") == "previous valid report"
 
 
+def test_build_monthly_report_filename():
+    from datetime import datetime
+    ts = datetime(2026, 9, 25, 14, 17)
+    filename = verify_gstr2.build_monthly_report_filename("2025-04", run_timestamp=ts)
+    assert filename == "Apr-2025_2509_1417.md"
+
+
 def test_outputs_upsert_month_and_append_cumulative_history(tmp_path):
+    from datetime import datetime
     root = tmp_path / "Output" / "GSTR2 Verification"
+    fixed_ts = datetime(2025, 10, 20, 14, 15)
 
     monthly, cumulative = verify_gstr2.write_reconciliation_outputs(
-        _result("2025-10", "first"), "October report", root,
+        _result("2025-10", "first"), "October report", root, run_timestamp=fixed_ts,
     )
-    assert monthly == root / "monthly" / "2025-10.md"
+    assert monthly == root / "monthly" / "Oct-2025_2010_1415.md"
     assert monthly.read_text(encoding="utf-8") == "October report"
     assert cumulative
 
     verify_gstr2.write_reconciliation_outputs(
-        _result("2025-10", "corrected"), "Corrected October report", root,
+        _result("2025-10", "corrected"), "Corrected October report", root, run_timestamp=fixed_ts,
     )
     verify_gstr2.write_reconciliation_outputs(
-        _result("2025-11", "second-month"), "November report", root,
+        _result("2025-11", "second-month"), "November report", root, run_timestamp=fixed_ts,
     )
 
     assert monthly.read_text(encoding="utf-8") == "Corrected October report"

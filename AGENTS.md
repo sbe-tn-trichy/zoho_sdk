@@ -35,6 +35,32 @@
   `pass`, or TODO markers. Intentional abstract/protocol stubs are allowed.
 
 
+## Execution Environment & Fast-Path
+
+- **Immediate Execution**: When asked to run a script, test, app, or workflow, execute it immediately on the **first turn** without reading OKF files or performing pre-flight file exploration.
+- Always run Python commands and tests using the workspace virtual environment:
+  - Run scripts with `.venv/bin/python <script>` (or `uv run python <script>`).
+  - Run tests with `.venv/bin/pytest` (or `uv run pytest`).
+- Never invoke global/system `python` or bare `pytest`.
+
+### Workflow Command Index
+| Workflow / Task | Direct Execution Command |
+|---|---|
+| **GSTR-2 Verification** | `.venv/bin/python apps/verify_gstr2.py` |
+| **GSTR-3B vs P&L Comparison** | `.venv/bin/python apps/compare_gstr3b_pnl.py` |
+| **Payment Review / Allocations** | `.venv/bin/python apps/payment_review.py` |
+| **Bank Collection Reconciliation** | `.venv/bin/python apps/run_collection_reconciliation.py` |
+| **Neoseal Stock Count** | `.venv/bin/python apps/neoseal_stock_count.py` |
+| **Neoseal Item Audit** | `.venv/bin/python apps/audit_neoseal_items.py` |
+| **Apply Neoseal Name Updates** | `.venv/bin/python apps/apply_neoseal_name_updates.py` |
+| **Export Neoseal Items** | `.venv/bin/python apps/export_neoseal_items.py` |
+| **Creator Customer Sync** | `.venv/bin/python apps/sync_creator_customers.py` |
+| **Creator Beat Sync** | `.venv/bin/python apps/sync_creator_beats.py` |
+| **Stock Transfer** | `.venv/bin/python apps/transfer_stock.py` |
+| **Project Dashboard** | `.venv/bin/python apps/dashboard.py` |
+| **Run All Tests** | `.venv/bin/pytest -q` |
+
+
 ## Safety and Verification
 
 - Generated project artifacts default to `output/`. APIs may honor a caller's

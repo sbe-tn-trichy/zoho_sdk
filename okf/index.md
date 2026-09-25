@@ -21,6 +21,7 @@ okf_version: "0.2"
 * [Bank Statement Categorization](collection-reconciliation.md) - Creator payment matching, Analytics customer suggestions for other bank lines, TA expense review, and audit safety.
 * [GSTR-1 Verification](gstr1-verification.md) - Previous-month invoice and credit-note checks for drafts, number continuity, chronology, and e-invoice registration.
 * [GSTR-2 Verification](gstr2-verification.md) - Read-only purchase reconciliation cross-checking GSTR-2 / GSTR-2B JSON against Books bills and credits.
+* [GSTR-3B and Books P&L Comparison](gstr3b-pnl-comparison.md) - Monthly and FY Sales account comparison with filed GSTR-3B turnover.
 * [Vendor-Customer Offset](vendor-customer-offset.md) - GSTIN-safe paired customer/vendor payments through a clearing bank account.
 * [Creator Customer Sync](creator-customer-delete-sync.md) - Books-to-Creator customer creation, update, and deletion reconciliation.
 * [Neoseal Item Audit](neoseal-item-audit.md) - Automated catalog data quality, duplicate/packaging twin detection, nomenclature verification, and item group audit.

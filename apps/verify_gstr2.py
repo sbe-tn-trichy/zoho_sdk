@@ -8,8 +8,10 @@ import csv
 import json
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
+from zoneinfo import ZoneInfo
 
 try:
     from . import _bootstrap  # noqa: F401
@@ -68,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output",
         type=Path,
-        help="Optional exact monthly report path (default: Output/GSTR2 Verification/monthly/YYYY-MM.md)",
+        help="Optional exact monthly report path (default: Output/GSTR2 Verification/monthly/<Month>-<YYYY>_<DDMM>_<HHMM>.md)",
     )
     parser.add_argument(
         "--output-root",
@@ -167,15 +169,43 @@ def _legacy_rows(path: Path) -> list[dict[str, str]]:
         raise ValueError(f"Unable to migrate cumulative output {path}: {exc}") from exc
 
 
+def build_monthly_report_filename(
+    target_month: str,
+    run_timestamp: Optional[datetime] = None,
+) -> str:
+    """Format monthly report filename as <Mon>-<YYYY>_<DDMM>_<HHMM>.md."""
+    try:
+        month_dt = datetime.strptime(str(target_month), "%Y-%m")
+        month_label = month_dt.strftime("%b-%Y")
+    except ValueError:
+        month_label = str(target_month)
+
+    if run_timestamp is None:
+        try:
+            now = datetime.now(ZoneInfo("Asia/Kolkata"))
+        except Exception:
+            now = datetime.now()
+    else:
+        now = run_timestamp
+
+    ts_str = now.strftime("%d%m_%H%M")
+    return f"{month_label}_{ts_str}.md"
+
+
 def write_reconciliation_outputs(
     result: Mapping[str, Any],
     report_md: str,
     output_root: Path,
     monthly_override: Optional[Path] = None,
+    run_timestamp: Optional[datetime] = None,
 ) -> tuple[Path, tuple[Path, ...]]:
     """Upsert one monthly report and month-keyed cumulative category files."""
     target_month = str(result["metadata"]["target_month"])
-    monthly_path = monthly_override or output_root / "monthly" / f"{target_month}.md"
+    if monthly_override:
+        monthly_path = monthly_override
+    else:
+        filename = build_monthly_report_filename(target_month, run_timestamp=run_timestamp)
+        monthly_path = output_root / "monthly" / filename
     reconciliation = result["reconciliation"]
     cumulative_dir = output_root / "cumulative"
     updates: list[tuple[Path, list[dict[str, str]], Path]] = []

@@ -88,9 +88,10 @@ matched portal-document and Books-purchase counts remain distinct.
    remains unavailed are flagged.
 
 4. **In Zoho Books but Missing in GSTR-2B (ITC At Risk)**:
-   Bills or GST-bearing expenses entered in Zoho Books claiming ITC for which the vendor has not filed GSTR-1.
+   Bills, GST-bearing expenses, or GST vendor credits entered in Zoho Books for which the vendor has not filed GSTR-1.
    Under Section 16(2)(aa) of the CGST Act, ITC cannot be availed in GSTR-3B if missing
-   from GSTR-2B.
+   from GSTR-2B. Commercial credit notes and bills without tax components are categorized
+   separately under zero-tax / non-GST documents and excluded from missing ITC alerts.
 
 5. **Ineligible ITC & Reverse Charge**:
    Identifies lines marked as ineligible (`itcavl == 'N'`) or subject to Reverse Charge
@@ -109,10 +110,9 @@ The operations dashboard exposes this workflow as entry 17
 validates it before launch, and removes the temporary server-side copy when the
 verification process exits.
 
-Each successful run writes or replaces exactly one month report at
-`Output/GSTR2 Verification/monthly/YYYY-MM.md`. Re-running a month updates that
-file instead of creating a duplicate. The report header records the last run
-time in IST. The same run upserts that month's data
+Each successful run writes a timestamped monthly report at
+`Output/GSTR2 Verification/monthly/<Mon>-<YYYY>_<DDMM>_<HHMM>.md` (e.g. `Apr-2025_2509_1417.md`).
+The report header records the last run time in IST. The same run upserts that month's data
 into category-specific CSV histories under
 `Output/GSTR2 Verification/cumulative/`, including value mismatches, missing
 Books documents, missing GSTR-2B bills/credits/expenses, zero-tax bills,

@@ -684,3 +684,54 @@ def test_unmatched_itemized_gst_expense_is_loaded_and_reported():
     assert rec["missing_in_gstr2_expenses"][0]["tax_total"] == 36.0
     assert "GST Expenses Missing in GSTR-2B" in render_markdown_report(result)
     books.expenses.get.assert_called_once_with("expense-3")
+
+
+def test_commercial_zero_tax_vendor_credit_is_classified_as_zero_tax():
+    books = MagicMock()
+    books.bills.list_all.return_value = []
+    books.expenses.list_all.return_value = []
+    books.vendor_credits.list_all.return_value = [
+        {
+            "vendor_credit_id": "vc-comm-1",
+            "vendor_credit_number": "20256600750",
+            "date": "2025-04-28",
+            "vendor_name": "BAUSCH & LOMB INDIA PRIVATE LTD",
+            "gst_no": "",
+            "total": 7410.0,
+            "tax_total": 0.0,
+            "status": "closed",
+        },
+        {
+            "vendor_credit_id": "vc-gst-1",
+            "vendor_credit_number": "GST-CN-100",
+            "date": "2025-04-28",
+            "vendor_name": "GST VENDOR",
+            "gst_no": "33AAAAA0000A1Z5",
+            "total": 1180.0,
+            "tax_total": 180.0,
+            "status": "open",
+        }
+    ]
+    portal = {
+        "data": {
+            "gstin": "33AATFB2164K1Z9",
+            "rtnprd": "042025",
+            "docdata": {"b2b": [], "cdnr": []},
+        }
+    }
+
+    result = GSTR2Verifier(books).run(portal)
+    rec = result["reconciliation"]
+
+    # Only GST vendor credit should be in missing_in_gstr2_credits
+    assert len(rec["missing_in_gstr2_credits"]) == 1
+    assert rec["missing_in_gstr2_credits"][0]["credit_number"] == "GST-CN-100"
+
+    # Commercial credit note should be in zero_tax_bills (no tax component)
+    zero_tax = rec["zero_tax_bills"]
+    assert any(
+        z.get("credit_number") == "20256600750"
+        and "commercial / non-GST credit" in z.get("reason", "")
+        for z in zero_tax
+    )
+

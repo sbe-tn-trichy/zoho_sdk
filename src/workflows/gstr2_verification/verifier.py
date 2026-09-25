@@ -91,6 +91,7 @@ class GSTR2Verifier:
         self.config = config or GSTR2VerificationConfig()
         self._cached_bills: Optional[List[Dict[str, Any]]] = None
         self._expense_cache: Dict[str, Mapping[str, Any]] = {}
+        self._vendor_credit_cache: Dict[str, Mapping[str, Any]] = {}
 
     @staticmethod
     def _books_net_taxable(document: Mapping[str, Any]) -> Optional[float]:
@@ -779,7 +780,7 @@ class GSTR2Verifier:
         raw_missing_in_gstr2_bills = [
             b for b in books_bills if b.get("bill_id") not in used_books_bill_ids
         ]
-        missing_in_gstr2_credits = [
+        raw_missing_in_gstr2_credits = [
             c for c in books_credits if c.get("credit_id") not in used_books_credit_ids
         ]
         missing_in_gstr2_expenses = [
@@ -789,6 +790,7 @@ class GSTR2Verifier:
         ]
 
         missing_in_gstr2_bills: List[Dict[str, Any]] = []
+        missing_in_gstr2_credits: List[Dict[str, Any]] = []
         zero_tax_bills: List[Dict[str, Any]] = []
 
         for b in raw_missing_in_gstr2_bills:
@@ -819,6 +821,70 @@ class GSTR2Verifier:
                 zero_tax_bills.append({**b, "tax_total": 0.0, "reason": "No tax component (exempt / non-GST)"})
             else:
                 missing_in_gstr2_bills.append(b)
+
+        for c in raw_missing_in_gstr2_credits:
+            c_id = c.get("credit_id")
+            tax_total = 0.0
+            tax_checked = False
+
+            if c.get("total", 0.0) == 0.0:
+                zero_tax_bills.append({
+                    **c,
+                    "bill_number": c.get("credit_number", ""),
+                    "tax_total": 0.0,
+                    "reason": "Zero-value vendor credit",
+                })
+                continue
+
+            if not c.get("gst_no"):
+                zero_tax_bills.append({
+                    **c,
+                    "bill_number": c.get("credit_number", ""),
+                    "tax_total": 0.0,
+                    "reason": "No tax component (commercial / non-GST credit)",
+                })
+                continue
+
+            raw = c.get("raw") or {}
+            if "tax_total" in raw or "tax_amount" in raw or "taxes" in raw or "line_items" in raw:
+                tax_total = _to_float(raw.get("tax_total") or raw.get("tax_amount"))
+                if tax_total == 0.0 and raw.get("taxes"):
+                    tax_total = sum(_to_float(tax.get("tax_amount")) for tax in raw["taxes"] if isinstance(tax, Mapping))
+                if tax_total == 0.0 and raw.get("line_items"):
+                    tax_total = sum(_to_float(it.get("tax_total") or it.get("item_tax_amount")) for it in raw["line_items"] if isinstance(it, Mapping))
+                c["tax_total"] = tax_total
+                tax_checked = True
+
+            if not tax_checked and c_id:
+                try:
+                    if c_id in self._vendor_credit_cache:
+                        fvc = self._vendor_credit_cache[c_id]
+                    else:
+                        fvc_res = self.books.vendor_credits.get(c_id)
+                        fvc = fvc_res.get("vendor_credit", fvc_res) if isinstance(fvc_res, dict) else {}
+                        self._vendor_credit_cache[c_id] = fvc
+
+                    if "tax_total" in fvc or "tax_amount" in fvc or "taxes" in fvc or "line_items" in fvc:
+                        tax_total = _to_float(fvc.get("tax_total") or fvc.get("tax_amount"))
+                        if tax_total == 0.0 and fvc.get("taxes"):
+                            tax_total = sum(_to_float(tax.get("tax_amount")) for tax in fvc["taxes"] if isinstance(tax, Mapping))
+                        if tax_total == 0.0 and fvc.get("line_items"):
+                            tax_total = sum(_to_float(it.get("tax_total") or it.get("item_tax_amount")) for it in fvc["line_items"] if isinstance(it, Mapping))
+                        c["tax_total"] = tax_total
+                        c["sub_total"] = self._books_net_taxable(fvc) or 0.0
+                        tax_checked = True
+                except Exception as exc:
+                    logger.debug("Error checking tax on vendor credit %s: %s", c_id, exc)
+
+            if tax_checked and tax_total == 0.0:
+                zero_tax_bills.append({
+                    **c,
+                    "bill_number": c.get("credit_number", ""),
+                    "tax_total": 0.0,
+                    "reason": "No tax component (commercial / non-GST credit)",
+                })
+            else:
+                missing_in_gstr2_credits.append(c)
 
         aggregate_matches: List[Dict[str, Any]] = []
         aggregate_warnings: List[str] = []
@@ -1337,16 +1403,17 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
 
     if rec.get("zero_tax_bills"):
         lines.extend([
-            "## 4. Books Purchases with No Tax Component (Zero GSTR-2 ITC Impact)",
+            "## 4. Books Purchases & Credits with No Tax Component (Zero GSTR-2 ITC Impact)",
             "",
-            "The following bills have no tax/GST recorded in Books (exempt, zero-rated, promotional, or non-GST). They carry no ITC and have no impact on GSTR-2B reconciliation:",
+            "The following documents have no tax/GST recorded in Books (exempt, zero-rated, promotional, or non-GST/commercial credit). They carry no ITC and have no impact on GSTR-2B reconciliation:",
             "",
-            "| Vendor Name | GSTIN | Bill # | Date | Total Amount | Reason |",
+            "| Vendor Name | GSTIN | Document # | Date | Total Amount | Reason |",
             "| :--- | :--- | :--- | :--- | :--- | :--- |",
         ])
         for zb in rec["zero_tax_bills"]:
+            doc_num = zb.get("bill_number") or zb.get("credit_number") or ""
             lines.append(
-                f"| {zb['vendor_name']} | `{zb['gst_no'] or 'N/A'}` | `{zb['bill_number']}` | "
+                f"| {zb['vendor_name']} | `{zb['gst_no'] or 'N/A'}` | `{doc_num}` | "
                 f"{zb['date']} | ₹{zb['total']:,.2f} | {zb.get('reason', 'Zero tax')} |"
             )
         lines.append("")
