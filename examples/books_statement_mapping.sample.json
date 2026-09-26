@@ -1,0 +1,23 @@
+[
+  {
+    "report": "profitandloss",
+    "account_ids": ["REPLACE_WITH_PRODUCT_SALES_ACCOUNT_ID"],
+    "sheet": "Notes to P & L 19 to 25",
+    "current_cell": "G6",
+    "previous_cell": "E6"
+  },
+  {
+    "report": "profitandloss",
+    "account_ids": ["REPLACE_WITH_SERVICE_SALES_ACCOUNT_ID"],
+    "sheet": "Notes to P & L 19 to 25",
+    "current_cell": "G7",
+    "previous_cell": "E7"
+  },
+  {
+    "report": "profitandloss",
+    "account_ids": ["REPLACE_WITH_INTEREST_INCOME_ACCOUNT_ID"],
+    "sheet": "Notes to P & L 19 to 25",
+    "current_cell": "G15",
+    "previous_cell": "E15"
+  }
+]

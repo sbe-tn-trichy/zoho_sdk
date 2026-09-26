@@ -1,5 +1,9 @@
 # Knowledge Change Log
 
+## 2026-09-26
+
+- Added a preview-first, account-ID-based workflow for mapping configured Zoho Books P&L and balance sheet reports into the FY 2025–26 Google Sheets statement template, with exact-cell and formula guards.
+
 ## 2026-09-25
 
 - Excluded zero-tax / commercial vendor credits from Missing in GSTR-2B alerts and categorized them under non-GST documents, ensuring only vendor credits with active GST tax are tracked for portal reconciliation.

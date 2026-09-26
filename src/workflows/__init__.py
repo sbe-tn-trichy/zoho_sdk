@@ -23,6 +23,9 @@ from .core.models import DotDict
 
 
 _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "StatementMapping": (".books_statement_sheet", "StatementMapping"),
+    "StatementPeriod": (".books_statement_sheet", "StatementPeriod"),
+    "prepare_statement_sheet_updates": (".books_statement_sheet", "prepare_updates"),
     "BillUpdateResult": (".bill_updates", "BillUpdateResult"),
     "update_bill_with_payment_reallocation": (".bill_updates", "update_bill_with_payment_reallocation"),
     "CollectionReconciler": (".collection_reconciliation", "CollectionReconciler"),

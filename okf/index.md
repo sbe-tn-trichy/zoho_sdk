@@ -14,6 +14,7 @@ okf_version: "0.2"
 * [Configuration Reference](configuration.md) - OAuth credentials, organization settings, environment variables, and CLI dry-run flags.
 * [Zoho Inventory Client](zoho-inventory.md) - Item and inventory API routing, purchase-account scoping, and migration requirements.
 * [Zoho Books Client](zoho-books.md) - Books resource access, pagination, and customer-only contact retrieval.
+* [Books Financial Statement Sheet](books-statement-sheet.md) - Reviewed Books report mappings into the linked FY 2025–26 Google Sheets template.
 * [Duplicate Customer Payment Check](duplicate-payment-check.md) - Read-only detection of customer payments sharing the same customer, date, and amount.
 * [Polycab RSO Import](polycab-rso-import.md) - Parse Polycab return-sales-order PDFs, create location-scoped Books sales orders, and attach the source PDF.
 * [Analytics Metadata Snapshots](analytics-metadata.md) - Complete workspace metadata collection, rate-limit handling, snapshot files, and relationship maps.
