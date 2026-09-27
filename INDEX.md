@@ -696,6 +696,7 @@ Books bank lines/customer payments, and optional Analytics suggestions.
 | `CollectionReconciler.reconcile_pending` | Safely reconciles pending Creator records and audits exceptions |
 | `CollectionReconciler.resolve_manual` | Applies a selected Analytics customer to an unmatched bank line |
 | `reconcile_collections` | Convenience entry point for scheduled jobs or webhook workers |
+| `repair_payment_allocations` | Reallocates open invoices to pushed payments with unused credits (`workflows.collection_reconciliation.repair`) |
 | `run_collection_reconciliation` | Single-step CLI script entry point (`apps/run_collection_reconciliation.py`) |
 | `REQUIRED_OAUTH_SCOPES` | Required Creator, Books, and Analytics OAuth scopes |
 

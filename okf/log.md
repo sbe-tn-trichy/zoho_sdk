@@ -1,5 +1,61 @@
 # Knowledge Change Log
 
+## 2026-09-28
+
+- Included live Books account names beside IDs in the filed balance-sheet comparison CSV's `books_source` column.
+
+## 2026-09-27
+
+- Corrected the inter-branch helper to use the branch-filtered Books General Ledger report: non-SBE FY 2025–26 balance is 48,175 credit. The raw register omits that nonzero filtered balance.
+- Added a public inter-branch detailed-ledger helper around the paginated Books register SDK method, with validated account and branch scoping; live FY 2025–26 read returned 26 included transactions.
+- Added a read-only filed FY 2024–25 balance-sheet comparison with exact sheet-cell and Books-account mappings, partner capital schedules, CSV output, and explicit unmapped classifications. The Books balance-sheet branch filter requires scope review.
+- Persisted the FY 2025–26 P&L note cell-to-account mapping and added a focused one-report `--pnl-only` preview/apply path with Note 3 partner-interest read and formula protection.
+- Added `is_expand=true` to the Books P&L report request used by the schedule-format helper.
+- Populated the live FY 2025–26 P&L notes from branch-excluded Books account totals and restored statement-to-note formulas; documented COGS, interest, and miscellaneous classification limits.
+- Added a branch-exclusion P&L helper for explicit report dates; the web schedule-format route returned code 5, so the SDK retrieves its figures through the working regular P&L API and verifies applied filters.
+- Classified equity ledger interest by offset account and withdrawals by transaction type in the Books statement sheet updater; the residual movement remains explicit and closing balances reconcile.
+- Integrated the bulk equity-ledger helper into the Books statement sheet updater, reconciling owner movements to location-scoped opening and closing balance-sheet amounts while preserving closing formulas; added an equity-only run option.
+- Added a paginated Zoho Books account-register reader and a bulk-filtered equity-ledger helper; live probing showed the register needs an explicit account-ID query filter even when the ID appears in its path. The web Detailed General Ledger route is not exposed at the corresponding public API path.
+- Added a read-only Books-backed split proposal for fully allocated payments spanning multiple document locations, with per-location amounts and source documents.
+- Added a grouped apply workflow for the outstanding FY 2025–26 vendor payment proposals, with all-series preflight and per-series read-back audit.
+- Held payments whose destination-series number conflicts with the current Books location for manual reconciliation instead of proposing an automatic move.
+- Added a read-only Books recheck of all FY 2025–26 payment proposals that removes payments already at their destination location and saves an observation audit.
+- Scoped generated inter-location payment proposal reports to FY 2025–26 while retaining FY 2026–27 in the live Analytics Query Table.
+- Scoped the vendor numbered update proposal to payments requiring a destination series change; same-series location-only mismatches are excluded.
+- Corrected vendor payment proposals to preserve an existing destination-series number and reserve new suffixes only for payments changing series.
+- Added read-only Books preflight and numbered FY 2025–26 proposals for inter-location vendor payments across three destination series.
+- Changed customer-payment batch verification to one descending series page for the whole batch, checking each saved ID, number, location, account, date, and amount.
+- Added a Books customer-payment multipart update with explicit suppression of automatic number generation, after confirming a one-payment FY 2025–26 move retained its chosen number.
+- Replaced the all-payment number scan with a one-page Books prefix-filtered descending lookup, checking that Books applied the filter and sort before proposing destination numbers.
+- Scoped the customer-payment move script to FY 2025–26 by payment date, with a 15-payment batch default and current Books series numbering.
+- Added a dry-run-first helper and script for reviewed customer-payment location and number updates in the SBE FY 2025–26 series, with current Books preflight, collision checks, and read-back verification.
+- Added observed destination payment-number prefixes by location, fiscal year, and payment type to inter-location proposals; final series and unique suffix remain Books preflight requirements.
+- Added a read-only all-bank-account payment location proposal report that checks complete allocation locations and holds mixed or clearing-account cases for review.
+- Included payment-to-invoice and payment-to-bill location mismatches across all synced bank accounts in the inter-location Analytics Query Table, with bank account ID and name columns; contra pairing remains scoped to the clearing account.
+- Expanded the clearing-account Analytics Query Table to include customer payment versus invoice and vendor payment versus bill location mismatches, with an explicit issue type; contra move proposals ignore the new payment-document rows.
+- Consolidated inter-location Analytics Query Table generation and updates under a unified workflow function (`sync_inter_location_contra_query_table`) and primary CLI (`apps/manage_inter_location_contra_query_table.py`) while preserving create and update commands as thin compatibility wrappers.
+- Extracted domain business logic from CLI apps (`apps/repair_review_payment_allocations.py`, `apps/backfill_online_payment_creator_fields.py`, `apps/export_neoseal_items.py`) into dedicated workflow modules (`workflows.collection_reconciliation.repair`, `workflows.online_payment_creator_backfill`, and `workflows.neoseal_audit.exporter`), restoring strict package hierarchy (`zoho <- workflows <- apps`).
+- Centralized payment reference normalization in `workflows.core.matching.normalize_payment_reference` and shared atomic JSON checkpointing in `workflows.core.checkpoint.write_atomic_json`.
+- Added regression tests verifying GSTIN grouping/validation, payment reference matching variations, non-finite amount handling, and backward compatibility for `workflows.creator_customer_delete_sync`.
+
+- Added a fast, Analytics-driven customer payment date audit workflow and CLI (`apps/check_customer_payment_dates.py`) using saved Query Table `Customer Payment vs Applied Date Mismatch` (`264324000008269008`) to detect entries where applied date matches neither payment date nor invoice date, plus a safe-by-default updater CLI (`apps/update_invoice_payment_dates.py`) to adjust applied dates to `MAX(Payment Date, Invoice Date)`.
+
+- Added an all-pairs Books preflight and audited apply command for reviewed customer payment location moves, stopping before writes on any verification failure.
+
+- Added a read-only proposal generator for the saved inter-location Query Table; it groups allocated documents and holds uncertain pairs for manual review.
+
+- Expanded the live inter-location Analytics Query Table with allocated invoice and bill locations and document numbers for move decisions.
+
+- Added a dry-run-first publisher for a live Analytics Query Table containing only inter-location contra pairs, retaining match strength and review status.
+
+- Added strict 4-way location verification (bill, vendor payment, invoice, customer payment) for Vendor-Customer clearing account reviews, and added payment-to-document location auditing for general bank accounts (`vendor_payment` vs bill locations, `customer_payment` vs invoice locations).
+
+- Added a read-only FY 2025–26/FY 2026–27 account contra review that fetches source-document locations, highlights uniquely paired inter-location entries, proposes moves when all allocated documents agree, and optionally cross-checks Zoho Analytics.
+
+- Added a complete Zoho Books chart-of-accounts SQLite snapshot and automatic `account_names` refresh for financial-statement mappings, failing closed on unknown account IDs.
+
+- Made `books_statement_mapping.json` the dedicated, Git-ignored default configuration for the Books financial-statement sheet updater, including its Google spreadsheet ID and required Books location scope, while retaining optional custom mapping paths and spreadsheet-ID overrides. Report requests now explicitly use the custom-date filter and configured location IDs.
+
 ## 2026-09-26
 
 - Added a preview-first, account-ID-based workflow for mapping configured Zoho Books P&L and balance sheet reports into the FY 2025–26 Google Sheets statement template, with exact-cell and formula guards.

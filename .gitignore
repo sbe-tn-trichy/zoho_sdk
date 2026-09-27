@@ -39,6 +39,7 @@ htmlcov/
 # Local config & cache
 zoho_config.json
 config.json
+books_statement_mapping.json
 .zoho_cache.json
 *.cache.json
 uv.lock

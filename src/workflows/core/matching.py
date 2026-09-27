@@ -40,6 +40,11 @@ def to_text(value: Any) -> str:
     return "" if value is None else str(value).strip()
 
 
+def normalize_payment_reference(value: Any) -> str:
+    """Normalize a payment or transaction reference: strip whitespace, remove punctuation/non-alphanumerics, casefold."""
+    return "".join(character for character in to_text(value).casefold() if character.isalnum())
+
+
 def parse_date(date_str: Any) -> Optional[date]:
     """Safely parse various date formats into a datetime.date object."""
     if not date_str:

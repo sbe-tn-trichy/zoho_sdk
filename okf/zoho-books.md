@@ -9,6 +9,12 @@ description: Public resource access patterns for the Zoho Books client.
 Resources inherit standard CRUD operations and the paginated `list_all()` helper
 from `BaseResource`.
 
+`customer_payments.update_with_number_series(payment_id, data)` sends a
+multipart `JSONString` payment update with `ignore_auto_number_generation=true`.
+Use it when changing location and assigning a specific payment-number prefix
+and suffix together; a plain JSON update may let Books assign the location's
+current default fiscal-year number instead. Verify the saved payment afterward.
+
 ## Reducing a paid bill
 
 `workflows.update_bill_with_payment_reallocation()` supports bill updates that
@@ -59,6 +65,56 @@ uses that relationship to keep different GST registrations isolated.
 
 ## Financial account transactions
 
+`reports.profit_and_loss_schedule_format(from_date=..., to_date=..., rule=...)`
+requests the schedule-format P&L figures for an explicit ISO date range. The
+`zoho.helpers.fetch_profit_and_loss_schedule_format(api, from_date=...,
+to_date=..., excluded_location_id=...)` wrapper constructs the Books branch
+`not_in` rule and requests accrual basis. The web report's
+`profitandloss-scheduleformat` route returned code 5 from the public API;
+the SDK therefore uses `reports/profitandloss`, which accepts the same filters
+and returns the account totals, though not the web schedule layout.
+The request includes `is_expand=true` to ask Books for expanded report rows.
+
+`registers.list_transactions(account_id, *, from_date, to_date, page=1,
+per_page=200, cash_based=False)` reads one raw page from the documented Books
+account register endpoint. `registers.iter_transactions(...)` traverses
+`page_context.has_more_page` and flattens transaction rows from the report's
+nested `register_transactions.account_transactions` groups. The SDK always
+sends the account ID in the query as well as the path: live Books ignored the
+path ID alone and returned the whole ledger. The `*_for_accounts` variants
+accept up to 50 IDs and send one comma-separated account filter, matching the
+Books API's multi-account option. Dates must be ISO dates and the range must be
+ordered. A live request to the web report's apparent
+`reports/detailedgeneralledger` path returned Books code 5 (resource not found).
+
+```python
+rows = api.registers.iter_transactions(
+    "123456789", from_date="2025-04-01", to_date="2026-03-31"
+)
+```
+
+`zoho.helpers.fetch_equity_general_ledger(api, from_date=..., to_date=...,
+excluded_location_id=...)` discovers active and inactive equity accounts and
+calls `registers.iter_transactions_for_accounts` once for the whole set. It
+resolves the excluded location ID to a unique Books location name, then removes
+matching register rows. The register response exposes branch names rather than
+IDs; missing or ambiguous branch metadata stops the helper. It returns
+`EquityLedgerEntry` records with account metadata and the raw transaction.
+
+`reports.general_ledger(from_date=..., to_date=..., rule=...)` calls the public
+`reports/generalledger` endpoint and validates its echoed dates, accrual basis,
+and rule columns. `zoho.helpers.fetch_inter_branch_general_ledger` wraps it
+with the inter-branch account ID and SBE exclusion and returns debit, credit,
+and closing balance. For FY 2025–26, the branch-filtered report returned
+debits 14,945, credits 63,120, and a 48,175 credit balance. This is the
+relevant figure for the non-SBE reconciliation.
+
+`fetch_inter_branch_register_transactions` separately reads raw postings via
+the register SDK and filters branch names. The raw register showed zero amounts
+for this account even though the branch-filtered General Ledger was nonzero;
+it must not be used to infer the filtered inter-branch balance. The web
+`detailedgeneralledger` route remains unavailable through the public API.
+
 `chart_of_accounts.list_transactions(account_id, params=None)` returns one API
 page from `GET /chartofaccounts/accounttransactions`. The account ID is required;
 optional filters such as `date_start`, `date_end`, and amount filters are passed
@@ -66,7 +122,9 @@ through without mutating the caller's mapping.
 
 `chart_of_accounts.list_all_transactions(account_id, params=None)` traverses the
 endpoint's `page_context` and returns the combined `transactions` list using
-200-row pages.
+200-row pages. The live endpoint can instead return a `transaction_list` of
+transaction-type counts, so use `registers` when detailed posting rows are
+required.
 
 ```python
 transactions = api.chart_of_accounts.list_all_transactions(

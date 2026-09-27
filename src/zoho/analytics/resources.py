@@ -83,6 +83,34 @@ class Views:
     def __init__(self, client: Any):
         self.client = client
 
+    def create_query_table(self, workspace_id: str, name: str, sql_query: str, description: str = "") -> str:
+        """Create a saved Query Table and return its view ID."""
+        if not workspace_id or not name or not sql_query.strip():
+            raise ValueError("workspace_id, name, and sql_query are required")
+        result = self.client.request(
+            "POST",
+            f"workspaces/{workspace_id}/querytables",
+            data={"CONFIG": json.dumps({"sqlQuery": sql_query, "queryTableName": name, "description": description})},
+        )
+        if not isinstance(result, dict) or result.get("status") != "success":
+            raise ZohoAnalyticsError(f"Analytics Query Table creation failed: {result}")
+        view_id = result.get("data", {}).get("viewId")
+        if not view_id:
+            raise ZohoAnalyticsError("Analytics Query Table creation returned no view ID")
+        return str(view_id)
+
+    def update_query_table(self, workspace_id: str, view_id: str, sql_query: str) -> None:
+        """Replace the SQL of an existing saved Query Table."""
+        if not workspace_id or not view_id or not sql_query.strip():
+            raise ValueError("workspace_id, view_id, and sql_query are required")
+        result = self.client.request(
+            "PUT",
+            f"workspaces/{workspace_id}/querytables/{view_id}",
+            data={"CONFIG": json.dumps({"sqlQuery": sql_query})},
+        )
+        if result and (not isinstance(result, dict) or result.get("status") == "failure"):
+            raise ZohoAnalyticsError(f"Analytics Query Table update failed: {result}")
+
     @staticmethod
     def _config(
         response_format: str,

@@ -23,9 +23,20 @@ from .core.models import DotDict
 
 
 _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "PaymentMove": (".inter_location_payment_updates", "PaymentMove"),
+    "plan_customer_payment_moves": (".inter_location_payment_updates", "plan_customer_payment_moves"),
+    "apply_customer_payment_move": (".inter_location_payment_updates", "apply_customer_payment_move"),
+    "submit_customer_payment_move": (".inter_location_payment_updates", "submit_customer_payment_move"),
+    "verify_customer_payment_batch": (".inter_location_payment_updates", "verify_customer_payment_batch"),
+    "VendorPaymentMove": (".inter_location_vendor_payment_proposals", "VendorPaymentMove"),
+    "propose_vendor_payment_moves": (".inter_location_vendor_payment_proposals", "propose_vendor_payment_moves"),
+    "sync_account_catalog": (".books_account_catalog", "sync_account_catalog"),
+    "refresh_mapping_account_names": (".books_account_catalog", "refresh_mapping_account_names"),
     "StatementMapping": (".books_statement_sheet", "StatementMapping"),
     "StatementPeriod": (".books_statement_sheet", "StatementPeriod"),
+    "EquityMapping": (".books_statement_sheet", "EquityMapping"),
     "prepare_statement_sheet_updates": (".books_statement_sheet", "prepare_updates"),
+    "prepare_equity_updates": (".books_statement_sheet", "prepare_equity_updates"),
     "BillUpdateResult": (".bill_updates", "BillUpdateResult"),
     "update_bill_with_payment_reallocation": (".bill_updates", "update_bill_with_payment_reallocation"),
     "CollectionReconciler": (".collection_reconciliation", "CollectionReconciler"),
@@ -68,6 +79,8 @@ _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
     "fetch_neoseal_stock_count": (".neoseal_stock_count", "fetch_neoseal_stock_count"),
     "CreatorBooksPaymentLinkBackfill": (".creator_books_payment_link", "CreatorBooksPaymentLinkBackfill"),
     "BackfillConfig": (".creator_books_payment_link", "BackfillConfig"),
+    "CustomerPaymentDateChecker": (".customer_payment_date_check", "CustomerPaymentDateChecker"),
+    "check_customer_payment_dates": (".customer_payment_date_check", "check_customer_payment_dates"),
 }
 
 
@@ -94,6 +107,13 @@ def __dir__():
     return sorted(set(globals()) | set(_LAZY_EXPORTS))
 
 __all__ = [
+    "StatementMapping",
+    "StatementPeriod",
+    "EquityMapping",
+    "prepare_statement_sheet_updates",
+    "prepare_equity_updates",
+    "sync_account_catalog",
+    "refresh_mapping_account_names",
     "BillUpdateResult",
     "update_bill_with_payment_reallocation",
     "fetch_access_tokens",
@@ -143,4 +163,6 @@ __all__ = [
     "fetch_neoseal_stock_count",
     "CreatorBooksPaymentLinkBackfill",
     "BackfillConfig",
+    "CustomerPaymentDateChecker",
+    "check_customer_payment_dates",
 ]

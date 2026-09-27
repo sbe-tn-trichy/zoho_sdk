@@ -97,6 +97,20 @@ class VendorPayments(BaseResource):
     def __init__(self, client: Any):
         super().__init__(client, 'vendorpayments')
 
+    def update_with_number_series(self, payment_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update location and chosen payment number without auto numbering."""
+        import json
+
+        if not payment_id or not data.get("location_id"):
+            raise ValueError("Payment ID and destination location are required")
+        if not data.get("payment_number_prefix") or not data.get("payment_number_suffix"):
+            raise ValueError("Payment number prefix and suffix are required")
+        return self.client.request(
+            "PUT", f"{self.endpoint}/{payment_id}",
+            files={"JSONString": (None, json.dumps(data)),
+                   "ignore_auto_number_generation": (None, "true")},
+        )
+
 
 class Expenses(BaseResource):
     """Zoho Books expenses resource."""

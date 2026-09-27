@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from workflows.core.matching import parse_date, to_decimal, to_text
+from workflows.core.checkpoint import write_atomic_json
+from workflows.core.matching import normalize_payment_reference, parse_date, to_decimal, to_text
 from zoho.helpers.transactions import unwrap_record
 
 
 def _normalized(value: Any) -> str:
-    return "".join(character for character in to_text(value).casefold() if character.isalnum())
+    return normalize_payment_reference(value)
 
 
 def build_native_payment_indexes(
@@ -213,26 +213,18 @@ def find_creator_sequence_gaps(
 
 
 def _write_checkpoint(path: Path, result: BackfillResult) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps({
+    write_atomic_json(
+        path,
+        {
             "summary": result.summary(),
             "oldest_creator_date": result.oldest_creator_date,
             "sequence_gaps": result.sequence_gaps,
             "rows": result.rows,
-        }, indent=2, default=str)
-        + "\n",
-        encoding="utf-8",
+        },
+        indent=2,
+        default=str,
+        max_retries=5,
     )
-    for attempt in range(5):
-        try:
-            os.replace(temporary, path)
-            break
-        except PermissionError:
-            if attempt == 4:
-                raise
-            time.sleep(0.1 * (attempt + 1))
 
 
 class CreatorBooksPaymentLinkBackfill:
@@ -438,4 +430,3 @@ class CreatorBooksPaymentLinkBackfill:
         result = BackfillResult(rows, oldest_date.isoformat(), sequence_gaps)
         _write_checkpoint(self.config.checkpoint_path, result)
         return result
-

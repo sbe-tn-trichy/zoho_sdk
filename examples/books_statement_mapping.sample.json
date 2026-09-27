@@ -1,23 +1,49 @@
-[
-  {
-    "report": "profitandloss",
-    "account_ids": ["REPLACE_WITH_PRODUCT_SALES_ACCOUNT_ID"],
-    "sheet": "Notes to P & L 19 to 25",
-    "current_cell": "G6",
-    "previous_cell": "E6"
+{
+  "spreadsheet_id": "REPLACE_WITH_GOOGLE_SPREADSHEET_ID",
+  "location_ids": ["REPLACE_WITH_BOOKS_LOCATION_ID"],
+  "equity": {
+    "excluded_location_id": "REPLACE_WITH_EXCLUDED_BOOKS_LOCATION_ID",
+    "interest_account_id": "REPLACE_WITH_INTEREST_EXPENSE_ACCOUNT_ID",
+    "withdrawal_transaction_types": ["transfer_fund", "owner_drawings"],
+    "movement_header_cell": "I12",
+    "movement_header": "Other net movement\n(per Books, unclassified)",
+    "mappings": [
+      {
+        "account_id": "REPLACE_WITH_OWNER_EQUITY_ACCOUNT_ID",
+        "sheet": "Note 1 to 3",
+        "name_cell": "B13",
+        "opening_cell": "D13",
+        "interest_cell": "G13",
+        "withdrawal_cell": "H13",
+        "movement_cell": "I13",
+        "closing_cell": "J13"
+      }
+    ]
   },
-  {
-    "report": "profitandloss",
-    "account_ids": ["REPLACE_WITH_SERVICE_SALES_ACCOUNT_ID"],
-    "sheet": "Notes to P & L 19 to 25",
-    "current_cell": "G7",
-    "previous_cell": "E7"
-  },
-  {
-    "report": "profitandloss",
-    "account_ids": ["REPLACE_WITH_INTEREST_INCOME_ACCOUNT_ID"],
-    "sheet": "Notes to P & L 19 to 25",
-    "current_cell": "G15",
-    "previous_cell": "E15"
-  }
-]
+  "mappings": [
+    {
+      "report": "profitandloss",
+      "account_ids": ["REPLACE_WITH_PRODUCT_SALES_ACCOUNT_ID"],
+      "account_names": ["AUTO_REFRESHED_FROM_BOOKS"],
+      "sheet": "Notes to P & L 19 to 25",
+      "current_cell": "G6",
+      "previous_cell": "E6"
+    },
+    {
+      "report": "profitandloss",
+      "account_ids": ["REPLACE_WITH_SERVICE_SALES_ACCOUNT_ID"],
+      "account_names": ["AUTO_REFRESHED_FROM_BOOKS"],
+      "sheet": "Notes to P & L 19 to 25",
+      "current_cell": "G7",
+      "previous_cell": "E7"
+    },
+    {
+      "report": "profitandloss",
+      "account_ids": ["REPLACE_WITH_INTEREST_INCOME_ACCOUNT_ID"],
+      "account_names": ["AUTO_REFRESHED_FROM_BOOKS"],
+      "sheet": "Notes to P & L 19 to 25",
+      "current_cell": "G15",
+      "previous_cell": "E15"
+    }
+  ]
+}

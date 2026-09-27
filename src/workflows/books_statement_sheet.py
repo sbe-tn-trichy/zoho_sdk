@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping, Sequence
 
+from zoho.helpers import fetch_equity_general_ledger
+
+from workflows.core.matching import to_finite_decimal
+
 
 @dataclass(frozen=True)
 class StatementMapping:
@@ -24,6 +28,18 @@ class StatementPeriod:
     current_end: str
     previous_start: str
     previous_end: str
+
+
+@dataclass(frozen=True)
+class EquityMapping:
+    account_id: str
+    sheet: str
+    name_cell: str
+    opening_cell: str
+    interest_cell: str
+    withdrawal_cell: str
+    movement_cell: str
+    closing_cell: str
 
 
 def _value_at(payload: Mapping[str, Any], path: Sequence[str]) -> Decimal:
@@ -68,7 +84,10 @@ def _account_total(payload: Mapping[str, Any], report: str, account_ids: Sequenc
 
 
 def prepare_updates(
-    books: Any, periods: StatementPeriod, mappings: Sequence[StatementMapping]
+    books: Any,
+    periods: StatementPeriod,
+    mappings: Sequence[StatementMapping],
+    location_ids: Sequence[str] = (),
 ) -> dict[str, Decimal]:
     """Fetch each distinct report/period once and return qualified A1 cell values.
 
@@ -91,16 +110,20 @@ def prepare_updates(
         ):
             key = (mapping.report, start, end)
             if key not in reports:
-                response = books.request("GET", f"reports/{mapping.report}", params={
+                params = {
+                    "filter_by": "TransactionDate.CustomDate",
                     "from_date": start,
                     "to_date": end,
                     "cash_based": "false",
                     "show_rows": "all",
-                })
+                }
+                if location_ids:
+                    params["location_ids"] = ",".join(location_ids)
+                response = books.request("GET", f"reports/{mapping.report}", params=params)
                 if not isinstance(response, Mapping) or response.get("code") != 0:
                     raise ValueError(f"Books {mapping.report} failed for {start} to {end}")
                 context = response.get("page_context") or {}
-                if context.get("to_date") != end or (
+                if context.get("to_date") != end or context.get("filter_by") != "TransactionDate.CustomDate" or (
                     mapping.report == "profitandloss" and context.get("from_date") != start
                 ) or context.get("cash_based") != "false":
                     raise ValueError(f"Books ignored requested dates for {mapping.report}")
@@ -111,4 +134,100 @@ def prepare_updates(
             source = (_account_total(reports[key], mapping.report, mapping.account_ids)
                       if mapping.account_ids else _value_at(reports[key], mapping.source_path))
             updates[qualified] = source * mapping.multiplier
+    return updates
+
+
+def prepare_equity_updates(
+    books: Any,
+    periods: StatementPeriod,
+    mappings: Sequence[EquityMapping],
+    *,
+    location_ids: Sequence[str],
+    excluded_location_id: str,
+    account_names: Mapping[str, str],
+    interest_account_id: str,
+    withdrawal_transaction_types: Sequence[str],
+) -> dict[str, Decimal | str]:
+    """Prepare owner openings, interest, withdrawals, and residual movements.
+
+    Existing closing-balance formulas are never write targets. Each computed
+    closing balance must agree exactly with the location-scoped Books balance
+    sheet before any update is returned.
+    """
+    if not mappings:
+        raise ValueError("Equity mappings cannot be empty")
+    if not location_ids:
+        raise ValueError("Equity updates require location_ids")
+    if not excluded_location_id:
+        raise ValueError("Equity updates require excluded_location_id")
+    if not interest_account_id:
+        raise ValueError("Equity updates require interest_account_id")
+    if not withdrawal_transaction_types or any(not kind for kind in withdrawal_transaction_types):
+        raise ValueError("Equity updates require withdrawal_transaction_types")
+
+    target_cells: set[str] = set()
+    report_mappings: list[StatementMapping] = []
+    for mapping in mappings:
+        if not mapping.account_id or not mapping.sheet:
+            raise ValueError("Every equity mapping needs an account ID and sheet")
+        if mapping.account_id not in account_names:
+            raise ValueError(f"Unknown equity account ID: {mapping.account_id}")
+        for cell in (
+            mapping.name_cell, mapping.opening_cell, mapping.interest_cell,
+            mapping.withdrawal_cell, mapping.movement_cell, mapping.closing_cell,
+        ):
+            target = f"'{mapping.sheet.replace(chr(39), chr(39) * 2)}'!{cell}"
+            if target in target_cells:
+                raise ValueError(f"Duplicate equity cell: {target}")
+            target_cells.add(target)
+        report_mappings.append(StatementMapping(
+            report="balancesheet", source_path=(), sheet=mapping.sheet,
+            current_cell=mapping.closing_cell, previous_cell=mapping.opening_cell,
+            account_ids=(mapping.account_id,),
+        ))
+
+    balances = prepare_updates(books, periods, report_mappings, location_ids)
+    entries = fetch_equity_general_ledger(
+        books, from_date=periods.current_start, to_date=periods.current_end,
+        excluded_location_id=excluded_location_id,
+    )
+    movements = {mapping.account_id: Decimal() for mapping in mappings}
+    interest = {mapping.account_id: Decimal() for mapping in mappings}
+    withdrawals = {mapping.account_id: Decimal() for mapping in mappings}
+    for entry in entries:
+        account_id = entry["account_id"]
+        if account_id not in movements:
+            continue
+        transaction = entry["transaction"]
+        if "debit" not in transaction or "credit" not in transaction:
+            raise ValueError(f"Equity ledger row is missing debit or credit: {account_id}")
+        debit = to_finite_decimal(transaction["debit"] or 0, allow_commas=True)
+        credit = to_finite_decimal(transaction["credit"] or 0, allow_commas=True)
+        if debit is None or credit is None:
+            raise ValueError(f"Equity ledger row has invalid debit or credit: {account_id}")
+        movements[account_id] += credit - debit
+        if str(transaction.get("offset_account_id") or "") == interest_account_id:
+            interest[account_id] += credit - debit
+        elif str(transaction.get("transaction_type") or "") in withdrawal_transaction_types:
+            withdrawals[account_id] += debit
+
+    updates: dict[str, Decimal | str] = {}
+    for mapping in mappings:
+        prefix = f"'{mapping.sheet.replace(chr(39), chr(39) * 2)}'!"
+        opening = balances[prefix + mapping.opening_cell]
+        closing = balances[prefix + mapping.closing_cell]
+        movement = movements[mapping.account_id]
+        interest_amount = interest[mapping.account_id]
+        withdrawal_amount = withdrawals[mapping.account_id]
+        residual = movement - interest_amount + withdrawal_amount
+        if opening + movement != closing:
+            raise ValueError(
+                f"Equity ledger does not reconcile for {mapping.account_id}: "
+                f"{opening} + {movement} != {closing}"
+            )
+        updates[prefix + mapping.name_cell] = account_names[mapping.account_id]
+        updates[prefix + mapping.opening_cell] = opening
+        updates[prefix + mapping.interest_cell] = interest_amount
+        updates[prefix + mapping.withdrawal_cell] = withdrawal_amount
+        updates[prefix + mapping.movement_cell] = residual
     return updates

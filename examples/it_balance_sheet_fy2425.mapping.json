@@ -1,0 +1,33 @@
+{
+  "spreadsheet_id": "1CawuOQFsRnrRoi1UEZ48cV4uf-GPKvlrPhzrihsUIVk",
+  "sheet_name": "P&L,BS 25-Client Data",
+  "as_of_date": "2025-03-31",
+  "excluded_location_id": "1094368000044509446",
+  "lines": [
+    {"label": "Total assets", "filed_cell": "D58", "books_path": ["Assets"]},
+    {"label": "Total liabilities and capital", "filed_cell": "B58", "books_path": ["Liabilities & Equities"]},
+    {"label": "Gods Account", "filed_cell": "B45", "account_ids": ["1094368000009500945"]},
+    {"label": "Partners' Capital Account", "filed_cell": "B46", "account_ids": ["1094368000000388457", "1094368000005304429", "1094368000013857943", "1094368000000388465"]},
+    {"label": "Loan Creditors (Unsecured)", "filed_cell": "B47", "account_ids": ["1094368000000388461"]},
+    {"label": "Sundry Creditors", "filed_cell": "B48", "account_ids": ["1094368000000000471"]},
+    {"label": "Expenses Payable", "filed_cell": "B49", "account_ids": ["1094368000019954007"]},
+    {"label": "GST Payable", "filed_cell": "B50"},
+    {"label": "Unearned Revenue", "filed_cell": "B51", "account_ids": ["1094368000000000617"]},
+    {"label": "Fixed Assets", "filed_cell": "D45"},
+    {"label": "Closing Stock", "filed_cell": "D46", "account_ids": ["1094368000007249843", "1094368000000000626", "1094368000006459909", "1094368000000960273"]},
+    {"label": "Trade Debtors", "filed_cell": "D47", "account_ids": ["1094368000000000462"]},
+    {"label": "Sundry Debtors", "filed_cell": "D48"},
+    {"label": "Prepaid Expenses", "filed_cell": "D49", "account_ids": ["1094368000000014012"]},
+    {"label": "Advances and Deposits", "filed_cell": "D50", "account_ids": ["1094368000022575870"]},
+    {"label": "Advances Tax", "filed_cell": "D51", "account_ids": ["1094368000000000468"]},
+    {"label": "TDS", "filed_cell": "D52", "account_ids": ["1094368000000014016"]},
+    {"label": "TCS", "filed_cell": "D53", "account_ids": ["1094368000000041003"]},
+    {"label": "GST cash ledger", "filed_cell": "D54", "account_ids": ["1094368000010597015", "1094368000010597017"]},
+    {"label": "Cash at Bank", "filed_cell": "D55", "books_path": ["Assets", "Current Assets", "Bank"]},
+    {"label": "Cash in Hand", "filed_cell": "D56", "books_path": ["Assets", "Current Assets", "Cash"]},
+    {"label": "R Vijayakumar closing capital", "filed_cell": "B67", "account_ids": ["1094368000000388457"]},
+    {"label": "V Arun Kumar closing capital", "filed_cell": "B78", "account_ids": ["1094368000005304429"]},
+    {"label": "V M Rajkumar closing capital", "filed_cell": "B89", "account_ids": ["1094368000013857943"]},
+    {"label": "V Ramani closing capital", "filed_cell": "B100", "account_ids": ["1094368000000388465"]}
+  ]
+}

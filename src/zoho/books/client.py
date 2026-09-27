@@ -10,6 +10,8 @@ from .resources.projects import Projects, Tasks, TimeEntries
 from .resources.gst import GST
 from .resources.customer_validator import CustomerValidator
 from .resources.settings import CustomFields, Locations
+from .resources.ledger import Registers
+from .resources.reports import Reports
 
 class ZohoBooksAPI(BaseZohoClient):
     """
@@ -60,6 +62,8 @@ class ZohoBooksAPI(BaseZohoClient):
         self.bank_transactions = BankTransactions(self)
         self.journals = Journals(self)
         self.chart_of_accounts = ChartOfAccounts(self)
+        self.registers = Registers(self)
+        self.reports = Reports(self)
         self.projects = Projects(self)
         self.tasks = Tasks(self)
         self.time_entries = TimeEntries(self)

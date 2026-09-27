@@ -19,6 +19,7 @@ from .bank_statement import (
     is_travel_allowance_withdrawal,
 )
 from .review import OnlinePaymentReviewConfig, OnlinePaymentReviewService
+from .repair import repair_payment_allocations
 from .types import (
     BankMatchCandidate,
     ChequeDetail,
@@ -44,6 +45,7 @@ __all__ = [
     "is_travel_allowance_withdrawal",
     "OnlinePaymentReviewConfig",
     "OnlinePaymentReviewService",
+    "repair_payment_allocations",
     "InvoiceAllocation",
     "BankMatchCandidate",
     "ChequeDetail",

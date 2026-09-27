@@ -15,7 +15,9 @@ okf_version: "0.2"
 * [Zoho Inventory Client](zoho-inventory.md) - Item and inventory API routing, purchase-account scoping, and migration requirements.
 * [Zoho Books Client](zoho-books.md) - Books resource access, pagination, and customer-only contact retrieval.
 * [Books Financial Statement Sheet](books-statement-sheet.md) - Reviewed Books report mappings into the linked FY 2025–26 Google Sheets template.
+* [Filed IT Balance Sheet Comparison](it-balance-sheet-comparison.md) - Read-only FY 2024–25 filed balance-sheet comparison with Books.
 * [Duplicate Customer Payment Check](duplicate-payment-check.md) - Read-only detection of customer payments sharing the same customer, date, and amount.
+* [Customer Payment Date Mismatch](customer-payment-date-mismatch.md) - Read-only detection of customer payments where payment date differs from invoice application dates.
 * [Polycab RSO Import](polycab-rso-import.md) - Parse Polycab return-sales-order PDFs, create location-scoped Books sales orders, and attach the source PDF.
 * [Analytics Metadata Snapshots](analytics-metadata.md) - Complete workspace metadata collection, rate-limit handling, snapshot files, and relationship maps.
 * [Bank–Vendor Ledger Matching](bank-vendor-ledger-matching.md) - Books bank-withdrawal matching and ICICI UPI reference normalization.
@@ -24,6 +26,7 @@ okf_version: "0.2"
 * [GSTR-2 Verification](gstr2-verification.md) - Read-only purchase reconciliation cross-checking GSTR-2 / GSTR-2B JSON against Books bills and credits.
 * [GSTR-3B and Books P&L Comparison](gstr3b-pnl-comparison.md) - Monthly and FY Sales account comparison with filed GSTR-3B turnover.
 * [Vendor-Customer Offset](vendor-customer-offset.md) - GSTIN-safe paired customer/vendor payments through a clearing bank account.
+* [Inter-location Contra Review](inter-location-contra.md) - Detailed account posting audit and review queue for contra pairs across locations.
 * [Creator Customer Sync](creator-customer-delete-sync.md) - Books-to-Creator customer creation, update, and deletion reconciliation.
 * [Neoseal Item Audit](neoseal-item-audit.md) - Automated catalog data quality, duplicate/packaging twin detection, nomenclature verification, and item group audit.
 * [Neoseal Stock Count](neoseal-stock-count.md) - Active, inventory-tracked item quantity upserts into the Flat Zoho Sheet tab.

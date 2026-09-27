@@ -132,7 +132,7 @@ def get_creator_client(
 
 def get_analytics_client(
     token: Optional[str] = None,
-    org_id: str = Config.ORG_ID,
+    org_id: str = Config.ANALYTICS_ORG_ID,
     domain: str = Config.DOMAIN,
     token_url: str = Config.TOKEN_URL,
     token_refresh_callback: Optional[Callable[[], str]] = None,
