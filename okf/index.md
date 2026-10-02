@@ -11,6 +11,10 @@ okf_version: "0.2"
 
 ## Reference
 
+* [Workflow Helpers and Migration](workflow-helpers.md) - Shared FY/sequence contracts, payment inspection and safe renumbering, customer validation and YAML sales-order API replacements.
+
+* [AIS Master Reconciliation](ais-reconciliation.md) - Efficient read-only AIS master comparison with Books, explicit purchase bases and snapshot replay.
+
 * [Customer Invoice and Payment Review](customer-invoice-payment-review.md) - Invoice discount percentages and payment allocation reports for one customer.
 
 * [Configuration Reference](configuration.md) - OAuth credentials, organization settings, environment variables, and CLI dry-run flags.

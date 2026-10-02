@@ -1,10 +1,11 @@
+from workflows.sales_order_import import create_sales_order_from_yaml
 import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from zoho.books import ZohoBooksAPI, ZohoBooksError
 from zoho.books.base import BaseResource
-from zoho.books.resources.customer_validator import CustomerValidator
+from workflows.customer_validation import CustomerValidator
 from zoho.books.resources.contacts import ChartOfAccounts, Contacts
 from zoho.books.resources.gst import GST, parse_doc_number
 from zoho.books.resources.projects import Projects, TimeEntries
@@ -509,7 +510,7 @@ items:
             {"sku": "FAN-POLYCAB", "item_id": "poly123", "name": "Fan", "rate": 1200}
         ]}
 
-        res = sales_orders.create_from_yaml(yaml_content, customer_id="cust123", inventory_client=inventory)
+        res = create_sales_order_from_yaml(client, yaml_content, customer_id="cust123", inventory_client=inventory)
         self.assertEqual(res, {"status": "ok"})
 
 

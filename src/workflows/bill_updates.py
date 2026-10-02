@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
+import re
 from typing import Any, Mapping
 
 from zoho.books import ZohoBooksAPI
@@ -21,6 +23,56 @@ class BillUpdateResult:
     unapplied_credit: Decimal
     payment_ids: tuple[str, ...]
     dry_run: bool
+
+
+@dataclass(frozen=True)
+class BillPostingDateResult:
+    bill_id: str
+    previous_date: str
+    requested_date: str
+    updated: bool
+    dry_run: bool
+
+
+def update_bill_transaction_posting_date(
+    books: ZohoBooksAPI,
+    bill_id: str,
+    posting_date: str,
+    *,
+    dry_run: bool = True,
+) -> BillPostingDateResult:
+    """Set a bill's posting date only when it differs from the saved date."""
+    bill_id = str(bill_id).strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", bill_id):
+        raise ValueError("bill_id must contain only letters, digits, underscores, or hyphens")
+    try:
+        target = date.fromisoformat(posting_date)
+        if target.isoformat() != posting_date:
+            raise ValueError
+    except (TypeError, ValueError) as exc:
+        raise ValueError("posting_date must be a valid YYYY-MM-DD date") from exc
+
+    response = books.bills.get(bill_id)
+    if not isinstance(response, Mapping) or not isinstance(response.get("bill"), Mapping):
+        raise ValueError(f"Bill {bill_id} response is missing bill details")
+    bill = response["bill"]
+    current = bill.get("txn_value_date")
+    if not isinstance(current, str) or not current.strip():
+        raise ValueError(f"Bill {bill_id} response is missing txn_value_date")
+    current = current.strip()
+    if current == posting_date:
+        return BillPostingDateResult(bill_id, current, posting_date, False, dry_run)
+    if dry_run:
+        return BillPostingDateResult(bill_id, current, posting_date, False, True)
+
+    books.request("PUT", f"bills/{bill_id}", json={"txn_value_date": posting_date})
+    verified = books.bills.get(bill_id)
+    actual = verified.get("bill", {}).get("txn_value_date") if isinstance(verified, Mapping) else None
+    if actual != posting_date:
+        raise RuntimeError(
+            f"Bill {bill_id} posting date after update is {actual!r}, expected {posting_date!r}"
+        )
+    return BillPostingDateResult(bill_id, current, posting_date, True, False)
 
 
 def _payment_payload(payment: Mapping[str, Any], bills: list[dict[str, Any]]) -> dict[str, Any]:

@@ -114,3 +114,72 @@ def test_existing_json_history_is_migrated_to_csv(tmp_path):
             {"month": "2025-10", "marker": "new"},
         ]
     assert not old.exists()
+
+
+def test_year_requires_every_return_before_connecting(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "returns"
+    source.mkdir()
+    (source / "apr.json").write_text(json.dumps({"rtnprd": "042025"}), encoding="utf-8")
+    monkeypatch.setattr(verify_gstr2, "get_books_client",
+                        lambda **kwargs: pytest.fail("should not connect"))
+    assert verify_gstr2.main([str(source), "--year", "2025-26"]) == 1
+    assert "missing FY returns" in capsys.readouterr().err
+
+
+def test_year_runs_in_order_and_writes_adjusted_reports(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "returns"
+    source.mkdir()
+    for month in reversed(verify_gstr2.fiscal_months(2025)):
+        (source / f"{month}.json").write_text(json.dumps({
+            "rtnprd": month[5:] + month[:4], "gstin": "33AAA",
+        }), encoding="utf-8")
+    seen = []
+
+    class FakeVerifier:
+        def __init__(self, books, config, bill_snapshot, expense_snapshot, credit_snapshot):
+            pass
+
+        def run(self, gstr2_source, month):
+            data = json.loads(gstr2_source.read_text(encoding="utf-8"))
+            period = data["rtnprd"]
+            target = period[2:] + "-" + period[:2]
+            seen.append(target)
+            return {"metadata": {"target_month": target, "recipient_gstin": "33AAA"},
+                    "reconciliation": {"summary": {}, "missing_in_books": [],
+                                       "missing_in_gstr2_bills": [],
+                                       "missing_in_gstr2_expenses": [],
+                                       "missing_in_gstr2_credits": [],
+                                       "matched_documents": [], "aggregate_matches": [],
+                                       "vendor_summaries": []}}
+
+    monkeypatch.setattr(verify_gstr2, "get_books_client", lambda **kwargs: MagicMock())
+    monkeypatch.setattr(verify_gstr2, "GSTR2Verifier", FakeVerifier)
+    monkeypatch.setattr(verify_gstr2, "refresh_bill_snapshot", lambda **kwargs: [])
+    monkeypatch.setattr(verify_gstr2, "refresh_purchase_snapshot", lambda **kwargs: [])
+    monkeypatch.setattr(verify_gstr2, "render_markdown_report",
+                        lambda result: result["metadata"]["target_month"])
+    root = tmp_path / "reports"
+    assert verify_gstr2.main([str(source), "--year", "2025-26",
+                              "--output-root", str(root)]) == 0
+    assert seen == list(verify_gstr2.fiscal_months(2025))
+    assert (root / "yearly" / "FY-2025-26.md").exists()
+    output = capsys.readouterr().out
+    assert "Month 12/12 completed" in output
+    assert "Progress: 12/12 months completed; 0 HTTP attempts" in output
+
+
+def test_run_metrics_logs_every_attempt_without_record_ids(monkeypatch, capsys):
+    ticks = iter([100.0, 101.0, 104.0])
+    monkeypatch.setattr(verify_gstr2.time, "monotonic", lambda: next(ticks))
+    metrics = verify_gstr2.RunMetrics()
+    metrics.total_months = 12
+    metrics.on_start("books", "GET", "expenses/123")
+    metrics.on_attempt("books", "GET", "expenses/123", 2.5, 200)
+    assert metrics.summary(12) == (
+        "Progress: 0/12 months completed; 1 HTTP attempts; 4.0s elapsed. "
+        "Requests by resource: books/expenses detail: 1 (2.5s HTTP)"
+    )
+    output = capsys.readouterr().out
+    assert "HTTP start: GET books/expenses detail" in output
+    assert "HTTP done: GET books/expenses detail; status=200; duration=2.5s" in output
+    assert "123" not in output

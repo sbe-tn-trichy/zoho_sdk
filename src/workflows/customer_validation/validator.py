@@ -1,17 +1,41 @@
 import re
 import logging
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, TypedDict
 from concurrent.futures import ThreadPoolExecutor
-from ..base import BaseResource
 
 logger = logging.getLogger("zoho_books")
 
-class CustomerValidator(BaseResource):
+class ValidationIssue(TypedDict):
+    field: str
+    error_type: str
+    value: Any
+    details: str
+
+
+class ContactValidation(TypedDict):
+    contact_id: str
+    contact_name: str
+    issues: list[ValidationIssue]
+
+
+class CustomerValidationReport(TypedDict):
+    total_contacts_in_books: int
+    selected_count: int
+    processed_count: int
+    compliant_count: int
+    non_compliant_count: int
+    compliance_rate: float
+    failed_contact_ids: list[str]
+    failed_count: int
+    report: list[ContactValidation]
+
+
+class CustomerValidator:
     """
-    Helper resource under ZohoBooksAPI to validate customer contact data.
+    Workflow validator for customer contact data; rules can run without a client.
     """
-    def __init__(self, client: Any):
-        super().__init__(client, 'contacts')
+    def __init__(self, client: Any = None):
+        self.client = client
 
     def check_proper_casing(self, text: str) -> List[str]:
         """
@@ -158,13 +182,18 @@ class CustomerValidator(BaseResource):
         missing = required - found
         return [f"Missing custom field: {lbl.capitalize()}" for lbl in sorted(list(missing))]
 
-    def validate_customer_data(self, limit: Optional[int] = None) -> Dict[str, Any]:
+    def validate_customer_data(self, limit: Optional[int] = None) -> CustomerValidationReport:
         """
         Lists all customer contacts and performs details analysis concurrently.
         """
         logger.info("Fetching all customer contacts...")
         # Get basic list
+        if self.client is None:
+            raise ValueError("A Books client is required for fetching contacts")
+        if limit is not None and limit < 0:
+            raise ValueError("limit cannot be negative")
         contacts_list = self.client.contacts.list_all(params={"contact_type": "customer"})
+        contacts_list = [c for c in contacts_list if c.get("contact_type") == "customer"]
         total_found = len(contacts_list)
         
         if limit is not None:
@@ -181,7 +210,10 @@ class CustomerValidator(BaseResource):
             for attempt in range(max_retries):
                 try:
                     res = self.client.contacts.get(c_id)
-                    return res.get('contact')
+                    detail = res.get('contact')
+                    if not isinstance(detail, dict) or str(detail.get('contact_id')) != str(c_id):
+                        raise ValueError('Books returned missing or mismatched contact details')
+                    return detail
                 except Exception as e:
                     is_rate_limit = "429" in str(e) or "rate" in str(e).lower() or getattr(e, "status_code", None) == 429
                     if is_rate_limit and attempt < max_retries - 1:
@@ -196,7 +228,15 @@ class CustomerValidator(BaseResource):
         with ThreadPoolExecutor(max_workers=workers) as executor:
             detailed_contacts = list(executor.map(fetch_details, contacts_list))
             
+        failed_ids = [str(c.get("contact_id") or "") for c, detail in zip(contacts_list, detailed_contacts) if detail is None]
         detailed_contacts = [dc for dc in detailed_contacts if dc is not None]
+        result = self.validate_records(detailed_contacts)
+        result.update(total_contacts_in_books=total_found, selected_count=len(contacts_list), failed_contact_ids=failed_ids, failed_count=len(failed_ids))
+        return result
+
+    def validate_records(self, detailed_contacts: List[Dict[str, Any]]) -> CustomerValidationReport:
+        """Validate supplied records without performing network calls."""
+        total_found = len(detailed_contacts)
 
         
         report = []
@@ -296,6 +336,9 @@ class CustomerValidator(BaseResource):
                 
         return {
             "total_contacts_in_books": total_found,
+            "selected_count": len(detailed_contacts),
+            "failed_contact_ids": [],
+            "failed_count": 0,
             "processed_count": len(detailed_contacts),
             "compliant_count": compliant_count,
             "non_compliant_count": len(report),

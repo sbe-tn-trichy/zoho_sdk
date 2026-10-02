@@ -1,3 +1,4 @@
+from workflows.sales_order_import import create_sales_order_from_yaml
 """Regression coverage for the Books/Inventory service boundary."""
 
 from unittest.mock import MagicMock
@@ -99,7 +100,7 @@ def test_yaml_item_resolution_and_creation_use_inventory(http, create_missing):
         responses.append({"item": item})
     responses.append({"salesorder": {"salesorder_id": "456"}})
     http.return_value.json.side_effect = responses
-    result = books.sales_orders.create_from_yaml(
+    result = create_sales_order_from_yaml(books,
         YAML_ORDER, "customer", inventory_client=inventory,
         create_missing_items=create_missing,
         default_accounts={"account_id": "sales", "purchase_account_id": "purchase", "inventory_account_id": "stock"},
@@ -117,7 +118,7 @@ def test_yaml_item_resolution_and_creation_use_inventory(http, create_missing):
 def test_yaml_missing_item_does_not_create_order(http):
     http.return_value.json.return_value = {"items": []}
     with pytest.raises(ValueError, match="not found in Zoho Inventory"):
-        ZohoBooksAPI("books-token", "org").sales_orders.create_from_yaml(
+        create_sales_order_from_yaml(ZohoBooksAPI("books-token", "org"),
             YAML_ORDER, "customer", inventory_client=ZohoInventoryAPI("inventory-token", "org"),
         )
     assert http.call_count == 1

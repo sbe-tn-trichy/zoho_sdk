@@ -4,7 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from workflows.bill_updates import update_bill_with_payment_reallocation
+from workflows.bill_updates import (
+    update_bill_transaction_posting_date,
+    update_bill_with_payment_reallocation,
+)
 
 
 class Bills:
@@ -95,3 +98,55 @@ def test_rejects_negative_target_without_mutation(books):
             expected_total=Decimal("-1.00"), dry_run=False,
         )
     assert books.vendor_payments.events == []
+
+
+def test_posting_date_same_skips_update(books):
+    books.bills.bill["txn_value_date"] = "2024-12-31"
+    result = update_bill_transaction_posting_date(
+        books, "b1", "2024-12-31", dry_run=False,
+    )
+    assert not result.updated
+    assert books.bills.events == []
+
+
+def test_posting_date_preview_does_not_update(books):
+    books.bills.bill["txn_value_date"] = "2024-12-31"
+    result = update_bill_transaction_posting_date(books, "b1", "2025-01-01")
+    assert result.dry_run
+    assert result.previous_date == "2024-12-31"
+    assert books.bills.events == []
+
+
+def test_posting_date_change_is_verified(books):
+    books.bills.bill["txn_value_date"] = "2024-12-31"
+    writes = []
+
+    def request(method, endpoint, *, json):
+        writes.append((method, endpoint, json))
+        books.bills.bill.update(json)
+
+    books.request = request
+    result = update_bill_transaction_posting_date(
+        books, "b1", "2025-01-01", dry_run=False,
+    )
+    assert result.updated
+    assert writes == [("PUT", "bills/b1", {"txn_value_date": "2025-01-01"})]
+
+
+def test_posting_date_rejects_invalid_input_and_missing_saved_field(books):
+    with pytest.raises(ValueError, match="bill_id"):
+        update_bill_transaction_posting_date(books, "../b1", "2025-01-01")
+    with pytest.raises(ValueError, match="YYYY-MM-DD"):
+        update_bill_transaction_posting_date(books, "b1", "2025-02-30")
+    with pytest.raises(ValueError, match="missing txn_value_date"):
+        update_bill_transaction_posting_date(books, "b1", "2025-01-01")
+    assert books.bills.events == []
+
+
+def test_posting_date_rejects_unconfirmed_update(books):
+    books.bills.bill["txn_value_date"] = "2024-12-31"
+    books.request = lambda *_args, **_kwargs: None
+    with pytest.raises(RuntimeError, match="after update"):
+        update_bill_transaction_posting_date(
+            books, "b1", "2025-01-01", dry_run=False,
+        )

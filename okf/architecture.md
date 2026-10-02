@@ -55,3 +55,13 @@ zoho (API Clients & Auth) <-- workflows (Business Engines) <-- apps (Web UIs & C
   inject a separate Inventory client when a Books transaction needs item lookup
   or creation; Books clients do not expose an item resource. See
   [Inventory API routing](zoho-inventory.md) for the public API migration.
+
+## Shared primitives and extracted domain workflows
+
+Generic document-number parsing lives in `zoho.helpers.sequences`, reusable by
+Books GST and workflow consumers. Pure workflow FY selection and sequence analysis
+live in `workflows.core`; Analytics queries stay in `payment_inspection`.
+Customer validation and invoice-YAML sales-order import are workflow APIs, with
+explicit breaking migrations from their former Books bindings. Renumbering uses
+live Books state and checkpointed read-back verification. See
+[workflow helpers and migration](workflow-helpers.md).

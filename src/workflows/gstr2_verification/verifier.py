@@ -86,12 +86,23 @@ class GSTR2Verifier:
         self,
         books_client: Any,
         config: Optional[GSTR2VerificationConfig] = None,
+        bill_snapshot: Optional[Sequence[Mapping[str, Any]]] = None,
+        zero_tax_expense_modified: Optional[Mapping[str, datetime]] = None,
+        expense_snapshot: Optional[Sequence[Mapping[str, Any]]] = None,
+        credit_snapshot: Optional[Sequence[Mapping[str, Any]]] = None,
     ):
         self.books = books_client
         self.config = config or GSTR2VerificationConfig()
-        self._cached_bills: Optional[List[Dict[str, Any]]] = None
+        self._cached_bills: Optional[List[Dict[str, Any]]] = (
+            [dict(bill) for bill in bill_snapshot] if bill_snapshot is not None else None
+        )
         self._expense_cache: Dict[str, Mapping[str, Any]] = {}
+        self._zero_tax_expense_modified = dict(zero_tax_expense_modified or {})
         self._vendor_credit_cache: Dict[str, Mapping[str, Any]] = {}
+        self._cached_expenses = ([dict(row) for row in expense_snapshot]
+                                 if expense_snapshot is not None else None)
+        self._cached_credits = ([dict(row) for row in credit_snapshot]
+                                if credit_snapshot is not None else None)
 
     @staticmethod
     def _books_net_taxable(document: Mapping[str, Any]) -> Optional[float]:
@@ -444,6 +455,10 @@ class GSTR2Verifier:
                 "gst_no": normalize_gstin(b.get("gst_no") or b.get("gst_treatment")),
                 "total": total_val,
                 "balance": _to_float(b.get("balance")),
+                **({"sub_total": _to_float(b["sub_total"])}
+                   if b.get("sub_total") not in (None, "") else {}),
+                **({"tax_total": _to_float(b["tax_total"])}
+                   if b.get("tax_total") not in (None, "") else {}),
                 "status": status,
                 "raw": b,
             })
@@ -499,12 +514,15 @@ class GSTR2Verifier:
             "from_date": start_date.isoformat(),
             "to_date": end_date.isoformat(),
         }
-        try:
-            raw_expenses = self.books.expenses.list_all(params=params)
-        except Exception as exc:
-            logger.error("Failed to fetch expenses from Zoho Books: %s", exc)
-            errors.append({"source": "expenses", "error": str(exc)})
-            return []
+        if self._cached_expenses is not None:
+            raw_expenses = self._cached_expenses
+        else:
+            try:
+                raw_expenses = self.books.expenses.list_all(params=params)
+            except Exception as exc:
+                logger.error("Failed to fetch expenses from Zoho Books: %s", exc)
+                errors.append({"source": "expenses", "error": str(exc)})
+                return []
 
         cleaned_expenses: List[Dict[str, Any]] = []
         for summary in raw_expenses:
@@ -527,8 +545,19 @@ class GSTR2Verifier:
             reference = str(summary.get("reference_number") or summary.get("expense_number") or "")
             may_be_rcm = (
                 (tax_amount is None or tax_amount <= 0.0)
-                and normalize_doc_number(reference) in (rcm_doc_numbers or set())
+                and (normalize_doc_number(reference) in (rcm_doc_numbers or set())
+                     or (self._cached_expenses is not None and bool(summary.get("gst_no"))))
             )
+            if tax_amount is None and not may_be_rcm and expense_id in self._zero_tax_expense_modified:
+                modified_text = str(summary.get("last_modified_time") or "")
+                try:
+                    modified = datetime.fromisoformat(modified_text.replace("Z", "+00:00"))
+                    if (modified.tzinfo is not None and
+                            modified.astimezone(self._zero_tax_expense_modified[expense_id].tzinfo)
+                            == self._zero_tax_expense_modified[expense_id]):
+                        continue
+                except ValueError:
+                    pass
             if (tax_amount is None or may_be_rcm) and expense_id:
                 if expense_id in self._expense_cache:
                     expense = self._expense_cache[expense_id]
@@ -597,20 +626,23 @@ class GSTR2Verifier:
         recipient_gstin: str = "",
     ) -> List[Dict[str, Any]]:
         """Fetch vendor credits from Zoho Books for the period."""
-        try:
-            params = {
-                "date_start": start_date.isoformat(),
-                "date_end": end_date.isoformat(),
-                "from_date": start_date.isoformat(),
-                "to_date": end_date.isoformat(),
-            }
-            raw_credits = self.books.vendor_credits.list_all(
-                params=params, resource_key="vendor_credits"
-            )
-        except Exception as exc:
-            logger.error("Failed to fetch vendor credits from Zoho Books: %s", exc)
-            errors.append({"source": "vendor_credits", "error": str(exc)})
-            return []
+        if self._cached_credits is not None:
+            raw_credits = self._cached_credits
+        else:
+            try:
+                params = {
+                    "date_start": start_date.isoformat(),
+                    "date_end": end_date.isoformat(),
+                    "from_date": start_date.isoformat(),
+                    "to_date": end_date.isoformat(),
+                }
+                raw_credits = self.books.vendor_credits.list_all(
+                    params=params, resource_key="vendor_credits"
+                )
+            except Exception as exc:
+                logger.error("Failed to fetch vendor credits from Zoho Books: %s", exc)
+                errors.append({"source": "vendor_credits", "error": str(exc)})
+                return []
 
         cleaned_credits: List[Dict[str, Any]] = []
         for c in raw_credits:
@@ -644,6 +676,10 @@ class GSTR2Verifier:
                 "gst_no": normalize_gstin(c.get("gst_no")),
                 "total": total_val,
                 "balance": _to_float(c.get("balance")),
+                **({"tax_total": _to_float(c["tax_total"])}
+                   if c.get("tax_total") not in (None, "") else {}),
+                **({"sub_total": _to_float(c["sub_total"])}
+                   if c.get("sub_total") not in (None, "") else {}),
                 "status": status,
                 "raw": c,
             })
@@ -710,8 +746,17 @@ class GSTR2Verifier:
                 books_tax = matched_books_doc.get("tax_total")
                 notes = ""
 
-                # If gross total differs, inspect full bill to check Taxable Value, GST, and TDS
-                if abs(diff) > self.config.amount_tolerance and doc_id:
+                # Analytics and Books list rows may already provide both components.
+                # Inspect detail only when those values are absent or disagree.
+                components_match = (
+                    books_taxable is not None and books_tax is not None
+                    and abs(_to_float(books_taxable) - taxable_val) <= self.config.amount_tolerance
+                    and abs(_to_float(books_tax) - tax_val) <= self.config.amount_tolerance
+                )
+                if abs(diff) > self.config.amount_tolerance and components_match:
+                    is_tax_and_taxable_matched = True
+                    notes = "Taxable value and GST match exactly (difference in total due to TDS/adjustment)"
+                elif abs(diff) > self.config.amount_tolerance and doc_id:
                     try:
                         if is_credit:
                             full_doc = self.books.vendor_credits.get(doc_id).get("vendor_credit", {})
@@ -802,7 +847,14 @@ class GSTR2Verifier:
                 zero_tax_bills.append({**b, "tax_total": 0.0, "reason": "Zero-value document (promotional/sample)"})
                 continue
 
-            if b_id:
+            raw = b.get("raw") or {}
+            if "tax_total" in raw:
+                tax_total = _to_float(raw["tax_total"])
+                b["tax_total"] = tax_total
+                b["sub_total"] = self._books_net_taxable(raw) or 0.0
+                tax_checked = True
+
+            if not tax_checked and b_id:
                 try:
                     fb_res = self.books.bills.get(b_id)
                     fb = fb_res.get("bill", fb_res) if isinstance(fb_res, dict) else {}
@@ -1303,6 +1355,16 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
         f"| **GST Expenses Missing in GSTR-2B** | 0 docs | {summary['missing_in_gstr2_expenses_count']} expenses (₹{summary['missing_in_gstr2_expenses_amount']:,.2f} Total) | :x: **ITC Claim At Risk!** |",
         "",
     ]
+
+    if rec.get("cross_month_matches"):
+        lines.extend(["## Fiscal Year Timing Matches", "",
+                      "| Document | Books Month | Portal Month | GSTIN | Total | Tax |",
+                      "| :--- | :--- | :--- | :--- | ---: | ---: |"])
+        for match in rec["cross_month_matches"]:
+            lines.append(f"| `{match['document_number']}` | {match['books_month']} | "
+                         f"{match['portal_month']} | `{match['supplier_gstin']}` | "
+                         f"₹{match['total']:,.2f} | ₹{match['tax']:,.2f} |")
+        lines.append("")
 
     # Alerts
     if summary["missing_in_gstr2_bills_count"] > 0:

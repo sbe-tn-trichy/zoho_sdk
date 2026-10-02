@@ -8,7 +8,6 @@ from .resources.purchases import Bills, Expenses, PurchaseOrders, VendorPayments
 from .resources.banking import BankAccounts, BankTransactions, Journals
 from .resources.projects import Projects, Tasks, TimeEntries
 from .resources.gst import GST
-from .resources.customer_validator import CustomerValidator
 from .resources.settings import CustomFields, Locations
 from .resources.ledger import Registers
 from .resources.reports import Reports
@@ -68,7 +67,6 @@ class ZohoBooksAPI(BaseZohoClient):
         self.tasks = Tasks(self)
         self.time_entries = TimeEntries(self)
         self.gst = GST(self)
-        self.customer_validator = CustomerValidator(self)
         self.custom_fields = CustomFields(self)
         self.locations = Locations(self)
 

@@ -30,8 +30,11 @@ The naming updater retains dry-run, backup snapshots, and per-item audit results
 - Replace `books.items` and imports from `zoho.books.resources.inventory` with
   `inventory.items` and `zoho.inventory.resources.items`. The Books item resource
   has been removed; it is not a proxy that reuses Books credentials.
-- Pass `inventory_client=` to `books.sales_orders.create_from_yaml(...)` for SKU
-  lookup and explicitly requested missing-item creation.
+- Replace `books.sales_orders.create_from_yaml(...)` with
+  `workflows.sales_order_import.create_sales_order_from_yaml(books_client, ...)`.
+  Pass `inventory_client=` for exact SKU lookup and explicitly requested
+  missing-item creation; vendor imports also supply `purchase_account_id=`.
+  See [workflow helper migration](workflow-helpers.md).
 - Pass `inventory_client=` to `import_polycab_rso_pdf(...)`; its catalog lookup
   also requires `purchase_account_id`, defaulting to `FAN_PURCHASE_ACCOUNT_ID`.
 - Item helper keyword arguments formerly named `books_client` are now

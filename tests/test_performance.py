@@ -1,3 +1,4 @@
+from workflows.sales_order_import import create_sales_order_from_yaml
 import os
 import tempfile
 import unittest
@@ -11,6 +12,23 @@ from workflows.duplicate_payment_check import DuplicatePaymentChecker
 
 
 class TestBaseClientPerformance(unittest.TestCase):
+    def test_http_attempt_observer_counts_failed_and_successful_transport(self):
+        client = BaseZohoClient("token", "com", "https://example.invalid", "books")
+        observed = []
+        started = []
+        client.on_http_attempt_started = lambda *args: started.append(args)
+        client.on_http_attempt = lambda *args: observed.append(args)
+        client.session.request = MagicMock(side_effect=[
+            OSError("connection lost"), MagicMock(status_code=200, text="{}"),
+        ])
+        with self.assertRaises(OSError):
+            client.request("GET", "bills")
+        client.request("GET", "bills")
+        self.assertEqual(len(observed), 2)
+        self.assertEqual(started, [("books", "GET", "bills")] * 2)
+        self.assertEqual([item[-1] for item in observed], [None, 200])
+        self.assertTrue(all(item[:3] == ("books", "GET", "bills") for item in observed))
+
     def test_session_instantiation_and_close(self):
         client = BaseZohoClient(
             access_token="test_token",
@@ -113,7 +131,7 @@ class TestSalesOrdersSKUCaching(unittest.TestCase):
         client = MagicMock()
         inventory = MagicMock()
         inventory.items.list.return_value = {
-            "items": [{"item_id": "item_123", "name": "Standard Fan"}]
+            "items": [{"item_id": "item_123", "name": "Standard Fan", "sku": "FAN-01"}]
         }
         client.sales_orders = SalesOrders(client)
 
@@ -132,7 +150,7 @@ items:
     rate: 1500
 """
         client.sales_orders.create = MagicMock(return_value={"salesorder": {"salesorder_id": "so_1"}})
-        res = client.sales_orders.create_from_yaml(yaml_content, customer_id="cust_999", inventory_client=inventory)
+        res = create_sales_order_from_yaml(client, yaml_content, customer_id="cust_999", inventory_client=inventory)
 
         # items.list should only be called ONCE for 'FAN-01' even though it appeared twice in line items
         inventory.items.list.assert_called_once_with(params={"sku": "FAN-01"})

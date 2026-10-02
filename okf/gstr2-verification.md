@@ -33,11 +33,34 @@ case. The report lists the configured Books location IDs included in scope.
 
 Bills are assigned to a return month by Zoho Books `txn_value_date`
 (transaction posting date), falling back to bill `date` when no posting date is
-provided. The Bills API's documented `date_start`/`date_end` filters apply to
-bill date, so the workflow fetches all bills and selects the posting month
-locally. Reports retain the supplier bill date for document matching.
+provided. Monthly runs fetch Books bills as before. Fiscal-year runs use an
+Analytics Bills and Vendors export as their bill baseline, overlaying Bills API
+rows modified during the preceding 24 hours. This preserves posting-month
+selection without repeatedly paging through all historical Books bills. The
+baseline is stored in `output/gstr2_bill_snapshot.json` with its source and
+last checked timestamps. Runs reuse a snapshot checked within 24 hours;
+otherwise they obtain a fresh Analytics export. If the Analytics baseline is
+older than 24 hours, the Books modified-time filter appears ineffective, or a
+refresh fails, the runner refuses to advance the snapshot or write reports.
+Analytics bill exports must contain bill/vendor IDs, last modified time,
+posting date, location, amount, and GST components. The Bills API's
+`date_start`/`date_end` filters apply to bill date, so they are unsuitable for
+posting-date reconciliation.
+When an Analytics or Books list bill already supplies taxable subtotal and GST,
+the verifier uses those components to assess a gross-total difference before
+requesting bill detail. It fetches detail only when the components are missing
+or disagree with the portal values.
 
-Expenses are read from the Books Expenses API for the return period. An expense
+Monthly runs read expenses and vendor credits from the Books APIs for the return
+period. Fiscal-year runs instead build local Analytics-backed snapshots for both,
+then overlay records modified during the preceding 24 hours from Books once per
+resource before processing the twelve months. The snapshots are stored under
+`output/gstr2_expense_snapshot.json` and `output/gstr2_credit_snapshot.json`.
+The runner rejects stale Analytics baselines, invalid modified timestamps, and
+Books responses that ignore the modified-time filter. It filters these snapshots
+locally by month. Tax or reverse-charge details may still require individual
+Books reads when a summary is inconclusive or a value mismatch needs inspection.
+An expense
 joins the ordinary supplier-invoice matching pool only when its forward
 `tax_amount`, tax summary, or summed line-item tax is positive. Expenses with
 positive `reverse_charge_tax_amount` join only reverse-charge portal matches;
@@ -48,9 +71,8 @@ invoice, as Zoho may omit reverse-charge fields from the list. A GSTIN or
 `business_gst` treatment alone is not sufficient because an expense may be
 exempt or zero-rated.
 
-The Books vendor-credit endpoint is `vendorcredits`, but its list response uses
-`vendor_credits`. The verifier explicitly selects that response key when it
-fetches period credits and when it looks up a credit by number or reference.
+The Books vendor-credit endpoint is `vendorcredits`. The verifier accepts both
+`vendor_credits` and `vendorcredits` response keys in the change overlay.
 
 Approved many-to-one purchase entries, including supplier debit notes, can be described in a local JSON map
 (`output/gstr2_aggregate_mappings.json` by default). The CLI and dashboard
@@ -125,6 +147,44 @@ run. `--output` remains available as an exact monthly-report override, and
 
 The CLI refuses to overwrite an existing report when a core Books collection
 (bills, expenses, or vendor credits) fails to load.
+
+For a complete fiscal year, run `.venv/bin/python apps/verify_gstr2.py <json-directory> --year 2025-26`.
+The directory must contain one return for each month from April through March;
+the runner checks for duplicate or missing periods and one recipient GSTIN before
+writing. It processes the months sequentially, then checks unmatched portal and
+Books documents across months. Only a unique match with the same supplier GSTIN,
+normalized document number, document kind, reverse-charge status, total, and tax
+within tolerance clears both gaps. Ambiguous or value-different pairs stay open.
+The adjusted monthly Markdown and cumulative CSV reports are regenerated, and
+`yearly/FY-2025-26.md` records timing matches, remaining monthly gaps, an
+unresolved-queue total, supplier-level totals, and document-level review tables
+for portal-only items, Books-only items, and value mismatches. The document rows
+include dates, numbers, GSTINs, taxable value, GST, total, and review guidance.
+It also lists unique number/taxable/GST counterparts with differing supplier
+GSTINs for manual investigation, leaving both gaps open until corrected. The FY
+report shows each such pair only in the possible-counterparts table, excluding
+the two sides from its detailed portal-only and Books-only tables and their
+displayed counts. Monthly gap counts continue to include them until resolved.
+A failed
+monthly fetch aborts the FY output without overwriting existing reports.
+The CLI prints elapsed wall time and physical Zoho HTTP attempt counts after each
+month, including a running completed-month count and request counts and HTTP time
+by service/resource. It prints a start and completion line for every HTTP attempt,
+including retries, with method, resource class, status, and duration. Document IDs,
+query parameters, and response bodies are excluded. It prints totals when a run fails. Retries and failed
+transport attempts are counted separately; elapsed time includes local processing
+and retry waits.
+The FY runner discovers the Analytics `Bills` and `Vendors` views in the configured
+workspace. Their view IDs can be supplied explicitly. Recent downloaded Analytics
+exports can instead be passed with `--analytics-bills-file` and
+`--analytics-vendors-file`; the file timestamps determine baseline freshness.
+Recent `--analytics-expenses-file` and `--analytics-credits-file` exports may be
+supplied in place of live Analytics exports. Otherwise the runner discovers the
+`Expenses` and `Vendor Credits` views (or accepts explicit view IDs). Books
+expense and vendor-credit modified-time queries run once before the year; the
+expense and vendor-credit filters were verified against the configured Books
+organization on 2026-10-02. The expense filter is absent from the public
+Expenses list parameter table.
 
 ## Related Concepts
 

@@ -239,13 +239,33 @@ class BaseZohoClient:
                         kw.pop(k)
 
             # Use persistent session connection pool for performance while maintaining mock compatibility
-            if (
-                hasattr(self, "session")
-                and self.session is not None
-                and not getattr(type(requests.request), "__module__", "").startswith("unittest.mock")
-            ):
-                return self.session.request(method=method_name, url=url_val, **kw)
-            return requests.request(method=method_name, url=url_val, **kw)
+            started = time.monotonic()
+            response = None
+            start_observer = getattr(self, "on_http_attempt_started", None)
+            if start_observer is not None:
+                try:
+                    start_observer(self.service_name, method_name, endpoint)
+                except Exception:
+                    self.logger.exception("HTTP attempt start observer failed")
+            try:
+                if (
+                    hasattr(self, "session")
+                    and self.session is not None
+                    and not getattr(type(requests.request), "__module__", "").startswith("unittest.mock")
+                ):
+                    response = self.session.request(method=method_name, url=url_val, **kw)
+                else:
+                    response = requests.request(method=method_name, url=url_val, **kw)
+                return response
+            finally:
+                observer = getattr(self, "on_http_attempt", None)
+                if observer is not None:
+                    try:
+                        observer(self.service_name, method_name, endpoint,
+                                 time.monotonic() - started,
+                                 response.status_code if response is not None else None)
+                    except Exception:
+                        self.logger.exception("HTTP attempt observer failed")
 
         response = _execute_http(method, req_kwargs)
 

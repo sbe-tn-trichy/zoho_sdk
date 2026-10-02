@@ -44,7 +44,6 @@ zoho_sdk/
 │   │       ├── banking.py           # BankAccounts, BankTransactions, Journals
 │   │       ├── projects.py          # Projects, Tasks, TimeEntries
 │   │       ├── gst.py               # GST — validate_gst_data, GSTR reports
-│   │       ├── customer_validator.py # CustomerValidator — GST/contact data validation
 │   │       └── settings.py          # Books custom-field settings
 │   ├── wd/                          # Zoho WorkDrive service
 │   │   ├── client.py                # ZohoWorkdriveAPI — main client
@@ -269,7 +268,6 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 | `client.time_entries` | `TimeEntries` | `/projects/timeentries` |
 | `client.items` | `Items` | `/items` |
 | `client.gst` | `GST` | (multiple endpoints) |
-| `client.customer_validator` | `CustomerValidator` | (composite) |
 | `client.custom_fields` | `CustomFields` | `/settings/fields` |
 | `client.locations` | `Locations` | `/locations` |
 
@@ -330,7 +328,6 @@ Base URL: `https://www.zohoapis.{domain}/books/v3`
 
 | Method | Signature | Notes |
 |---|---|---|
-| `create_from_yaml` | `(yaml_str, customer_id, create_missing_items=False, default_accounts=None, *, inventory_client)` | Parses flat YAML → resolves items by SKU → creates SO. Item lookup and optional creation use the injected Inventory client. |
 
 **`customer_payments` (CustomerPayments)**
 
@@ -759,7 +756,6 @@ configure_logger(logger_name: str, log_filename: str) -> logging.Logger
 |---|---|
 | `requests>=2.25.0` | HTTP calls (only hard dependency) |
 | `keyring` | Optional — retrieve OAuth refresh token from OS keychain |
-| `yaml` | Optional — used by `SalesOrders.create_from_yaml` |
 
 ---
 
@@ -866,3 +862,14 @@ uv run pytest tests/
 ```
 
 Log output during tests goes to `tests/logs/`. Set `TESTING=true` or run under pytest to activate test log path automatically.
+
+## Workflow helper migration
+
+- `zoho.helpers.sequences.parse_doc_number`: shared lower-layer number parsing.
+- `workflows.core.dates` and `workflows.core.sequences`: pure FY selection and bounded series analysis.
+- `workflows.payment_inspection`: injected Analytics queries and payment summaries.
+- `workflows.payment_renumbering`: live-checked planning and checkpointed execution.
+- `workflows.customer_validation`: pure contact rules and Books validation reports.
+- `workflows.sales_order_import`: validated invoice-YAML import using Books and Inventory.
+
+See [API migration and operational contracts](okf/workflow-helpers.md).

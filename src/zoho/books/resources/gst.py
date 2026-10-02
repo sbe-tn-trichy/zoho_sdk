@@ -10,25 +10,7 @@ from ..base import BaseResource
 
 logger = logging.getLogger("zoho_books")
 
-# Regex to split document numbers into prefix and sequential integer
-# Matches prefix and trailing digits
-DOC_NO_PATTERN = re.compile(r'^(.*?)(0*[1-9]\d*|0+)$')
-
-def parse_doc_number(doc_no: str) -> Tuple[str, int, int]:
-    """
-    Parses a document number into (prefix, sequence_integer, numeric_width).
-    Example: 'SB2627INV-00005' -> ('SB2627INV-', 5, 5)
-    If not matchable, returns (doc_no, 0, 0).
-    """
-    if not doc_no:
-        return "", 0, 0
-    doc_no_str = str(doc_no).strip()
-    match = DOC_NO_PATTERN.match(doc_no_str)
-    if match:
-        prefix = match.group(1)
-        num_str = match.group(2)
-        return prefix, int(num_str), len(num_str)
-    return doc_no_str, 0, 0
+from zoho.helpers.sequences import parse_doc_number
 
 class GST(BaseResource):
     """

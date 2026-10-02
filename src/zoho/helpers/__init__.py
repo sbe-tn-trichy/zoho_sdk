@@ -1,5 +1,6 @@
 """Higher-level overlay helpers and composite operations for Zoho SDK."""
 
+from .sequences import parse_doc_number
 from .accounts import (
     extract_bank_deposits,
     extract_bank_withdrawals,
@@ -62,6 +63,7 @@ from .transactions import (
 )
 
 __all__ = [
+    "parse_doc_number",
     "EquityLedgerEntry",
     "fetch_equity_general_ledger",
     "InterBranchLedgerEntry",

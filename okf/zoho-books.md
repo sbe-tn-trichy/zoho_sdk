@@ -21,6 +21,15 @@ current default fiscal-year number instead. Verify the saved payment afterward.
 
 ## Reducing a paid bill
 
+`workflows.update_bill_transaction_posting_date(books, bill_id, posting_date,
+dry_run=True)` reads the bill's `txn_value_date` and skips the update if it
+already equals the requested ISO date. A changed date is sent as a single-field
+bill update only with `dry_run=False`, then verified by rereading the bill.
+`apps/update_bill_posting_date.py BILL_ID YYYY-MM-DD` previews the change;
+`--apply` saves it. A missing saved posting date fails closed rather than
+assuming the bill date is equivalent. This uses the Books bill API because it
+changes the source transaction; Analytics sync is read-only and may lag.
+
 `workflows.update_bill_with_payment_reallocation()` supports bill updates that
 reduce the total below applied vendor payments. It defaults to a dry run and
 requires an expected new total. For a decrease, it temporarily unlinks the
@@ -117,7 +126,26 @@ relevant figure for the non-SBE reconciliation.
 the register SDK and filters branch names. The raw register showed zero amounts
 for this account even though the branch-filtered General Ledger was nonzero;
 it must not be used to infer the filtered inter-branch balance. The web
-`detailedgeneralledger` route remains unavailable through the public API.
+`detailedgeneralledger` route is a web route rather than the data endpoint.
+
+`reports.general_ledger_details(account_ids, *, from_date, to_date, page=1,
+per_page=500, cash_based=False)` calls `reports/generalledgerdetails`, identified
+from a Books browser request. It builds an account-ID `in` rule, uses explicit
+custom dates, and selects transaction columns grouped by account. It preserves
+the raw response, including report groups and balance rows. The endpoint's
+OAuth availability and transaction response schema have not been verified live.
+Browser cookies are not used by the SDK.
+
+`reports.iter_general_ledger_details_pages(...)` yields raw pages with a default
+100-page bound. It raises on repeated report content, malformed pagination,
+wrong echoed page numbers, or an exhausted bound rather than silently returning
+an incomplete report. It does not flatten an unverified transaction schema.
+
+```python
+page = api.reports.general_ledger_details(
+    ["123456789"], from_date="2025-04-01", to_date="2026-03-31"
+)
+```
 
 `chart_of_accounts.list_transactions(account_id, params=None)` returns one API
 page from `GET /chartofaccounts/accounttransactions`. The account ID is required;
@@ -173,3 +201,11 @@ NeoSeal solvent SKUs use the uppercase, hyphen-separated structure
 `105-500-PVC-CLR-TIN` identifies grade 105, 500 ml, PVC, clear, tin packaging.
 The SKU is the stable item identity; display-name normalization must not remove
 or merge attributes represented by this structure.
+
+## Domain workflow migration
+
+Customer validation and invoice-YAML imports have moved out of the Books SDK.
+Use `workflows.customer_validation.CustomerValidator` and
+`workflows.sales_order_import.create_sales_order_from_yaml`; the former SDK
+binding/import and sales-order helper method were removed without upward-import
+forwarders. See [workflow helpers and migration](workflow-helpers.md).

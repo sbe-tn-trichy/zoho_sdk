@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
-from zoho.books.resources.gst import parse_doc_number
+from zoho.helpers.sequences import parse_doc_number
 from zoho.helpers import (
     get_financial_year_range,
     get_month_range,

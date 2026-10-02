@@ -346,6 +346,26 @@ def test_value_mismatch_report_marks_unavailable_books_components():
     assert "₹100.00 | — | ₹18.00 | — |" in render_markdown_report(result)
 
 
+def test_snapshot_bill_components_avoid_detail_read_on_total_adjustment():
+    books = MagicMock()
+    books.expenses.list_all.return_value = []
+    books.vendor_credits.list_all.return_value = []
+    bill = {"bill_id": "bill-1", "bill_number": "INV-1", "date": "2025-05-24",
+            "vendor_name": "SUPPLIER", "gst_no": "33AAAAA0000A1Z5",
+            "total": 116.0, "sub_total": 100.0, "tax_total": 18.0,
+            "status": "open"}
+    portal = {"data": {"rtnprd": "052025", "docdata": {"b2b": [{
+        "ctin": "33AAAAA0000A1Z5", "trdnm": "SUPPLIER", "inv": [{
+            "inum": "INV-1", "dt": "24-05-2025", "val": 118.0,
+            "txval": 100.0, "igst": 18.0, "itcavl": "Y",
+        }],
+    }], "cdnr": []}}}
+
+    result = GSTR2Verifier(books, bill_snapshot=[bill]).run(portal)
+    assert result["reconciliation"]["summary"]["value_mismatch_count"] == 0
+    books.bills.get.assert_not_called()
+
+
 def test_vendor_credit_mismatch_reads_tax_from_taxes_list():
     books = MagicMock()
     books.bills.list_all.return_value = []
