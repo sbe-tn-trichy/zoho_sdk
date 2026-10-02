@@ -140,7 +140,7 @@
 <body>
 <header>
   <h1>Bank Statement Categorization</h1>
-  <p>Review Creator payment matches, other deposits, and TA withdrawals across HDFC, ICICI, and IDFC.</p>
+  <p>Review Creator payments, cash deposits, salary, and travel expenses across HDFC, ICICI, and IDFC.</p>
 </header>
 <main>
   <section class="summary" id="summary"></section>
@@ -149,6 +149,8 @@
     <select id="filter">
       <option value="all">All entries</option>
       <option value="reviewable">Ready for review</option>
+      <option value="expenses">Expenses</option>
+      <option value="transfers">Cash transfers</option>
       <option value="ambiguous">Ambiguous</option>
       <option value="possible">Possible matches</option>
       <option value="unmatched">Unmatched</option>
@@ -161,8 +163,9 @@
     <button class="accept" id="acceptSelected" disabled>Accept selected &amp; Push</button>
     <span class="muted" id="selectedCount">0 selected</span>
     <button class="refresh" id="refresh">Refresh live data</button>
+    <button class="refresh" id="forceRefresh">Force refresh</button>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" id="paymentTable">
     <table>
       <thead>
         <tr>
@@ -183,11 +186,16 @@
       <tbody id="rows"></tbody>
     </table>
   </div>
-  <h2>Other uncategorized bank lines</h2>
-  <p class="muted">Customer names are suggestions from Analytics. TA withdrawals require approval before expense categorization.</p>
+  <h2 id="bankLinesTitle">Other uncategorized bank lines</h2>
+  <p class="muted">Review TA and Salary withdrawals as expenses. CASH DEPOSIT is a transfer from Cash-SBE to the originating bank. Every categorization requires approval.</p>
+  <div class="toolbar">
+    <button class="select" id="selectExpenses">Select all visible expenses</button>
+    <button class="accept" id="categorizeSelectedExpenses" disabled>Categorize selected expenses</button>
+    <span class="muted" id="expenseSelectedCount">0 expenses selected</span>
+  </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Bank</th><th>Date</th><th>Amount</th><th>Description</th><th>Suggestion</th><th>Action</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="selectVisibleExpenses" title="Select all visible expenses"></th><th>Bank</th><th>Date</th><th>Amount</th><th>Description</th><th>Suggestion</th><th>Action</th></tr></thead>
       <tbody id="bankRows"></tbody>
     </table>
   </div>
@@ -197,6 +205,9 @@
 <script>
   const token = document.querySelector('meta[name="review-token"]').content;
   let batch = { entries: [] }, selected = new Set(), candidateSelections = new Map();
+  const selectedExpenses = new Set();
+  let expensesBusy = false;
+  const expenseEligible = row => ['travel_allowance', 'salary'].includes(row.kind) && row.categorization_status !== 'categorized';
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = v => {
     const n = Number(String(v ?? '').replaceAll(',', ''));
@@ -272,6 +283,13 @@
     ].map(x => `<div class="card"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
 
     const q = document.getElementById('search').value.toLowerCase(), filter = document.getElementById('filter').value;
+    const expensesOnly = filter === 'expenses';
+    const transfersOnly = filter === 'transfers';
+    document.getElementById('paymentTable').hidden = expensesOnly || transfersOnly;
+    for (const id of ['selectReady', 'acceptSelected', 'selectedCount']) {
+      document.getElementById(id).hidden = expensesOnly || transfersOnly;
+    }
+    document.getElementById('bankLinesTitle').textContent = expensesOnly ? 'Expenses' : transfersOnly ? 'Cash transfers' : 'Other uncategorized bank lines';
     const shown = entries.filter(e => {
       const s = state(e), hay = JSON.stringify(e).toLowerCase();
       return (!q || hay.includes(q)) && (
@@ -316,13 +334,71 @@
     document.getElementById('selectVisible').checked = visibleEligible.length > 0 && visibleEligible.every(e => selected.has(e.id));
     document.getElementById('selectedCount').textContent = `${selected.size} selected`;
     document.getElementById('acceptSelected').disabled = selected.size === 0;
-    const bankRows = (batch.bank_suggestions || []).filter(row => !q || JSON.stringify(row).toLowerCase().includes(q));
+    const bankRows = (batch.bank_suggestions || []).filter(row =>
+      (!expensesOnly || ['travel_allowance', 'salary'].includes(row.kind)) && (!transfersOnly || row.kind === 'cash_deposit') &&
+      (!q || JSON.stringify(row).toLowerCase().includes(q))
+    );
+    const expenseIds = new Set((batch.bank_suggestions || []).filter(expenseEligible).map(row => String(row.transaction_id)));
+    for (const id of selectedExpenses) if (!expenseIds.has(id)) selectedExpenses.delete(id);
+    const visibleExpenses = bankRows.filter(expenseEligible);
+    document.getElementById('selectVisibleExpenses').checked = visibleExpenses.length > 0 && visibleExpenses.every(row => selectedExpenses.has(String(row.transaction_id)));
+    document.getElementById('selectVisibleExpenses').disabled = expensesBusy || !visibleExpenses.length;
+    document.getElementById('selectExpenses').disabled = expensesBusy || !visibleExpenses.length;
+    document.getElementById('categorizeSelectedExpenses').disabled = expensesBusy || !selectedExpenses.size;
+    document.getElementById('expenseSelectedCount').textContent = `${selectedExpenses.size} expenses selected`;
     document.getElementById('bankRows').innerHTML = bankRows.map(row => `<tr>
+      <td>${expenseEligible(row) ? `<input type="checkbox" aria-label="Select expense" data-transaction-id="${esc(row.transaction_id)}" ${selectedExpenses.has(String(row.transaction_id)) ? 'checked' : ''} ${expensesBusy ? 'disabled' : ''} onchange="toggleExpense(this.dataset.transactionId,this.checked)">` : ''}</td>
       <td>${esc(row.bank_name)}</td><td>${esc(row.date)}</td><td class="money">${money(row.amount)}</td>
       <td>${esc(row.description)}</td>
-      <td>${row.kind === 'travel_allowance' ? `Expense: ${esc(row.expense_account_name)}` : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
-      <td>${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : row.kind === 'travel_allowance' ? `<button class="accept" onclick="categorizeTravel('${esc(row.transaction_id)}')">Categorize expense</button>` : '<span class="muted">Review in Books</span>'}</td>
-    </tr>`).join('') || '<tr><td colspan="6" class="muted">No other uncategorized bank lines.</td></tr>';
+      <td>${['travel_allowance', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
+      <td>${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'salary', 'cash_deposit'].includes(row.kind) ? `<button class="accept" ${expensesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : 'Categorize expense'}</button>` : '<span class="muted">Review in Books</span>'}</td>
+    </tr>`).join('') || `<tr><td colspan="7" class="muted">${expensesOnly ? 'No expense proposals.' : 'No other uncategorized bank lines.'}</td></tr>`;
+  }
+
+  function toggleExpense(id, checked) {
+    if (checked) selectedExpenses.add(String(id));
+    else selectedExpenses.delete(String(id));
+    render();
+  }
+
+  function toggleVisibleExpenses(checked) {
+    if (document.getElementById('filter').value === 'transfers') return;
+    const q = document.getElementById('search').value.toLowerCase();
+    for (const row of batch.bank_suggestions || []) {
+      if (expenseEligible(row) && (!q || JSON.stringify(row).toLowerCase().includes(q))) {
+        if (checked) selectedExpenses.add(String(row.transaction_id));
+        else selectedExpenses.delete(String(row.transaction_id));
+      }
+    }
+    render();
+  }
+
+  async function categorizeSelectedExpenses() {
+    if (expensesBusy || !selectedExpenses.size) return;
+    const ids = [...selectedExpenses];
+    if (!confirm(`Categorize ${ids.length} selected travel or salary withdrawals to their proposed expense accounts in Zoho Books?`)) return;
+    expensesBusy = true;
+    render();
+    let succeeded = 0;
+    const failures = [];
+    try {
+      for (const id of ids) {
+        try {
+          await api('/api/bank-lines/' + encodeURIComponent(id) + '/categorize', 'POST');
+          selectedExpenses.delete(id);
+          succeeded++;
+        } catch (error) {
+          failures.push(`${id}: ${error.message}`);
+        }
+      }
+      await load();
+      notify(`${succeeded} expenses categorized${failures.length ? `; ${failures.length} failed. ${failures.join('; ')}` : '.'}`, failures.length > 0);
+    } catch (error) {
+      notify(`${succeeded} expenses categorized. Could not reload: ${error.message}`, true);
+    } finally {
+      expensesBusy = false;
+      render();
+    }
   }
 
   async function api(path, method = 'GET', body = {}) {
@@ -339,6 +415,17 @@
   async function load() {
     batch = await api('/api/batch');
     render();
+  }
+
+  async function categorizeBankLine(transactionId) {
+    const row = (batch.bank_suggestions || []).find(row => String(row.transaction_id) === String(transactionId));
+    const action = row?.kind === 'cash_deposit' ? 'Transfer from Cash-SBE to the originating bank' : `Expense: ${row?.expense_account_name}`;
+    if (!confirm(`Categorize this bank line in Books? ${action}`)) return;
+    try {
+      await api('/api/bank-lines/' + encodeURIComponent(transactionId) + '/categorize', 'POST');
+      await load();
+      notify('Bank line categorized.');
+    } catch (error) { notify(error.message, true); }
   }
 
   async function categorizeTravel(transactionId) {
@@ -445,6 +532,9 @@
   }
 
   document.getElementById('search').addEventListener('input', render);
+  document.getElementById('selectExpenses').onclick = () => toggleVisibleExpenses(true);
+  document.getElementById('selectVisibleExpenses').onchange = e => toggleVisibleExpenses(e.target.checked);
+  document.getElementById('categorizeSelectedExpenses').onclick = categorizeSelectedExpenses;
   document.getElementById('filter').addEventListener('change', render);
   document.getElementById('selectVisible').onchange = e => toggleVisible(e.target.checked);
   document.getElementById('selectReady').onclick = () => {
@@ -456,17 +546,19 @@
     render();
   };
   document.getElementById('acceptSelected').onclick = acceptSelected;
-  document.getElementById('refresh').onclick = async () => {
+  async function refreshProposals(forceRefresh = false) {
     if (!confirm('Refresh proposals from live Creator and Books data? Existing decisions are preserved.')) return;
     try {
       notify('Refreshing…');
-      batch = await api('/api/refresh', 'POST');
+      batch = await api('/api/refresh', 'POST', {confirm: true, force_refresh: forceRefresh});
       render();
       notify('Review queue refreshed.');
     } catch (e) {
       notify(e.message, true);
     }
   };
+  document.getElementById('refresh').onclick = () => refreshProposals();
+  document.getElementById('forceRefresh').onclick = () => refreshProposals(true);
   load().catch(e => notify(e.message, true));
 </script>
 </body>

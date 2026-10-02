@@ -9,6 +9,10 @@ description: Public resource access patterns for the Zoho Books client.
 Resources inherit standard CRUD operations and the paginated `list_all()` helper
 from `BaseResource`.
 
+`bank_transactions.categorize(transaction_id, data)` wraps the native
+uncategorized-line categorization endpoint. Cash transfers use
+`transaction_type="transfer_fund"`, `from_account_id`, and `to_account_id`.
+
 `customer_payments.update_with_number_series(payment_id, data)` sends a
 multipart `JSONString` payment update with `ignore_auto_number_generation=true`.
 Use it when changing location and assigning a specific payment-number prefix

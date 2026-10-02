@@ -63,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
         label=item["label"], filed_cell=item["filed_cell"],
         account_ids=tuple(item.get("account_ids", ())),
         books_path=tuple(item.get("books_path", ())),
+        books_paths=tuple(tuple(path) for path in item.get("books_paths", ())),
     ) for item in config["lines"]]
     filed = _load_filed_cells(config, args.filed_snapshot, args.live_sheet)
     rule = {"columns": [{"index": 1, "field": "location_name",

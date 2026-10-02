@@ -23,6 +23,11 @@ from .core.models import DotDict
 
 
 _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "CustomerInvoicePaymentReview": (".customer_invoice_payment_review", "CustomerInvoicePaymentReview"),
+    "InvoicePaymentRow": (".customer_invoice_payment_review", "InvoicePaymentRow"),
+    "PaymentAllocationRow": (".customer_invoice_payment_review", "PaymentAllocationRow"),
+    "review_customer_invoices_payments": (".customer_invoice_payment_review", "review_customer_invoices_payments"),
+    "invoice_discount_percentage": (".customer_invoice_payment_review", "invoice_discount_percentage"),
     "PaymentMove": (".inter_location_payment_updates", "PaymentMove"),
     "plan_customer_payment_moves": (".inter_location_payment_updates", "plan_customer_payment_moves"),
     "apply_customer_payment_move": (".inter_location_payment_updates", "apply_customer_payment_move"),

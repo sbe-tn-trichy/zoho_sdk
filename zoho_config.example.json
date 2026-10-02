@@ -28,6 +28,9 @@
       "creator": {
         "creator_owner_name": "<your-creator-account-owner>",
         "payment_creator_app_link_name": "order-management-new",
+        "payment_travel_expense_account_id": "<travel-expense-account-id>",
+        "payment_salary_expense_account_id": "<salary-expense-account-id>",
+        "payment_cash_account_id": "<cash-account-id>",
         "payment_creator_reports": {
           "online": "Online_Payments",
           "cheque": "Cheques",

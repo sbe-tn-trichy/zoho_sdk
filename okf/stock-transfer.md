@@ -65,3 +65,13 @@ exact total equality. `--resume` can recover a journal stopped after creating or
 aligning a bill: it reads back and verifies the existing drafts, aligns the
 current bill total, and then continues without recreating earlier pairs. Bin
 balance reads retry transient failures up to three times.
+
+## Catalog request efficiency
+
+Transfer selection and stock validation use in-memory item-ID indexes and
+Inventory bulk details, rather than per-row item detail requests. NeoSeal
+catalog workflows likewise load purchase-account-scoped Inventory lists and
+index IDs or SKUs locally. Shared `BaseResource.list_iter` requests 200 rows
+per page. The separate 50-item `get_details` batch is a bulk endpoint budget,
+not a pagination setting. Item-specific bin reads and fresh pre-posting stock
+checks remain necessary for transfer safety.

@@ -32,3 +32,16 @@ differences as provisional until the Books report's branch scope is verified.
 In particular, the filed partner balances include allocated profit whereas
 Books shows separate current-year earnings; compare the partner schedules
 before treating the capital variance as an error.
+
+The filed `B50` GST Payable line maps to Books Output CGST, Output IGST, and
+Output SGST liability accounts. The filed asset-side `D54` GST line maps to
+Books Input CGST, Input IGST, and Input SGST asset accounts; it is not the GST
+cash ledger. The FY 2024–25 comparison matches output GST exactly and input GST
+within ₹0.02.
+
+The filed Fixed Assets line combines the Books `Assets / Non Current Assets`
+and `Assets / Fixed Assets` sections with the Motor Vehicles account under
+`Assets / Other Assets`. The comparison supports adding section paths and
+account IDs on one mapped line. For FY 2024–25, the API returned ₹0,
+₹1,47,809.30, and ₹62,539.77 respectively; their ₹2,10,349.07 total is
+₹73,887.09 below the audited Fixed Assets amount.

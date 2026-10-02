@@ -29,3 +29,21 @@ def test_missing_account_and_wrong_date_fail():
                               lines=[BalanceSheetLine("Missing", "B1", ("unknown",))])
     with pytest.raises(ValueError, match="as-of date"):
         compare_balance_sheet(_report(), to_date="2024-03-31", filed_cells={}, lines=[])
+
+
+def test_combines_section_paths_and_account_without_double_counting():
+    report = {"code": 0, "page_context": {"to_date": "2025-03-31", "cash_based": "false"},
+              "balance_sheet": [{"name": "Assets", "total": "100", "account_transactions": [
+                  {"name": "Non Current Assets", "total": "0"},
+                  {"name": "Fixed Assets", "total": "30", "account_transactions": [
+                      {"name": "Equipment", "account_id": "equipment", "total": "30"}]},
+                  {"name": "Other Assets", "total": "70", "account_transactions": [
+                      {"name": "Motor Vehicles", "account_id": "motor", "total": "70"}]}]}]}
+    line = BalanceSheetLine("Fixed Assets", "D45", account_ids=("motor",),
+                            books_paths=(("Assets", "Non Current Assets"),
+                                         ("Assets", "Fixed Assets")))
+    result = compare_balance_sheet(report, to_date="2025-03-31",
+                                   filed_cells={"D45": 100}, lines=[line])
+    assert result[0].books == Decimal("100")
+    assert result[0].status == "MATCH"
+    assert "Assets / Fixed Assets" in result[0].books_source

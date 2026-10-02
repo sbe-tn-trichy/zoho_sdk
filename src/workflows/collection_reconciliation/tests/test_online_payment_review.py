@@ -23,6 +23,8 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.config = OnlinePaymentReviewConfig(
             creator_app_link_name="app",
             bank_account_id="bank-1",
+            analytics_preview_ttl_seconds=0,
+            customer_mapping_ttl_seconds=0,
             state_path=Path(self.temporary.name) / "review.json",
         )
         self.service = OnlinePaymentReviewService(

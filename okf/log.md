@@ -1,7 +1,27 @@
 # Knowledge Change Log
 
+## 2026-10-01
+
+- Added read-only per-customer invoice discount and payment-allocation verification with CSV exports and discrepancy summaries.
+
+- Added reviewed CASH DEPOSIT cash-to-bank transfers and Salary expenses, with account-ID configuration, payment-match exclusion, live revalidation, and salary multiselect.
+
+- Removed real retry sleeps and Books pacing from mocked unit tests while retaining retry assertions and production limits; verified preview caching and request metrics, and audited existing indexed catalog reads and 200-row pagination.
+
+- Added expense multiselect and sequential confirmed bulk categorization, retaining failed selections for retry.
+
+- Reduced Bank Statement Categorization reads with expiring preview caches, force refresh, conflict-before-invoice checks, empty Analytics result handling, bounded SQL batches, TA account reuse, and completed-request counts; posting retains fresh validation.
+
+- Fixed travel expense account validation to read configured IDs directly; the Books account list omits the active travel account in this organization.
+
+- Configured the bank review travel expense account by ID, with active expense-type validation and an overridable runtime setting.
+
+- Added an Expenses dropdown view for TA expense proposals in Bank Statement Categorization, with search and separate payment controls.
+
 ## 2026-09-28
 
+- Mapped audited Fixed Assets to the Books non-current and fixed-asset sections plus Motor Vehicles, with additive section/account comparison support.
+- Corrected the filed FY 2024–25 GST balance-sheet mappings: output GST is a liability and input GST is an asset, each grouped by CGST, IGST, and SGST Books accounts.
 - Included live Books account names beside IDs in the filed balance-sheet comparison CSV's `books_source` column.
 
 ## 2026-09-27

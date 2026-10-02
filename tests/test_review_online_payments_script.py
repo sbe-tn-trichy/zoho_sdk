@@ -1,5 +1,8 @@
 import io
 import json
+import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +13,76 @@ from workflows.core.config import Config
 
 
 class TestReviewOnlinePaymentsScript(unittest.TestCase):
+    def test_expenses_filter_search_empty_and_return_to_payments(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node.js is needed to exercise the review JavaScript")
+        self.assertIn('<option value="expenses">Expenses</option>', HTML)
+        script = re.search(r"<script>(.*?)</script>", HTML, re.DOTALL).group(1)
+        harness = r"""
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const elements = new Map();
+const document = {
+  querySelector() { return {content: 'token'}; },
+  getElementById(id) {
+    if (!elements.has(id)) elements.set(id, {value: '', style: {}, addEventListener() {}});
+    return elements.get(id);
+  }
+};
+vm.runInNewContext(require('node:fs').readFileSync(0, 'utf8') + String.raw`
+batch = {entries: [{id: 'p1', reviewable: true}], bank_suggestions: [
+  {transaction_id: 'ta1', kind: 'travel_allowance', description: 'Alice/TA'},
+  {transaction_id: 'd1', kind: 'deposit', description: 'Customer deposit'}
+]};
+document.getElementById('filter').value = 'expenses'; render();
+assert.equal(document.getElementById('paymentTable').hidden, true);
+assert.equal(document.getElementById('acceptSelected').hidden, true);
+assert.match(document.getElementById('bankRows').innerHTML, /Alice\/TA/);
+assert.match(document.getElementById('bankRows').innerHTML, /Categorize expense/);
+assert.doesNotMatch(document.getElementById('bankRows').innerHTML, /Customer deposit/);
+toggleVisibleExpenses(true);
+assert.deepEqual([...selectedExpenses], ['ta1']);
+assert.equal(document.getElementById('categorizeSelectedExpenses').disabled, false);
+toggleVisibleExpenses(false);
+assert.equal(selectedExpenses.size, 0);
+document.getElementById('search').value = 'missing'; render();
+assert.match(document.getElementById('bankRows').innerHTML, /No expense proposals/);
+document.getElementById('search').value = 'alice'; render();
+assert.match(document.getElementById('bankRows').innerHTML, /Alice\/TA/);
+document.getElementById('search').value = '';
+document.getElementById('filter').value = 'reviewable'; render();
+assert.equal(document.getElementById('paymentTable').hidden, false);
+assert.equal(document.getElementById('acceptSelected').hidden, false);
+assert.match(document.getElementById('bankRows').innerHTML, /Customer deposit/);
+batch.bank_suggestions = []; document.getElementById('filter').value = 'expenses'; render();
+assert.match(document.getElementById('bankRows').innerHTML, /No expense proposals/);
+batch.bank_suggestions = [
+  {transaction_id: 'ok', kind: 'travel_allowance'},
+  {transaction_id: 'bad', kind: 'travel_allowance'},
+  {transaction_id: 'done', kind: 'travel_allowance', categorization_status: 'categorized'}
+];
+toggleVisibleExpenses(true);
+assert.deepEqual([...selectedExpenses], ['ok', 'bad']);
+const calls = [];
+api = async path => {
+  calls.push(path);
+  if (path.includes('/bad/')) throw new Error('Changed bank line');
+  if (path === '/api/batch') return batch;
+  batch.bank_suggestions[0].categorization_status = 'categorized';
+  return {};
+};
+categorizeSelectedExpenses().then(() => {
+  assert.deepEqual(calls, ['/api/bank-lines/ok/categorize', '/api/bank-lines/bad/categorize', '/api/batch']);
+  assert.deepEqual([...selectedExpenses], ['bad']);
+  assert.equal(expensesBusy, false);
+  assert.match(document.getElementById('notice').textContent, /1 expenses categorized; 1 failed/);
+}).catch(error => { console.error(error); process.exitCode = 1; });
+`, {document, assert, console, process, confirm() {return true;}, setTimeout() {}, fetch() {return new Promise(() => {});}});
+"""
+        subprocess.run([node, "-e", harness], input=script, text=True, check=True,
+                       capture_output=True)
+
     def test_html_offers_ambiguous_review_with_candidate_details(self):
         self.assertIn('<option value="ambiguous">Ambiguous</option>', HTML)
         self.assertIn("e.ambiguous_candidates", HTML)
@@ -75,7 +148,7 @@ class TestReviewOnlinePaymentsScript(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(
             json.loads(stdout.getvalue()),
-            {"entries": 2, "ready": 1, "other_bank_lines": 0, "state": str(state)},
+            {"entries": 2, "ready": 1, "other_bank_lines": 0, "state": str(state), "preview_cache_hits": {}},
         )
         review_config = service_class.call_args.args[2]
         self.assertEqual(
@@ -94,7 +167,7 @@ class TestReviewOnlinePaymentsScript(unittest.TestCase):
             review_config.creator_checkpoint_report_link_name,
             "Configured_All_Payments",
         )
-        service_class.return_value.refresh.assert_called_once_with()
+        service_class.return_value.refresh.assert_called_once_with(force_refresh=False)
 
     def test_handler_routes_categorize_travel_expense(self):
         from apps.payment_review import make_handler

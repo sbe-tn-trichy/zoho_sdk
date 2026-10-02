@@ -15,6 +15,7 @@ class BalanceSheetLine:
     filed_cell: str
     account_ids: tuple[str, ...] = ()
     books_path: tuple[str, ...] = ()
+    books_paths: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -95,25 +96,30 @@ def compare_balance_sheet(
         seen.add(line.filed_cell)
         if line.filed_cell not in filed_cells:
             raise ValueError(f"Missing filed cell: {line.filed_cell}")
-        if line.account_ids and line.books_path:
-            raise ValueError(f"Choose account IDs or path for {line.label}")
+        if line.books_path and line.books_paths:
+            raise ValueError(f"Choose one path form for {line.label}")
         filed = _amount(filed_cells[line.filed_cell], line.filed_cell)
         if line.account_ids:
             missing = set(line.account_ids) - set(accounts)
             if missing:
                 raise ValueError(f"Missing Books IDs for {line.label}: {', '.join(sorted(missing))}")
             books = sum((accounts[account_id][0] for account_id in line.account_ids), Decimal())
-            source = "; ".join(
+            sources = [
                 f"{account_id} ({accounts[account_id][1]})" for account_id in line.account_ids
-            )
-        elif line.books_path:
-            if line.books_path not in paths:
-                raise ValueError(f"Missing Books path: {' / '.join(line.books_path)}")
-            books = paths[line.books_path]
-            source = " / ".join(line.books_path)
+            ]
         else:
+            books = Decimal()
+            sources = []
+        for path in ((line.books_path,) if line.books_path else line.books_paths):
+            if path not in paths:
+                raise ValueError(f"Missing Books path: {' / '.join(path)}")
+            books += paths[path]
+            sources.append(" / ".join(path))
+        if not sources:
             books = None
             source = "unmapped"
+        else:
+            source = "; ".join(sources)
         difference = books - filed if books is not None else None
         status = "UNMAPPED" if books is None else ("MATCH" if abs(difference) <= tolerance else "DIFFERENCE")
         result.append(BalanceSheetDifference(line.label, line.filed_cell, filed, books, difference, status, source))

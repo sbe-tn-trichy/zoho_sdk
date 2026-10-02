@@ -21,6 +21,7 @@ from ..core.matching import (
 )
 from .identifiers import identifier as _identifier, identifiers as _identifiers
 from .payments import customer_payment_payload
+from .preview_cache import PreviewCache
 from .allocator import (
     CLOSED_INVOICE_STATUSES as _CLOSED_INVOICE_STATUSES,
     allocate_invoices_oldest_due_first,
@@ -70,9 +71,25 @@ class OnlinePaymentReviewConfig:
     analytics_workspace_id: str = ""
     customer_finder_view_id: str = ""
     travel_expense_account_name: str = "Employee Travel Expense"
+    travel_expense_account_id: str = ""
+    salary_expense_account_id: str = ""
+    cash_account_id: str = ""
+    analytics_preview_ttl_seconds: float = 300
+    customer_mapping_ttl_seconds: float = 300
+    travel_account_ttl_seconds: float = 300
+    analytics_batch_tokens: int = 35
+    analytics_max_sql_bytes: int = 6000
     state_path: Path = Path(
         "output/collection_reconciliation/online_payments_review.json"
     )
+
+    def __post_init__(self) -> None:
+        for ttl in (self.analytics_preview_ttl_seconds, self.customer_mapping_ttl_seconds,
+                    self.travel_account_ttl_seconds):
+            if not 0 <= ttl < float("inf"):
+                raise ValueError("Cache expiry must be finite and non-negative.")
+        if self.analytics_batch_tokens < 1 or self.analytics_max_sql_bytes < 256:
+            raise ValueError("Analytics batch limits must be positive and SQL budget at least 256 bytes.")
 
     def configured_banks(self) -> Tuple[Tuple[str, str], ...]:
         if self.bank_accounts:
@@ -104,6 +121,12 @@ class OnlinePaymentReviewService:
         self.analytics = analytics_client
         self.config = config
         self._lock = threading.RLock()
+        self._history_cache: PreviewCache[List[Mapping[str, Any]]] = PreviewCache()
+        self._full_history_cache: PreviewCache[List[Mapping[str, Any]]] = PreviewCache()
+        self._history_was_full_export = False
+        self._customer_cache: PreviewCache[List[Mapping[str, Any]]] = PreviewCache()
+        self._expense_cache: PreviewCache[str] = PreviewCache()
+        self._cache_hits: Dict[str, int] = {"analytics_tokens": 0, "customer_mapping": 0}
 
     def load(self) -> Dict[str, Any]:
         with self._lock:
@@ -111,18 +134,32 @@ class OnlinePaymentReviewService:
                 return self._empty_batch()
             return json.loads(self.config.state_path.read_text(encoding="utf-8"))
 
-    def refresh(self) -> Dict[str, Any]:
+    def refresh(self, *, force_refresh: bool = False) -> Dict[str, Any]:
         """Read live Creator/Books data and rebuild proposals without writing to Zoho."""
         with self._lock:
+            self._cache_hits = {"analytics_tokens": 0, "customer_mapping": 0}
+            if force_refresh:
+                self._history_cache.clear()
+                self._full_history_cache.clear()
+                self._customer_cache.clear()
+                self._expense_cache.clear()
             previous = self.load()
             previous_entries = {
                 str(entry.get("id")): entry for entry in previous.get("entries", [])
             }
             payments = self._all_creator_payments()
-            customers = self.creator.get_all_records(
-                self.config.creator_app_link_name,
-                self.config.customer_report_link_name,
-            )
+            customer_key = (id(self.creator), self.config.creator_app_link_name,
+                            self.config.customer_report_link_name)
+            customers = self._customer_cache.get(customer_key)
+            if customers is None:
+                customers = self.creator.get_all_records(
+                    self.config.creator_app_link_name,
+                    self.config.customer_report_link_name,
+                )
+                self._customer_cache.put(customer_key, customers,
+                                         self.config.customer_mapping_ttl_seconds)
+            else:
+                self._cache_hits["customer_mapping"] += 1
             customer_ids = {
                 _text(row.get("ID")): _text(row.get("Customer_Id"))
                 for row in customers
@@ -133,7 +170,8 @@ class OnlinePaymentReviewService:
             used_transaction_ids = set()
             raw_entries = []
             for payment in payments:
-                entry = self._proposal(payment, customer_ids, bank_transactions, used_transaction_ids)
+                entry = self._proposal(payment, customer_ids,
+                    [tx for tx in bank_transactions if bank_line_kind(tx) not in {"cash_deposit", "salary", "travel_allowance"}], used_transaction_ids)
                 raw_entries.append(entry)
 
             # Collect remitter tokens for targeted historical lookup
@@ -150,7 +188,7 @@ class OnlinePaymentReviewService:
                 if not is_travel_allowance_withdrawal(tx):
                     all_tokens.update(extract_remitter_tokens(tx.get("description")))
 
-            customer_finder_rows = self._query_historical_customer_finder(sorted(all_tokens))
+            customer_finder_rows = self._preview_customer_finder(sorted(all_tokens))
             customer_finder = CustomerFinderIndex(customer_finder_rows)
 
             invoice_cache: Dict[str, List[Mapping[str, Any]]] = {}
@@ -170,7 +208,11 @@ class OnlinePaymentReviewService:
                     self._migrate_bank_identity(terminal, previous)
                     entries.append(terminal)
                     continue
-                self._attach_invoice_preview(entry, invoice_cache)
+                if entry.get("customer_name_valid") is not False:
+                    self._attach_invoice_preview(entry, invoice_cache)
+                else:
+                    entry.update(invoice_allocations=[], allocation_status="unavailable",
+                                 allocation_error=entry["customer_name_reason"])
                 if entry.get("customer_name_valid") is False:
                     entry["reviewable"] = False
                     entry["reason"] = entry["customer_name_reason"]
@@ -225,8 +267,9 @@ class OnlinePaymentReviewService:
                     "bank_name": _text(transaction.get("_review_bank_name")),
                     "bank_account_id": _text(transaction.get("_review_bank_account_id")),
                     "kind": bank_line_kind(transaction),
-                    "customer_suggestions": customer_finder.suggest(transaction) if bank_line_kind(transaction) != "travel_allowance" else [],
-                    "expense_account_name": self.config.travel_expense_account_name if is_travel_allowance_withdrawal(transaction) else "",
+                    "customer_suggestions": customer_finder.suggest(transaction) if bank_line_kind(transaction) not in {"travel_allowance", "salary", "cash_deposit"} else [],
+                    "expense_account_name": (self.config.travel_expense_account_name if bank_line_kind(transaction) == "travel_allowance" else "Salary" if bank_line_kind(transaction) == "salary" else ""),
+                    "transfer_account_name": "Cash-SBE" if bank_line_kind(transaction) == "cash_deposit" else "",
                     "categorization_status": "pending",
                 })
                 if previous_bank.get(transaction_id, {}).get("categorization_status") == "categorized":
@@ -244,6 +287,7 @@ class OnlinePaymentReviewService:
                     for name, account_id in self.config.configured_banks()
                 ],
                 "refreshed_at": _now(),
+                "preview_cache_hits": dict(self._cache_hits),
                 "entries": entries,
                 "bank_suggestions": bank_suggestions,
             }
@@ -252,52 +296,88 @@ class OnlinePaymentReviewService:
 
     def categorize_travel_expense(self, transaction_id: str) -> Dict[str, Any]:
         """Categorize one reviewed TA withdrawal after validating live Books state."""
+        return self.categorize_bank_line(transaction_id, expected_kind="travel_allowance")
+
+    def categorize_bank_line(self, transaction_id: str, *, expected_kind: str = "") -> Dict[str, Any]:
+        """Apply a reviewed travel, salary, or cash-transfer classification."""
         with self._lock:
             batch = self.load()
             proposal = next(
                 (row for row in batch.get("bank_suggestions", []) if _text(row.get("transaction_id")) == transaction_id),
                 None,
             )
-            if not proposal or proposal.get("kind") != "travel_allowance":
-                raise ReconciliationError("No travel allowance proposal exists for this bank line.")
+            if not proposal or proposal.get("kind") not in {"travel_allowance", "salary", "cash_deposit"} or (expected_kind and proposal.get("kind") != expected_kind):
+                raise ReconciliationError("No matching categorization proposal exists for this bank line.")
+            kind = proposal["kind"]
             if proposal.get("categorization_status") == "categorized":
                 return proposal
             account_id = _text(proposal.get("bank_account_id"))
             current = self._current_bank_transaction(transaction_id, account_id)
-            if not is_travel_allowance_withdrawal(current):
-                raise ReconciliationError("The live bank line is no longer a TA withdrawal.")
+            if bank_line_kind(current) != kind:
+                raise ReconciliationError("The live bank line classification changed. Refresh before categorizing.")
             if (
                 parse_date(current.get("date") or current.get("transaction_date")) != parse_date(proposal.get("date"))
                 or _decimal(current.get("amount")) != _decimal(proposal.get("amount"))
                 or _text(current.get("description") or current.get("narration")) != _text(proposal.get("description"))
+                or _text(current.get("reference_number")) != _text(proposal.get("reference"))
             ):
                 raise ReconciliationError("The live bank line changed. Refresh before categorizing.")
-            accounts = self.books.chart_of_accounts.list_all()
-            matching_accounts = [
-                row for row in accounts
-                if _text(row.get("account_name")).casefold() == self.config.travel_expense_account_name.casefold()
-                and _text(row.get("account_id"))
-                and _text(row.get("account_type")).casefold() in {"expense", "other_expense"}
-                and row.get("is_active") is not False
-            ]
-            if len(matching_accounts) != 1:
-                raise ReconciliationError("A unique active Employee Travel Expense account was not found in Books.")
+            configured_id = (self.config.cash_account_id if kind == "cash_deposit" else self.config.salary_expense_account_id if kind == "salary" else self.config.travel_expense_account_id)
+            account_name = ("Cash-SBE" if kind == "cash_deposit" else "Salary" if kind == "salary" else self.config.travel_expense_account_name)
+            if kind != "travel_allowance" and not configured_id:
+                raise ReconciliationError(f"Configure the {account_name} account ID first.")
+            expense_key = (id(self.books), configured_id, account_name)
+            expense_account_id = self._expense_cache.get(expense_key)
+            if expense_account_id is None:
+                if configured_id:
+                    response = self.books.chart_of_accounts.get(configured_id)
+                    account = response.get("chart_of_account") if isinstance(response, Mapping) else None
+                    accounts = [account] if isinstance(account, Mapping) else []
+                else:
+                    accounts = self.books.chart_of_accounts.list_all()
+                matching_accounts = [
+                    row for row in accounts
+                    if (_text(row.get("account_id")) == configured_id
+                        if configured_id else
+                        _text(row.get("account_name")).casefold() == account_name.casefold())
+                    and _text(row.get("account_id"))
+                    and _text(row.get("account_type")).casefold() in ({"cash"} if kind == "cash_deposit" else {"expense", "other_expense"})
+                    and row.get("is_active") is not False
+                ]
+                if len(matching_accounts) != 1:
+                    raise ReconciliationError(f"A unique active {account_name} account was not found in Books.")
+                expense_account_id = _text(matching_accounts[0]["account_id"])
+                self._expense_cache.put(expense_key, expense_account_id,
+                                        self.config.travel_account_ttl_seconds)
             amount = _decimal(current.get("amount"))
             if amount is None or amount == 0:
                 raise ReconciliationError("The bank withdrawal has no valid amount.")
             payload = {
-                "account_id": _text(matching_accounts[0]["account_id"]),
+                "account_id": expense_account_id,
                 "paid_through_account_id": account_id,
                 "date": _text(current.get("date") or current.get("transaction_date")),
                 "amount": float(abs(amount)),
                 "description": _text(current.get("description") or current.get("narration")),
                 "reference_number": _text(current.get("reference_number")),
             }
-            response = self.books.bank_transactions.categorize_as_expense(transaction_id, payload)
+            try:
+                if kind == "cash_deposit":
+                    if expense_account_id == account_id:
+                        raise ReconciliationError("Cash source and destination bank must differ.")
+                    payload.pop("account_id")
+                    payload.pop("paid_through_account_id")
+                    payload.update(from_account_id=expense_account_id, to_account_id=account_id, transaction_type="transfer_fund")
+                    response = self.books.bank_transactions.categorize(transaction_id, payload)
+                else:
+                    response = self.books.bank_transactions.categorize_as_expense(transaction_id, payload)
+            except Exception:
+                self._expense_cache.clear()
+                raise
             if not isinstance(response, Mapping) or _text(response.get("code")) != "0":
-                raise ReconciliationError("Books rejected the expense categorization.")
+                self._expense_cache.clear()
+                raise ReconciliationError("Books rejected the categorization.")
             proposal["categorization_status"] = "categorized"
-            proposal["expense_account_id"] = payload["account_id"]
+            proposal["source_account_id" if kind == "cash_deposit" else "expense_account_id"] = expense_account_id
             self._save(batch)
             return proposal
 
@@ -329,6 +409,8 @@ class OnlinePaymentReviewService:
         """Push one approved proposal to Books, then checkpoint it in Creator."""
         with self._lock:
             batch, entry = self._entry(entry_id)
+            if entry.get("push_status") == "pushed":
+                return entry
             if not entry.get("bank") and selected_bank_transaction_id:
                 if not allow_reference_override:
                     raise ReconciliationError(
@@ -379,9 +461,6 @@ class OnlinePaymentReviewService:
             if entry.get("customer_name_valid") is False:
                 self._save(batch)
                 raise ReconciliationError(entry["customer_name_reason"])
-            if entry.get("push_status") == "pushed":
-                return entry
-
             entry.update(
                 {
                     "decision": "accepted",
@@ -686,9 +765,68 @@ class OnlinePaymentReviewService:
                     + (f": {message}" if message else ".")
                 )
 
+    def _preview_customer_finder(self, tokens: Sequence[str]) -> List[Mapping[str, Any]]:
+        scope = (id(self.analytics), self.config.analytics_workspace_id,
+                 self.config.customer_finder_view_id)
+        unique_tokens = sorted({t.strip() for t in tokens if t and len(t.strip()) >= 3})
+        if not unique_tokens:
+            return []
+        full_rows = self._full_history_cache.get(scope)
+        if full_rows is not None:
+            self._cache_hits["analytics_tokens"] += len(unique_tokens)
+            return full_rows
+        rows: List[Mapping[str, Any]] = []
+        missing = []
+        for token in unique_tokens:
+            cached = self._history_cache.get((*scope, token))
+            if cached is None:
+                missing.append(token)
+            else:
+                self._cache_hits["analytics_tokens"] += 1
+                rows.extend(cached)
+        if missing:
+            fresh = self._query_historical_customer_finder(missing)
+            if self._history_was_full_export:
+                self._full_history_cache.put(scope, fresh,
+                                             self.config.analytics_preview_ttl_seconds)
+                return fresh
+            rows.extend(fresh)
+            for token in missing:
+                matched = [row for row in fresh if token.casefold() in
+                           _text(row.get("Description")).casefold()]
+                self._history_cache.put((*scope, token), matched,
+                                        self.config.analytics_preview_ttl_seconds)
+        # One historical row may match several cached tokens.
+        unique_rows = {}
+        for row in rows:
+            key = (_text(row.get("Customer Name")), _text(row.get("Description")))
+            unique_rows[key] = row
+        return list(unique_rows.values())
+
+    def _historical_queries(self, tokens: Sequence[str]) -> List[str]:
+        prefix = ('SELECT "Customer Name", "Description" FROM "Payment Customer Finder" '
+                  'WHERE "Customer Name" IS NOT NULL AND "Customer Name" != \'\' AND (')
+        queries: List[str] = []
+        clauses: List[str] = []
+        for token in tokens:
+            safe = token.replace("'", "''")
+            clause = f'"Description" LIKE \'%{safe}%\''
+            candidate = prefix + " OR ".join([*clauses, clause]) + ")"
+            if clauses and (len(clauses) >= self.config.analytics_batch_tokens or
+                            len(candidate.encode("utf-8")) > self.config.analytics_max_sql_bytes):
+                queries.append(prefix + " OR ".join(clauses) + ")")
+                clauses = []
+            if len((prefix + clause + ")").encode("utf-8")) > self.config.analytics_max_sql_bytes:
+                raise ReconciliationError("A remitter token exceeds the Analytics SQL budget.")
+            clauses.append(clause)
+        if clauses:
+            queries.append(prefix + " OR ".join(clauses) + ")")
+        return queries
+
     def _query_historical_customer_finder(
         self, tokens: Sequence[str]
     ) -> List[Mapping[str, Any]]:
+        self._history_was_full_export = False
         if not self.config.customer_finder_view_id or not tokens:
             return []
         if not self.analytics or not self.config.analytics_workspace_id:
@@ -700,31 +838,18 @@ class OnlinePaymentReviewService:
 
         # If queries.execute is available, run targeted SQL
         if hasattr(self.analytics, "queries") and callable(getattr(self.analytics.queries, "execute", None)):
+            queries = self._historical_queries(unique_tokens)
             try:
                 all_rows: List[Mapping[str, Any]] = []
-                chunk_size = 35
-                for i in range(0, len(unique_tokens), chunk_size):
-                    chunk = unique_tokens[i:i + chunk_size]
-                    clauses = []
-                    for token in chunk:
-                        safe = token.replace("'", "''")
-                        clauses.append(f'"Description" LIKE \'%{safe}%\'')
-                    where_clause = " OR ".join(clauses)
-                    table_name = "Payment Customer Finder"
-                    sql = (
-                        f'SELECT "Customer Name", "Description" '
-                        f'FROM "{table_name}" '
-                        f'WHERE "Customer Name" IS NOT NULL AND "Customer Name" != \'\' '
-                        f'AND ({where_clause})'
-                    )
+                for sql in queries:
                     rows = self.analytics.queries.execute(
                         self.config.analytics_workspace_id,
                         sql,
                     )
-                    if isinstance(rows, list):
-                        all_rows.extend(rows)
-                if all_rows or not hasattr(self.analytics, "views"):
-                    return all_rows
+                    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+                        raise ReconciliationError("Analytics returned an invalid query result.")
+                    all_rows.extend(rows)
+                return all_rows
             except Exception:
                 if not hasattr(self.analytics, "views"):
                     raise
@@ -736,10 +861,12 @@ class OnlinePaymentReviewService:
                 self.config.customer_finder_view_id,
                 max_attempts=60,
             )
-            if isinstance(rows, list):
-                return rows
+            if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+                raise ReconciliationError("Analytics returned an invalid export result.")
+            self._history_was_full_export = True
+            return rows
 
-        return []
+        raise ReconciliationError("Analytics has no supported historical lookup API.")
 
     def _customer_finder_rows(self) -> List[Mapping[str, Any]]:
         """Fallback for callers requesting all rows."""

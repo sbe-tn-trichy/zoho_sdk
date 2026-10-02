@@ -1,6 +1,6 @@
 import json
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from zoho.analytics import ZohoAnalyticsAPI
 from zoho.analytics.exceptions import ZohoAnalyticsError
@@ -86,8 +86,9 @@ class TestZohoAnalyticsAPI(unittest.TestCase):
 
         self.assertEqual(rows, [{"Customer": "Acme", "Total": 42}])
 
+    @patch("zoho.base_client.time.sleep")
     @patch("requests.request")
-    def test_rate_limit_error_exposes_status_and_retry_after(self, mock_request):
+    def test_rate_limit_error_exposes_status_and_retry_after(self, mock_request, mock_sleep):
         response = MagicMock(status_code=429)
         response.headers = {"Retry-After": "12"}
         response.text = '{"data":{"errorCode":6045}}'
@@ -99,6 +100,8 @@ class TestZohoAnalyticsAPI(unittest.TestCase):
 
         self.assertEqual(caught.exception.status_code, 429)
         self.assertEqual(caught.exception.retry_after, "12")
+        self.assertEqual(mock_sleep.call_args_list, [call(12)] * 3)
+        self.assertEqual(mock_request.call_count, 4)
 
     def test_dynamic_query_exports_and_decodes_json_rows(self):
         client = MagicMock()

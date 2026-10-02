@@ -33,6 +33,12 @@ declare flat keys directly; grouped keys are automatically flattened for runtime
 
 Supported configuration keys:
 
+- `PAYMENT_CASH_ACCOUNT_ID`: Cash-deposit transfer source, default `1094368000005226023`.
+- `PAYMENT_SALARY_EXPENSE_ACCOUNT_ID`: Salary expense account, default `1094368000000000543`.
+
+- `PAYMENT_TRAVEL_EXPENSE_ACCOUNT_ID`: Bank review TA expense account; defaults
+  to `1094368000029132050`. The review CLI accepts `--travel-expense-account-id`.
+
 - `TOKEN_URL`: HTTP URL for retrieving runtime OAuth access tokens.
 - `ORG_ID`: Zoho Books organization ID.
 - `DOMAIN`: Zoho API data-center domain; defaults to `in`.
@@ -118,3 +124,12 @@ same configuration hierarchy. Set entries within the grouped
 `payment_creator_reports` object in the active `zoho_config.json` profile to
 override them without changing Python or HTML. The environment-variable form
 accepts the same object encoded as JSON in `PAYMENT_CREATOR_REPORTS`.
+
+Payment-review preview caches are session-local and configured through
+`OnlinePaymentReviewConfig` or CLI flags: `--analytics-preview-ttl`,
+`--customer-mapping-ttl`, and `--travel-account-ttl` default to 300 seconds;
+zero disables caching. `--force-refresh` clears caches before preview reads.
+`--analytics-batch-tokens` defaults to 35 and `--analytics-max-sql-bytes`
+to 6000 UTF-8 bytes before URL encoding. These are application budgets,
+not published Zoho limits. Posting always validates Analytics and invoices
+with live reads. See [Request Efficiency](collection-reconciliation.md#request-efficiency).

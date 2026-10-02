@@ -244,7 +244,7 @@ class TestBackfillHelpers(unittest.TestCase):
 
     def test_batch_execution_requires_explicit_permission(self):
         with self.assertRaisesRegex(ValueError, "--allow-batch"):
-            BackfillConfig(location_id="loc-1", execute=True)
+            BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0, execute=True)
 
 
 class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
@@ -262,7 +262,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
         result = CreatorBooksPaymentLinkBackfill(
             self.creator,
             self.books,
-            BackfillConfig(location_id="loc-1", ),
+            BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0),
         ).run()
 
         self.assertEqual(result.summary(), {"scanned": 1, "ready": 1})
@@ -283,7 +283,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
         ]
 
         result = CreatorBooksPaymentLinkBackfill(
-            self.creator, self.books, BackfillConfig(location_id="loc-1")
+            self.creator, self.books, BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0)
         ).run()
 
         self.assertEqual(result.oldest_creator_date, "2026-08-01")
@@ -299,7 +299,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
         ]
 
         result = CreatorBooksPaymentLinkBackfill(
-            self.creator, self.books, BackfillConfig(location_id="loc-1")
+            self.creator, self.books, BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0)
         ).run()
 
         self.assertEqual(result.rows[-1]["status"], "creator_crosscheck_found")
@@ -313,7 +313,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
 
         result = CreatorBooksPaymentLinkBackfill(
             self.creator, self.books,
-            BackfillConfig(location_id="loc-1", execute=True, allow_batch=True),
+            BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0, execute=True, allow_batch=True),
         ).run()
 
         self.assertEqual([row["status"] for row in result.rows],
@@ -335,7 +335,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
         result = CreatorBooksPaymentLinkBackfill(
             self.creator,
             self.books,
-            BackfillConfig(location_id="loc-1", execute=True, creator_record_id="creator-1"),
+            BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0, execute=True, creator_record_id="creator-1"),
         ).run()
 
         self.assertEqual(result.rows[0]["status"], "updated")
@@ -360,7 +360,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
             result = CreatorBooksPaymentLinkBackfill(
                 self.creator,
                 self.books,
-                BackfillConfig(location_id="loc-1", 
+                BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0,
                     execute=True,
                     creator_record_id="creator-1",
                     checkpoint_path=checkpoint,
@@ -385,9 +385,8 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
         with patch("workflows.creator_books_payment_link.time.sleep") as sleep:
             result = CreatorBooksPaymentLinkBackfill(
                 self.creator, self.books,
-                BackfillConfig(location_id="loc-1", execute=True,
-                               creator_record_id="creator-1",
-                               books_request_interval_seconds=0),
+                BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0, execute=True,
+                               creator_record_id="creator-1"),
             ).run()
 
         self.assertEqual(result.rows[0]["status"], "updated")
@@ -407,7 +406,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
         result = CreatorBooksPaymentLinkBackfill(
             self.creator,
             self.books,
-            BackfillConfig(location_id="loc-1", execute=True, creator_record_id="creator-1"),
+            BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0, execute=True, creator_record_id="creator-1"),
         ).run()
 
         self.assertEqual(result.rows[0]["status"], "already_linked")
@@ -419,7 +418,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
         )]
 
         result = CreatorBooksPaymentLinkBackfill(
-            self.creator, self.books, BackfillConfig(location_id="loc-1")
+            self.creator, self.books, BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0)
         ).run()
 
         self.assertEqual(result.rows[0]["status"], "already_linked")
@@ -430,7 +429,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
 
         result = CreatorBooksPaymentLinkBackfill(
             self.creator, self.books,
-            BackfillConfig(location_id="loc-1", execute=True, creator_record_id="creator-1"),
+            BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0, execute=True, creator_record_id="creator-1"),
         ).run()
 
         self.assertEqual(result.rows[0]["status"], "creator_data_incomplete")
@@ -445,7 +444,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
 
         result = CreatorBooksPaymentLinkBackfill(
             self.creator, self.books,
-            BackfillConfig(location_id="loc-1", execute=True, creator_record_id="creator-1"),
+            BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0, execute=True, creator_record_id="creator-1"),
         ).run()
 
         self.assertEqual(result.rows[0]["status"], "identifier_conflict")
@@ -468,7 +467,7 @@ class TestCreatorBooksPaymentLinkBackfill(unittest.TestCase):
             result = CreatorBooksPaymentLinkBackfill(
                 self.creator,
                 self.books,
-                BackfillConfig(location_id="loc-1", resume_from=checkpoint),
+                BackfillConfig(location_id="loc-1", books_request_interval_seconds=0.0, resume_from=checkpoint),
             ).run()
 
         self.assertEqual(result.summary(), {"scanned": 1, "updated": 1})

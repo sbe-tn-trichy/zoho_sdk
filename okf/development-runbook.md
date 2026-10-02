@@ -59,6 +59,7 @@ the CI validation matrix targets Python 3.14.
 
 - Keep generic HTTP and service-client behavior below `workflows`.
 - Inject low-level clients into workflows instead of importing workflow code from client packages.
+- Mock retry sleeps at their transport call site and set mock backfill fixtures to `books_request_interval_seconds=0.0`; retain assertions for retry counts and requested backoff durations. Production rate limiting and pacing remain enabled.
 - Mock network calls in unit tests. Live verification must use runtime credentials and read-only operations unless a mutation is explicitly intended.
 - Keep every concrete service `request()` override compatible with the full `BaseZohoClient.request()` signature and forward transport options unchanged.
 - Treat `POST`, `PUT`, `PATCH`, and `DELETE` as mutations. Mark a semantically read-only POST explicitly with `is_mutation=False` and cover the exception with a test.

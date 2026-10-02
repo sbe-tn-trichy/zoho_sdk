@@ -30,6 +30,10 @@ class BankTransactions(BaseResource):
     def categorize_as_expense(self, transaction_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         return self._action('POST', f"uncategorized/{transaction_id}", 'categorize/expenses', data=data)
 
+    def categorize(self, transaction_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Categorize a bank line, including a transfer_fund transaction."""
+        return self._action('POST', f"uncategorized/{transaction_id}", 'categorize', data=data)
+
     def categorize_as_customer_payment(
         self,
         transaction_id: str,

@@ -117,6 +117,21 @@ matches are never written automatically.
 
 # Online Payments Human Review
 
+Case-insensitive whole-word narration rules reserve **CASH DEPOSIT** deposits
+for cash-to-bank transfer proposals and **Salary** withdrawals for salary
+expense proposals, excluding them from customer payment matching. Incoming
+salary lines and outgoing cash-deposit lines do not qualify. Salary takes
+precedence over a TA suffix. Refresh live data to classify existing queue rows.
+Salary uses `PAYMENT_SALARY_EXPENSE_ACCOUNT_ID` (default `1094368000000000543`,
+Salaries and Employee Wage); cash transfers use `PAYMENT_CASH_ACCOUNT_ID`
+(default `1094368000005226023`, Cash-SBE). Both accounts are validated by direct
+detail reads for active expense/cash type. Transfers use the reviewed line's
+bank as destination and the Books `transfer_fund` categorization endpoint.
+The Expenses view and expense multiselect include salary. Cash transfers have
+their own dropdown view and individual confirmation. These rules propose
+categories only; they do not post during refresh. Posting revalidates the live
+line's classification, date, amount, narration, and reference.
+
 The production UI is named **Bank Statement Categorization**. It retains the
 Creator online and cheque payment matching flow and adds other uncategorized
 Books bank lines to a separate review table. Bank narrations are compared
@@ -124,12 +139,25 @@ with distinct customer names from Analytics Payment Customer Finder; complete
 name matches are suggestions only. A withdrawal whose description ends in
 `/TA` is proposed as Employee Travel Expense. A reviewer must explicitly
 approve it, after which the workflow re-reads the uncategorized bank line,
-checks its date, amount, and description, resolves one active expense account
-with that exact name, and calls Books' categorize-as-expense endpoint. The
+checks its date, amount, and description, resolves one active expense account,
+and calls Books' categorize-as-expense endpoint. The review app uses
+`PAYMENT_TRAVEL_EXPENSE_ACCOUNT_ID` (default `1094368000029132050`), overridable
+with `--travel-expense-account-id`. The workflow validates the selected ID's
+active expense type through a direct account detail read, since the Books account
+list can omit the selected account; without an ID it falls back to the exact account name. The
 proposal state prevents a repeat click from posting twice.
 In the production bank feed and Finder view, `debit` means deposit and
 `credit` means withdrawal. The `/TA` expense proposal applies only to credit
 lines.
+
+The review dropdown includes **Expenses**, which shows only TA expense proposals
+and hides the Creator payment table and bulk payment controls. Search still
+applies to the expense rows. Other dropdown choices restore the payment table
+and the full other-bank-lines list; **Ready for review** remains payment-only.
+Expense rows have individual checkboxes, a select-all-visible control, and
+**Categorize selected expenses**. One confirmation posts selected TA withdrawals
+sequentially through the existing live validation endpoint. Successful rows are
+deselected; failures remain selected for retry and are reported individually.
 
 `apps/payment_review.py` serves a loopback-only review queue for the
 production Creator `Online_Payments` report. It maps `Payment_Amount`,
@@ -260,6 +288,44 @@ oldest-due-first, and reads the payment back after every update. An atomic JSON
 checkpoint records planned, repaired, already-allocated, no-open-invoice, and
 incomplete-checkpoint outcomes so the operation is safely repeatable. A failed
 Books update aborts the run without recording a successful repair.
+
+# Request Efficiency
+
+The review server retains session-local Analytics token results and Creator
+customer mappings for 300 seconds by default. Empty historical matches are
+cached too. Caches are scoped to their injected client and configured
+workspace/view or app/report; they are never written to the state file.
+Banks and invoice balances are read on every preview refresh. A customer
+conflict skips its invoice preview, and repeat acceptance of an already pushed
+entry returns before making network calls.
+
+`refresh(force_refresh=True)`, the UI **Force refresh** button, and CLI
+`--force-refresh` bypass all session caches. The CLI exposes
+`--analytics-preview-ttl`, `--customer-mapping-ttl`, and `--travel-account-ttl`
+in seconds; zero disables the corresponding cache. Payment acceptance always
+performs fresh Analytics validation and reads live invoice balances before
+creation, regardless of preview caching. TA account resolution is cached for
+300 seconds and invalidated when categorization raises or is rejected; the bank
+line is still revalidated for each categorization. No write is automatically
+retried after an account rejection.
+
+A successful empty targeted SQL result no longer triggers a full Finder export.
+The fallback remains available when targeted queries fail or are unavailable.
+SQL batches obey both `--analytics-batch-tokens` (default 35) and
+`--analytics-max-sql-bytes` (default 6000, measured in UTF-8 before URL encoding).
+These are application budgets, not verified Zoho maxima; an individually
+oversized token fails before querying. The [Zoho SQL export documentation](https://www.zoho.com/analytics/api/v2/bulk-api/export-data-async/create-export/sql-query.html)
+does not specify a maximum SQL length, so a larger token batch is opt-in.
+
+The app logs payload-free completed SDK request counts by service for refresh,
+acceptance, bulk acceptance, and TA categorization using the existing transport
+callback. Preview cache-hit counts are logged separately and included in the
+saved batch. Completed SDK counts include export creation, polls, and downloads,
+but exclude token-broker calls, transport exceptions, and internal HTTP retries
+because the callback fires once after retry handling. These counts are not
+Zoho API-unit usage. Organization-wide invoice fetching remains deferred until
+its page count can be compared with customer-specific fetching on production
+volume; changing the fetch strategy without that measurement could add reads.
 
 # Related Knowledge
 

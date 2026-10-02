@@ -11,6 +11,8 @@ okf_version: "0.2"
 
 ## Reference
 
+* [Customer Invoice and Payment Review](customer-invoice-payment-review.md) - Invoice discount percentages and payment allocation reports for one customer.
+
 * [Configuration Reference](configuration.md) - OAuth credentials, organization settings, environment variables, and CLI dry-run flags.
 * [Zoho Inventory Client](zoho-inventory.md) - Item and inventory API routing, purchase-account scoping, and migration requirements.
 * [Zoho Books Client](zoho-books.md) - Books resource access, pagination, and customer-only contact retrieval.

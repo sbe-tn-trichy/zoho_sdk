@@ -24,6 +24,10 @@ from workflows.collection_reconciliation import (
 )
 from workflows.core.auth import get_analytics_client, get_books_client, get_creator_client
 from workflows.core.config import Config
+try:
+    from .request_metrics import RequestMetrics
+except ImportError:
+    from request_metrics import RequestMetrics
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "payment_review.html"
 HTML = _TEMPLATE_PATH.read_text(encoding="utf-8")
@@ -35,7 +39,8 @@ def _clients(token_url: str, owner: Optional[str], org_id: str, domain: str):
     return creator, books
 
 
-def make_handler(service: OnlinePaymentReviewService, review_token: str):
+def make_handler(service: OnlinePaymentReviewService, review_token: str,
+                 metrics: Optional[RequestMetrics] = None):
     class Handler(BaseHTTPRequestHandler):
         def _json(self, value: Any, status: int = 200) -> None:
             payload = json.dumps(value, default=str).encode("utf-8")
@@ -71,6 +76,20 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str):
                 self._json({"error": "Not found"}, 404)
 
         def do_POST(self) -> None:
+            if metrics is None:
+                self._post()
+                return
+            path = urlparse(self.path).path
+            operation = (
+                "refresh" if path == "/api/refresh" else
+                "accept_many" if path == "/api/accept-selected" else
+                "categorize_travel" if path.endswith("/categorize-travel") else
+                "accept" if path.endswith("/accept") else "local_action"
+            )
+            with metrics.operation(operation):
+                self._post()
+
+        def _post(self) -> None:
             if not self._authorized():
                 self._json({"error": "Invalid review token"}, 403)
                 return
@@ -81,7 +100,11 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str):
                     raise ValueError("Explicit confirmation is required.")
                 path = urlparse(self.path).path
                 if path == "/api/refresh":
-                    self._json(service.refresh())
+                    if body.get("force_refresh"):
+                        self._json(service.refresh(force_refresh=True))
+                    else:
+                        self._json(service.refresh())
+                    logging.info("Preview cache hits: %s", service.load().get("preview_cache_hits", {}))
                     return
                 if path == "/api/accept-selected":
                     entry_ids = body.get("entry_ids")
@@ -107,6 +130,10 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str):
                 if path.startswith("/api/bank-lines/") and path.endswith("/categorize-travel"):
                     transaction_id = unquote(path[len("/api/bank-lines/"):-len("/categorize-travel")])
                     self._json(service.categorize_travel_expense(transaction_id))
+                    return
+                if path.startswith("/api/bank-lines/") and path.endswith("/categorize"):
+                    transaction_id = unquote(path[len("/api/bank-lines/"):-len("/categorize")])
+                    self._json(service.categorize_bank_line(transaction_id))
                     return
                 prefix = "/api/entries/"
                 if not path.startswith(prefix):
@@ -145,6 +172,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--creator-app", default="order-management-new")
+    parser.add_argument("--travel-expense-account-id", default=Config.PAYMENT_TRAVEL_EXPENSE_ACCOUNT_ID)
     parser.add_argument("--creator-owner", default=Config.CREATOR_OWNER_NAME or None)
     parser.add_argument(
         "--bank-account-id",
@@ -160,6 +188,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("output/collection_reconciliation/online_payments_review.json"),
     )
     parser.add_argument("--no-refresh", action="store_true")
+    parser.add_argument("--force-refresh", action="store_true",
+                        help="Bypass session preview caches on startup.")
+    parser.add_argument("--analytics-preview-ttl", type=float, default=300)
+    parser.add_argument("--customer-mapping-ttl", type=float, default=300)
+    parser.add_argument("--travel-account-ttl", type=float, default=300)
+    parser.add_argument("--analytics-batch-tokens", type=int, default=35)
+    parser.add_argument("--analytics-max-sql-bytes", type=int, default=6000)
     parser.add_argument(
         "--refresh-only",
         action="store_true",
@@ -188,6 +223,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         books,
         OnlinePaymentReviewConfig(
             creator_app_link_name=args.creator_app,
+            travel_expense_account_id=args.travel_expense_account_id,
+            salary_expense_account_id=Config.PAYMENT_SALARY_EXPENSE_ACCOUNT_ID,
+            cash_account_id=Config.PAYMENT_CASH_ACCOUNT_ID,
             bank_accounts=bank_accounts,
             payment_reports=(
                 ("Online", Config.PAYMENT_CREATOR_REPORTS["online"]),
@@ -203,11 +241,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             analytics_workspace_id="264324000000002043",
             customer_finder_view_id="264324000006111037",
             state_path=args.state,
+            analytics_preview_ttl_seconds=args.analytics_preview_ttl,
+            customer_mapping_ttl_seconds=args.customer_mapping_ttl,
+            travel_account_ttl_seconds=args.travel_account_ttl,
+            analytics_batch_tokens=args.analytics_batch_tokens,
+            analytics_max_sql_bytes=args.analytics_max_sql_bytes,
         ),
         analytics_client=get_analytics_client(org_id=args.analytics_org_id, domain=args.domain, token_url=args.token_url),
     )
-    if not args.no_refresh or not args.state.exists():
-        batch = service.refresh()
+    metrics = RequestMetrics()
+    for client, name in ((creator, "creator"), (books, "books"),
+                         (service.analytics, "analytics")):
+        metrics.attach(client, name)
+    if args.force_refresh or not args.no_refresh or not args.state.exists():
+        with metrics.operation("refresh"):
+            batch = service.refresh(force_refresh=args.force_refresh)
+        logging.info("Preview cache hits: %s", batch.get("preview_cache_hits", {}))
         logging.info(
             "Loaded %s Creator payments and %s other bank lines",
             len(batch["entries"]),
@@ -237,6 +286,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     "ready": ready,
                     "other_bank_lines": len(batch.get("bank_suggestions", [])),
                     "state": str(args.state),
+                    "preview_cache_hits": batch.get("preview_cache_hits", {}),
                 },
                 indent=2,
             ),
@@ -244,7 +294,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         return 0
     review_token = secrets.token_urlsafe(24)
-    server = ThreadingHTTPServer((args.host, args.port), make_handler(service, review_token))
+    server = ThreadingHTTPServer((args.host, args.port), make_handler(service, review_token, metrics))
     print(f"Review UI: http://{args.host}:{args.port}", flush=True)
     try:
         server.serve_forever()
