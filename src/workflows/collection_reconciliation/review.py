@@ -173,7 +173,7 @@ class OnlinePaymentReviewService:
             raw_entries = []
             for payment in payments:
                 entry = self._proposal(payment, customer_ids,
-                    [tx for tx in bank_transactions if bank_line_kind(tx) not in {"cash_deposit", "salary", "travel_allowance"}], used_transaction_ids)
+                    [tx for tx in bank_transactions if bank_line_kind(tx) not in {"cash_deposit", "salary", "travel_allowance", "vendor_advance"}], used_transaction_ids)
                 raw_entries.append(entry)
 
             # Collect remitter tokens for targeted historical lookup
@@ -269,9 +269,11 @@ class OnlinePaymentReviewService:
                     "bank_name": _text(transaction.get("_review_bank_name")),
                     "bank_account_id": _text(transaction.get("_review_bank_account_id")),
                     "kind": bank_line_kind(transaction),
-                    "customer_suggestions": customer_finder.suggest(transaction) if bank_line_kind(transaction) not in {"travel_allowance", "salary", "cash_deposit"} else [],
+                    "customer_suggestions": customer_finder.suggest(transaction) if bank_line_kind(transaction) not in {"travel_allowance", "salary", "cash_deposit", "vendor_advance"} else [],
                     "expense_account_name": (self.config.travel_expense_account_name if bank_line_kind(transaction) == "travel_allowance" else "Salary" if bank_line_kind(transaction) == "salary" else ""),
                     "transfer_account_name": "Cash-SBE" if bank_line_kind(transaction) == "cash_deposit" else "",
+                    "vendor_name": "Polycab" if bank_line_kind(transaction) == "vendor_advance" else "",
+                    "location_name": "Sri Bharath Electricals" if bank_line_kind(transaction) == "vendor_advance" else "",
                     "categorization_status": "pending",
                 })
                 if previous_bank.get(transaction_id, {}).get("categorization_status") == "categorized":
@@ -301,14 +303,14 @@ class OnlinePaymentReviewService:
         return self.categorize_bank_line(transaction_id, expected_kind="travel_allowance")
 
     def categorize_bank_line(self, transaction_id: str, *, expected_kind: str = "") -> Dict[str, Any]:
-        """Apply a reviewed travel, salary, or cash-transfer classification."""
+        """Apply a reviewed expense, cash transfer, or vendor advance classification."""
         with self._lock:
             batch = self.load()
             proposal = next(
                 (row for row in batch.get("bank_suggestions", []) if _text(row.get("transaction_id")) == transaction_id),
                 None,
             )
-            if not proposal or proposal.get("kind") not in {"travel_allowance", "salary", "cash_deposit"} or (expected_kind and proposal.get("kind") != expected_kind):
+            if not proposal or proposal.get("kind") not in {"travel_allowance", "salary", "cash_deposit", "vendor_advance"} or (expected_kind and proposal.get("kind") != expected_kind):
                 raise ReconciliationError("No matching categorization proposal exists for this bank line.")
             kind = proposal["kind"]
             if proposal.get("categorization_status") == "categorized":
@@ -324,6 +326,8 @@ class OnlinePaymentReviewService:
                 or _text(current.get("reference_number")) != _text(proposal.get("reference"))
             ):
                 raise ReconciliationError("The live bank line changed. Refresh before categorizing.")
+            if kind == "vendor_advance":
+                return self._categorize_polycab_advance(batch, proposal, current, account_id)
             configured_id = (self.config.cash_account_id if kind == "cash_deposit" else self.config.salary_expense_account_id if kind == "salary" else self.config.travel_expense_account_id)
             account_name = ("Cash-SBE" if kind == "cash_deposit" else "Salary" if kind == "salary" else self.config.travel_expense_account_name)
             if kind != "travel_allowance" and not configured_id:
@@ -382,6 +386,46 @@ class OnlinePaymentReviewService:
             proposal["source_account_id" if kind == "cash_deposit" else "expense_account_id"] = expense_account_id
             self._save(batch)
             return proposal
+
+    def _categorize_polycab_advance(
+        self, batch: Dict[str, Any], proposal: Dict[str, Any],
+        current: Mapping[str, Any], bank_account_id: str,
+    ) -> Dict[str, Any]:
+        vendors = self.books.contacts.list_all(params={"contact_type": "vendor", "search_text": "Polycab"})
+        matches = [row for row in vendors
+                   if _text(row.get("contact_name")).casefold() in {"polycab", "polycab india limited"}
+                   and _text(row.get("contact_type")).casefold() == "vendor"
+                   and _text(row.get("status")).casefold() == "active"
+                   and _text(row.get("contact_id"))]
+        if len(matches) != 1:
+            raise ReconciliationError("A unique active Polycab vendor was not found in Books.")
+        locations = self.books.locations.list_all()
+        matches_locations = [row for row in locations
+                             if _text(row.get("location_name")).casefold() == "sri bharath electricals"
+                             and row.get("is_active") is not False
+                             and _text(row.get("status")).casefold() != "inactive"
+                             and _text(row.get("location_id"))]
+        if len(matches_locations) != 1:
+            raise ReconciliationError("A unique active Sri Bharath Electricals branch was not found in Books.")
+        amount = _decimal(current.get("amount"))
+        if amount is None or amount == 0:
+            raise ReconciliationError("The bank withdrawal has no valid amount.")
+        payload = {
+            "vendor_id": _text(matches[0]["contact_id"]),
+            "location_id": _text(matches_locations[0]["location_id"]),
+            "paid_through_account_id": bank_account_id,
+            "payment_mode": "Bank Transfer", "bills": [],
+            "date": _text(current.get("date") or current.get("transaction_date")),
+            "amount": float(abs(amount)),
+            "description": _text(current.get("description") or current.get("narration")),
+            "reference_number": _text(current.get("reference_number")),
+        }
+        response = self.books.bank_transactions.categorize_as_vendor_payment(proposal["transaction_id"], payload)
+        if not isinstance(response, Mapping) or _text(response.get("code")) != "0":
+            raise ReconciliationError("Books rejected the vendor advance categorization.")
+        proposal.update(categorization_status="categorized", vendor_id=payload["vendor_id"], location_id=payload["location_id"])
+        self._save(batch)
+        return proposal
 
     def reject(self, entry_id: str) -> Dict[str, Any]:
         with self._lock:

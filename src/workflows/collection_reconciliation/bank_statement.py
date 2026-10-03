@@ -121,6 +121,11 @@ def customer_name_suggestions(
 def bank_line_kind(transaction: Mapping[str, Any]) -> str:
     kind = to_text(transaction.get("debit_or_credit") or transaction.get("transaction_type")).casefold()
     narration = _words(transaction.get("description") or transaction.get("narration"))
+    if kind in {"credit", "withdrawal", "expense"} and re.search(
+        r"(?<![a-z0-9])poly2300277498(?![a-z0-9])",
+        to_text(transaction.get("description") or transaction.get("narration")).casefold(),
+    ):
+        return "vendor_advance"
     if kind in {"debit", "deposit", "income"} and " cash deposit " in f" {narration} ":
         return "cash_deposit"
     if kind in {"credit", "withdrawal", "expense"} and " salary " in f" {narration} ":

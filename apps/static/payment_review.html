@@ -350,8 +350,8 @@
       <td>${expenseEligible(row) ? `<input type="checkbox" aria-label="Select expense" data-transaction-id="${esc(row.transaction_id)}" ${selectedExpenses.has(String(row.transaction_id)) ? 'checked' : ''} ${expensesBusy ? 'disabled' : ''} onchange="toggleExpense(this.dataset.transactionId,this.checked)">` : ''}</td>
       <td>${esc(row.bank_name)}</td><td>${esc(row.date)}</td><td class="money">${money(row.amount)}</td>
       <td>${esc(row.description)}</td>
-      <td>${['travel_allowance', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
-      <td>${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'salary', 'cash_deposit'].includes(row.kind) ? `<button class="accept" ${expensesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : 'Categorize expense'}</button>` : '<span class="muted">Review in Books</span>'}</td>
+      <td>${['travel_allowance', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.kind === 'vendor_advance' ? `Vendor advance: ${esc(row.vendor_name)} · Branch: ${esc(row.location_name)}` : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
+      <td>${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'salary', 'cash_deposit', 'vendor_advance'].includes(row.kind) ? `<button class="accept" ${expensesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : row.kind === 'vendor_advance' ? 'Categorize vendor advance' : 'Categorize expense'}</button>` : '<span class="muted">Review in Books</span>'}</td>
     </tr>`).join('') || `<tr><td colspan="7" class="muted">${expensesOnly ? 'No expense proposals.' : 'No other uncategorized bank lines.'}</td></tr>`;
   }
 
@@ -419,7 +419,7 @@
 
   async function categorizeBankLine(transactionId) {
     const row = (batch.bank_suggestions || []).find(row => String(row.transaction_id) === String(transactionId));
-    const action = row?.kind === 'cash_deposit' ? 'Transfer from Cash-SBE to the originating bank' : `Expense: ${row?.expense_account_name}`;
+    const action = row?.kind === 'vendor_advance' ? `Vendor advance: ${row.vendor_name}; Branch: ${row.location_name}` : row?.kind === 'cash_deposit' ? 'Transfer from Cash-SBE to the originating bank' : `Expense: ${row?.expense_account_name}`;
     if (!confirm(`Categorize this bank line in Books? ${action}`)) return;
     try {
       await api('/api/bank-lines/' + encodeURIComponent(transactionId) + '/categorize', 'POST');

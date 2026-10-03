@@ -58,6 +58,8 @@
 
 ## 2026-10-03
 
+- Added reviewed Polycab vendor advances for the exact bank narration token, scoped to Sri Bharath Electricals, with live-line validation and unique active vendor/branch resolution.
+
 - Grouped possible GSTIN discrepancy pairs once in the FY report, excluding their sides from the other detailed missing-document queues while preserving monthly reconciliation counts.
 
 - Added supplier and document-level unresolved review queues plus possible GSTIN discrepancy pairs to the GSTR-2 fiscal-year report after cross-month matching.

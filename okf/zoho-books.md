@@ -13,6 +13,10 @@ from `BaseResource`.
 uncategorized-line categorization endpoint. Cash transfers use
 `transaction_type="transfer_fund"`, `from_account_id`, and `to_account_id`.
 
+`bank_transactions.categorize_as_vendor_payment(transaction_id, data)` wraps
+the uncategorized-line `categorize/vendorpayments` endpoint. An advance uses
+no bill allocations; branch-scoped payments include `location_id`.
+
 `customer_payments.update_with_number_series(payment_id, data)` sends a
 multipart `JSONString` payment update with `ignore_auto_number_generation=true`.
 Use it when changing location and assigning a specific payment-number prefix

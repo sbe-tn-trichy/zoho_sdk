@@ -188,3 +188,54 @@ def test_other_bank_line_gets_analytics_narration_suggestion(tmp_path, direction
     assert suggestion["kind"] == expected_kind
     assert suggestion["customer_suggestions"] == ["Chendurs Agencies"]
     books.bank_transactions.categorize_as_expense.assert_not_called()
+
+
+@pytest.mark.parametrize("description,direction,expected", [
+    ("NEFT/POLY2300277498/TRANSFER", "credit", "vendor_advance"),
+    ("neft/poly2300277498/Salary/TA", "withdrawal", "vendor_advance"),
+    ("POLY2300277498", "debit", "deposit"),
+    ("POLY23002774980", "credit", "withdrawal"),
+    ("XPOLY2300277498", "credit", "withdrawal"),
+])
+def test_polycab_advance_rule(description, direction, expected):
+    assert bank_line_kind({"narration": description, "debit_or_credit": direction}) == expected
+
+
+@pytest.mark.parametrize("failure", ["", "changed", "vendor", "ambiguous", "location", "rejected"])
+def test_polycab_advance_reviewed_posting(tmp_path, failure):
+    creator, books = MagicMock(), MagicMock()
+    creator.get_all_records.side_effect = [[], []]
+    bank = {"transaction_id": "poly", "debit_or_credit": "credit",
+            "description": "NEFT/POLY2300277498", "date": "2026-10-01", "amount": 1000}
+    books.bank_transactions.list_all.return_value = [bank]
+    service = OnlinePaymentReviewService(creator, books, OnlinePaymentReviewConfig(
+        creator_app_link_name="app", bank_account_id="bank", state_path=tmp_path / "state.json"))
+    proposal = service.refresh()["bank_suggestions"][0]
+    assert proposal["kind"] == "vendor_advance"
+    assert proposal["vendor_name"] == "Polycab"
+    assert proposal["location_name"] == "Sri Bharath Electricals"
+    assert proposal["customer_suggestions"] == []
+    vendor = {"contact_id": "vendor", "contact_name": "Polycab India Limited", "contact_type": "vendor", "status": "active"}
+    books.contacts.list_all.return_value = [] if failure == "vendor" else [vendor, vendor] if failure == "ambiguous" else [vendor]
+    books.locations.list_all.return_value = [] if failure == "location" else [{"location_id": "sbe", "location_name": "Sri Bharath Electricals", "is_active": True}]
+    action = books.bank_transactions.categorize_as_vendor_payment
+    action.return_value = {"code": 1 if failure == "rejected" else 0}
+    if failure == "changed":
+        books.bank_transactions.list_all.return_value = [{**bank, "amount": 999}]
+    if failure:
+        with pytest.raises(ReconciliationError):
+            service.categorize_bank_line("poly")
+        if failure != "rejected":
+            action.assert_not_called()
+        assert service.load()["bank_suggestions"][0]["categorization_status"] == "pending"
+    else:
+        assert service.categorize_bank_line("poly")["categorization_status"] == "categorized"
+        payload = action.call_args.args[1]
+        assert payload["vendor_id"] == "vendor"
+        assert payload["location_id"] == "sbe"
+        assert payload["bills"] == []
+        assert payload["paid_through_account_id"] == "bank"
+        assert payload["amount"] == 1000
+        service.categorize_bank_line("poly")
+        action.assert_called_once()
+    books.bank_transactions.categorize_as_expense.assert_not_called()

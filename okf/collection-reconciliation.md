@@ -117,6 +117,15 @@ matches are never written automatically.
 
 # Online Payments Human Review
 
+Withdrawal narrations containing the exact token `POLY2300277498` (case-insensitive)
+propose a **vendor advance** to **Polycab**, branch **Sri Bharath Electricals**.
+This rule precedes salary and TA rules and excludes the line from customer matching.
+The review table shows the vendor and branch and offers individual confirmation.
+Posting revalidates the live bank line, resolves a unique active vendor named
+Polycab or Polycab India Limited and the active branch by exact name, and uses
+`categorize_as_vendor_payment` with `location_id` and no bill allocations.
+Missing or ambiguous metadata blocks posting; refresh only creates proposals.
+
 Case-insensitive whole-word narration rules reserve **CASH DEPOSIT** deposits
 for cash-to-bank transfer proposals and **Salary** withdrawals for salary
 expense proposals, excluding them from customer payment matching. Incoming
