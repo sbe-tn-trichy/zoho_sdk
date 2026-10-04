@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any
 
 from workflows.inter_location_vendor_payment_proposals import VendorPaymentMove
 
-
-def _amount(value: Any) -> Decimal:
-    return Decimal(str(value).replace("INR", "").replace(",", "").strip())
+from workflows.core.payments import (
+    PaymentState, payment_state_matches, payment_series_params, payment_series_records, payment_number_suffix,
+)
+from workflows.core.matching import parse_currency_amount as _amount
 
 
 def preflight_vendor_moves(books: Any, moves: list[VendorPaymentMove]) -> None:
@@ -20,21 +20,18 @@ def preflight_vendor_moves(books: Any, moves: list[VendorPaymentMove]) -> None:
     if len(prefixes) != 1:
         raise ValueError("Selected vendor payments must use one destination series")
     prefix = next(iter(prefixes))
-    response = books.vendor_payments.list({"payment_number_startswith": prefix,
-        "sort_column": "payment_number", "sort_order": "D", "page": 1, "per_page": 1})
-    context = response.get("page_context") or {}
-    if (context.get("sort_column") != "payment_number" or context.get("sort_order") != "D"
-            or not any(c.get("column_name") == "payment_number" and c.get("search_text") == prefix
-                       and c.get("comparator") == "startswith" for c in context.get("search_criteria") or [])):
-        raise ValueError("Books did not confirm vendor series filter and descending sort")
-    records = response.get("vendorpayments", response.get("vendor_payments", []))
+    response = books.vendor_payments.list(payment_series_params(prefix))
+    records = payment_series_records(
+        response, prefix, response_keys=("vendorpayments", "vendor_payments"),
+        error_message="Books did not confirm vendor series filter and descending sort",
+    )
     if len(records) != 1:
         raise ValueError("Destination vendor series has no highest number")
     highest = str(records[0].get("payment_number") or "")
-    if not highest.startswith(prefix) or not highest[len(prefix):].isdigit():
-        raise ValueError("Destination vendor series maximum is malformed")
+    highest_suffix = payment_number_suffix(
+        highest, prefix, error_message="Destination vendor series maximum is malformed")
     suffixes = [int(move["destination_number"][len(prefix):]) for move in moves]
-    if len(set(suffixes)) != len(suffixes) or min(suffixes) <= int(highest[len(prefix):]):
+    if len(set(suffixes)) != len(suffixes) or min(suffixes) <= highest_suffix:
         raise ValueError(f"Proposed vendor numbers collide with or precede Books maximum {highest}")
     for move in moves:
         payment = books.vendor_payments.get(move["payment_id"])["vendorpayment"]
@@ -74,25 +71,19 @@ def verify_vendor_batch(books: Any, moves: list[VendorPaymentMove]) -> list[dict
     if not moves:
         raise ValueError("Cannot verify an empty vendor batch")
     prefix = moves[0]["destination_number"].rsplit("-", 1)[0] + "-"
-    response = books.vendor_payments.list({"payment_number_startswith": prefix,
-        "sort_column": "payment_number", "sort_order": "D", "page": 1,
-        "per_page": len(moves) + max(int(m["destination_number"][len(prefix):]) for m in moves)
-                     - min(int(m["destination_number"][len(prefix):]) for m in moves)})
-    context = response.get("page_context") or {}
-    if (context.get("sort_column") != "payment_number" or context.get("sort_order") != "D"
-            or not any(c.get("column_name") == "payment_number" and c.get("search_text") == prefix
-                       and c.get("comparator") == "startswith" for c in context.get("search_criteria") or [])):
-        raise ValueError("Books did not confirm vendor batch read-back filter and sort")
-    records = response.get("vendorpayments", response.get("vendor_payments", []))
+    page_size = len(moves) + max(int(m["destination_number"][len(prefix):]) for m in moves) - min(int(m["destination_number"][len(prefix):]) for m in moves)
+    response = books.vendor_payments.list(payment_series_params(prefix, per_page=page_size))
+    records = payment_series_records(
+        response, prefix, response_keys=("vendorpayments", "vendor_payments"),
+        error_message="Books did not confirm vendor batch read-back filter and sort",
+    )
     by_id = {str(record.get("payment_id")): record for record in records}
     results: list[dict[str, str]] = []
     for move in moves:
         saved = by_id.get(move["payment_id"])
-        if (saved is None or str(saved.get("payment_number")) != move["destination_number"]
-                or str(saved.get("location_id")) != move["to_location_id"]
-                or str(saved.get("paid_through_account_id")) != move["bank_account_id"]
-                or str(saved.get("date")) != move["date"]
-                or _amount(saved.get("amount")) != _amount(move["amount"])):
+        expected = PaymentState(move["to_location_id"], move["destination_number"],
+                                move["bank_account_id"], move["date"], move["amount"])
+        if not payment_state_matches(saved, expected, bank_account_key="paid_through_account_id"):
             raise ValueError(f"Vendor batch read-back mismatch: {move['payment_id']}")
         results.append({"payment_id": move["payment_id"],
                         "payment_number": move["destination_number"], "status": "verified"})

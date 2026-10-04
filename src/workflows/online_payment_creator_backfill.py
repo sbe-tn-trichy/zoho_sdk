@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
+from workflows.core.payments import PaymentEvidence, payment_evidence_matches
 from workflows.core.checkpoint import write_atomic_json
 from workflows.core.matching import normalize_payment_reference, parse_date, to_decimal, to_text
 
@@ -42,18 +43,9 @@ def find_books_payment(
     expected_customer = to_text(values.get("customer_id"))
     if not expected_date or expected_amount is None or not expected_reference or not expected_customer:
         return None, "creator_data_incomplete"
-    candidates = []
-    for payment in payments:
-        amount = to_decimal(payment.get("amount"))
-        if to_text(payment.get("customer_id")) != expected_customer:
-            continue
-        if parse_date(payment.get("date")) != expected_date:
-            continue
-        if amount is None or abs(amount) != abs(expected_amount):
-            continue
-        if _normalized(payment.get("reference_number")) != expected_reference:
-            continue
-        candidates.append(payment)
+    evidence = PaymentEvidence(expected_date, expected_amount, expected_reference, expected_customer)
+    candidates = [payment for payment in payments if payment_evidence_matches(
+        payment, evidence, customer_key="customer_id")]
     unique = {
         to_text(payment.get("payment_id")): payment
         for payment in candidates

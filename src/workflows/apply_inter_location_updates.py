@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from typing import Any, Mapping
 
 from workflows.inter_location_location_proposals import LocationProposal
 
+from workflows.core.matching import parse_currency_amount as _amount
+
 
 ACCOUNT_ID = "1094368000002033114"
-
-
-def _amount(value: Any) -> Decimal:
-    return Decimal(str(value).replace("INR", "").replace(",", "").strip())
 
 
 def _date(value: str) -> str:

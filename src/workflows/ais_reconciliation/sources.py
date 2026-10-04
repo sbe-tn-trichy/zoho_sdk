@@ -14,6 +14,8 @@ from typing import Any, TypedDict
 from .master import Master
 from workflows.gstr3b_pnl_comparison import ComparisonConfig, compare_gstr3b_to_pnl
 
+from workflows.core.checkpoint import write_atomic_json
+
 
 class SnapshotMetadata(TypedDict):
     version: int
@@ -74,10 +76,7 @@ def read_snapshot(path: Path | str, *, organization_id: str,
 
 def write_snapshot(snapshot: BooksSnapshot, path: Path | str) -> Path:
     target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_suffix(target.suffix + ".tmp")
-    temporary.write_text(json.dumps(snapshot, ensure_ascii=True, default=str), encoding="utf-8")
-    temporary.replace(target)
+    write_atomic_json(target, snapshot, indent=None, ensure_ascii=True, default=str)
     return target
 
 

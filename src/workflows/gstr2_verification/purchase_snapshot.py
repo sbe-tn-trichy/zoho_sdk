@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from zoneinfo import ZoneInfo
@@ -11,6 +10,8 @@ from zoneinfo import ZoneInfo
 from zoho.helpers import parse_date
 
 from .bill_snapshot import _money
+
+from workflows.core.snapshots import SnapshotPolicy, refresh_snapshot
 
 
 def _date(value: Any) -> str:
@@ -87,58 +88,19 @@ def refresh_purchase_snapshot(
     analytics_loader: Callable[[], tuple[Sequence[Mapping[str, Any]], datetime]],
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """Overlay only recent Books rows; reject ignored filters or incomplete pages."""
+    """Refresh expense/credit schemas with validated recent Books changes."""
     if resource not in {"expenses", "vendor_credits"}:
         raise ValueError(f"Unsupported purchase resource: {resource}")
-    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    id_key = "expense_id" if resource == "expenses" else "vendor_credit_id"
-    response_key = "expenses" if resource == "expenses" else "vendor_credits"
-    previous = None
-    if snapshot_path.is_file():
-        loaded = json.loads(snapshot_path.read_text(encoding="utf-8"))
-        if (loaded.get("schema_version") == 1 and loaded.get("resource") == resource
-                and loaded.get("organization_id") == organization_id
-                and loaded.get("workspace_id") == workspace_id):
-            previous = loaded
-    if previous and current - _timestamp(previous["checked_at"]) <= timedelta(hours=24):
-        baseline = previous["rows"]
-        source_at = _timestamp(previous["analytics_at"])
-    else:
-        rows, source_at = analytics_loader()
-        source_at = source_at.astimezone(timezone.utc)
-        if current - source_at > timedelta(hours=24):
-            raise ValueError(f"Analytics {resource} baseline is older than 24 hours")
-        baseline = (convert_analytics_expenses(rows) if resource == "expenses"
-                    else convert_analytics_credits(rows))
-    by_id = {str(row[id_key]): dict(row) for row in baseline}
-    cutoff = current - timedelta(hours=24)
-    parameter = cutoff.strftime("%Y-%m-%dT%H:%M:%S+0000")
-    api = getattr(books, resource)
-    page = 1
-    while True:
-        response = api.list(params={"last_modified_time": parameter, "page": page, "per_page": 200})
-        rows = response.get(response_key, response.get("vendorcredits") if resource == "vendor_credits" else None)
-        if not isinstance(rows, list):
-            raise ValueError(f"Books returned an invalid {resource} page")
-        for row in rows:
-            row_id = str(row.get(id_key) or "")
-            modified = row.get("last_modified_time")
-            if not row_id or not modified:
-                raise ValueError(f"Books changed {resource} row lacks ID or modified time")
-            if _timestamp(modified) < cutoff - timedelta(minutes=5):
-                raise ValueError(f"Books did not honor the {resource} last_modified_time filter")
-            by_id[row_id] = dict(row)
-        if not response.get("page_context", {}).get("has_more_page", False):
-            break
-        if not rows:
-            raise ValueError(f"Books reported more {resource} pages but returned no rows")
-        page += 1
-    payload = {"schema_version": 1, "resource": resource,
-               "organization_id": organization_id, "workspace_id": workspace_id,
-               "analytics_at": source_at.isoformat(), "checked_at": current.isoformat(),
-               "rows": list(by_id.values())}
-    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = snapshot_path.with_suffix(snapshot_path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-    temporary.replace(snapshot_path)
-    return payload["rows"]
+
+    return refresh_snapshot(
+        api=getattr(books, resource), snapshot_path=snapshot_path,
+        organization_id=organization_id, workspace_id=workspace_id,
+        analytics_loader=analytics_loader, now=now,
+        convert_baseline=convert_analytics_expenses if resource == "expenses" else convert_analytics_credits,
+        policy=SnapshotPolicy(
+            id_key="expense_id" if resource == "expenses" else "vendor_credit_id",
+            rows_key="rows", response_keys=("expenses",) if resource == "expenses"
+                else ("vendor_credits", "vendorcredits"),
+            timestamp=_timestamp, label=resource, resource=resource,
+        ),
+    )

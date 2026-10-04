@@ -59,6 +59,16 @@ A comprehensive code audit across all `zoho_sdk` service clients identified key 
 
 ## Request Contract
 
+401 retries resolve refreshed dynamic tokens using the original request's mutation
+classification, including explicit read-only POST overrides. Rate-limit delays are
+bounded to 0–60 seconds; malformed Retry-After values retain the 12-second default.
+
+The shared workflow JSON checkpoint helper stages each write in a unique temporary
+file beside its target and removes staging files on failure. Concurrent writers
+use last-replacement-wins semantics; applications still need coordination when
+write ordering or read-modify-write transactions matter. Windows JavaScript UI
+tests send source to Node using explicit UTF-8 encoding.
+
 Concrete client `request()` overrides must remain compatible with `BaseZohoClient.request()`. New transport options must be added to every override and forwarded unchanged unless the service intentionally augments the value. Regression tests exercise streaming and timeout forwarding through a real `ZohoBooksAPI` instance.
 
 Mutation classification is based on semantics rather than legacy service-specific method lists. Unsafe HTTP methods use `CatalystAuth` mutation tokens by default. A read-like POST endpoint must opt out at its call site with `is_mutation=False` and include a test proving that it continues to use the direct read token.

@@ -5,11 +5,14 @@ Public functions:
   - reconcile_vendor_account  — low-level, requires an initialised books_client
   - reconcile_vendor          — high-level wrapper with auto-detect and client init
 """
+
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
 from ..core.matching import parse_date, reconcile_rows, to_decimal
 from .cleaner import clean_ledger_file, get_ledger_metadata
+
+from workflows.core.matching import references_intersect
 
 logger = logging.getLogger(__name__)
 
@@ -34,39 +37,24 @@ def fetch_vendor_credits(books_client: Any, params: Dict[str, Any]) -> List[Dict
 # ---------------------------------------------------------------------------
 
 def check_credit_ref(vc: Dict[str, Any], l_cm: Dict[str, Any]) -> bool:
-    vc_no  = str(vc.get("vendor_credit_number") or "").strip().lower()
-    vc_ref = str(vc.get("reference_number") or "").strip().lower()
-    led_no  = str(l_cm.get("transaction_no") or "").strip().lower()
-    led_ref = str(l_cm.get("transaction_reference") or "").strip().lower()
-    hits = []
-    if led_no:
-        hits.append(led_no == vc_no or led_no == vc_ref)
-    if led_ref:
-        hits.append(led_ref == vc_no or led_ref == vc_ref)
-    return any(hits)
+    return references_intersect(
+        (vc.get("vendor_credit_number"), vc.get("reference_number")),
+        (l_cm.get("transaction_no"), l_cm.get("transaction_reference")),
+    )
 
 
 def check_bill_ref(b: Dict[str, Any], l_inv: Dict[str, Any]) -> bool:
-    bill_no  = str(b.get("bill_number") or "").strip().lower()
-    bill_ref = str(b.get("reference_number") or "").strip().lower()
-    led_no   = str(l_inv.get("transaction_no") or "").strip().lower()
-    led_ref  = str(l_inv.get("transaction_reference") or "").strip().lower()
-    hits = []
-    if led_no:
-        hits.append(led_no == bill_no or led_no == bill_ref)
-    if led_ref:
-        hits.append(led_ref == bill_no or led_ref == bill_ref)
-    return any(hits)
+    return references_intersect(
+        (b.get("bill_number"), b.get("reference_number")),
+        (l_inv.get("transaction_no"), l_inv.get("transaction_reference")),
+    )
 
 
 def check_payment_ref(p: Dict[str, Any], l_rec: Dict[str, Any]) -> bool:
-    pay_ref = str(p.get("reference_number") or "").strip().lower()
-    led_no  = str(l_rec.get("transaction_no") or "").strip().lower()
-    led_ref = str(l_rec.get("transaction_reference") or "").strip().lower()
-    hits = []
-    if pay_ref:
-        hits.append(pay_ref == led_no or pay_ref == led_ref)
-    return any(hits)
+    return references_intersect(
+        (p.get("reference_number"),),
+        (l_rec.get("transaction_no"), l_rec.get("transaction_reference")),
+    )
 
 
 # ---------------------------------------------------------------------------

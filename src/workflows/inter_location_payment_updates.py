@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from typing import Any, Mapping, TypedDict
+
+from workflows.core.payments import (
+    PaymentState, payment_state_matches, payment_series_params, payment_series_records, payment_number_suffix,
+)
+from workflows.core.matching import parse_currency_amount as _amount
 
 
 class PaymentMove(TypedDict):
@@ -20,10 +24,6 @@ class PaymentMove(TypedDict):
     suffix: str
 
 
-def _amount(value: Any) -> Decimal:
-    return Decimal(str(value).replace("INR", "").replace(",", "").strip())
-
-
 def plan_customer_payment_moves(
     books: Any, proposals: list[Mapping[str, Any]], *, prefix: str,
     last_suffix: int | None = None, limit: int | None = None,
@@ -37,24 +37,16 @@ def plan_customer_payment_moves(
                        and p.get("expected_number_prefix") == prefix
                        and str(p.get("payment_id")) not in excluded_payment_ids),
                       key=lambda p: (datetime.strptime(p["date"], "%d/%m/%Y"), p["payment_id"]))
-    page = books.customer_payments.list({
-        "payment_number_startswith": prefix, "sort_column": "payment_number",
-        "sort_order": "D", "page": 1, "per_page": 1,
-    })
-    context = page.get("page_context") or {}
-    criteria = context.get("search_criteria") or []
-    if (context.get("sort_column") != "payment_number" or context.get("sort_order") != "D"
-            or not any(item.get("column_name") == "payment_number"
-                       and item.get("search_text") == prefix
-                       and item.get("comparator") == "startswith" for item in criteria)):
-        raise ValueError("Books did not confirm the requested series filter and descending sort")
-    records = page.get("customer_payments", page.get("customerpayments", []))
+    page = books.customer_payments.list(payment_series_params(prefix))
+    records = payment_series_records(
+        page, prefix, response_keys=("customer_payments", "customerpayments"),
+        error_message="Books did not confirm the requested series filter and descending sort",
+    )
     if len(records) != 1:
         raise ValueError(f"No existing Books number found for {prefix}")
     highest_number = str(records[0].get("payment_number") or "")
-    if not highest_number.startswith(prefix) or not highest_number[len(prefix):].isdigit():
-        raise ValueError(f"Unexpected highest Books payment number: {highest_number}")
-    highest_suffix = int(highest_number[len(prefix):])
+    highest_suffix = payment_number_suffix(
+        highest_number, prefix, error_message=f"Unexpected highest Books payment number: {highest_number}")
     if last_suffix is None:
         last_suffix = highest_suffix
     elif last_suffix < highest_suffix:
@@ -107,11 +99,9 @@ def apply_customer_payment_move(books: Any, move: PaymentMove) -> dict[str, str]
     submit_customer_payment_move(books, move)
     payment_id = move["payment_id"]
     after = books.customer_payments.get(payment_id)["payment"]
-    if (str(after.get("location_id")) != move["target_location_id"]
-            or str(after.get("payment_number")) != move["new_number"]
-            or str(after.get("account_id")) != move["bank_account_id"]
-            or str(after.get("date")) != move["date"]
-            or _amount(after.get("amount")) != _amount(move["amount"])):
+    expected = PaymentState(move["target_location_id"], move["new_number"],
+                            move["bank_account_id"], move["date"], move["amount"])
+    if not payment_state_matches(after, expected, bank_account_key="account_id"):
         raise ValueError(f"Post-update verification failed for {payment_id}; inspect Books before retrying")
     return {"payment_id": payment_id, "payment_number": move["new_number"],
             "location_id": move["target_location_id"], "status": "verified"}
@@ -141,29 +131,20 @@ def verify_customer_payment_batch(books: Any, moves: list[PaymentMove]) -> list[
     if len(prefixes) != 1:
         raise ValueError("Batch payments must use one number series")
     prefix = next(iter(prefixes))
-    page = books.customer_payments.list({
-        "payment_number_startswith": prefix, "sort_column": "payment_number",
-        "sort_order": "D", "page": 1, "per_page": len(moves),
-    })
-    context = page.get("page_context") or {}
-    criteria = context.get("search_criteria") or []
-    if (context.get("sort_column") != "payment_number" or context.get("sort_order") != "D"
-            or not any(item.get("column_name") == "payment_number"
-                       and item.get("search_text") == prefix
-                       and item.get("comparator") == "startswith" for item in criteria)):
-        raise ValueError("Books did not confirm the batch read-back filter and sort")
-    records = page.get("customer_payments", page.get("customerpayments", []))
+    page = books.customer_payments.list(payment_series_params(prefix, per_page=len(moves)))
+    records = payment_series_records(
+        page, prefix, response_keys=("customer_payments", "customerpayments"),
+        error_message="Books did not confirm the batch read-back filter and sort",
+    )
     by_id = {str(record.get("payment_id")): record for record in records}
     if len(by_id) != len(moves):
         raise ValueError("Batch read-back did not return all updated payments")
     results: list[dict[str, str]] = []
     for move in moves:
         record = by_id.get(move["payment_id"])
-        if (record is None or str(record.get("payment_number")) != move["new_number"]
-                or str(record.get("location_id")) != move["target_location_id"]
-                or str(record.get("account_id")) != move["bank_account_id"]
-                or str(record.get("date")) != move["date"]
-                or _amount(record.get("amount")) != _amount(move["amount"])):
+        expected = PaymentState(move["target_location_id"], move["new_number"],
+                                move["bank_account_id"], move["date"], move["amount"])
+        if not payment_state_matches(record, expected, bank_account_key="account_id"):
             raise ValueError(f"Batch read-back mismatch for {move['payment_id']}")
         results.append({"payment_id": move["payment_id"], "payment_number": move["new_number"],
                         "location_id": move["target_location_id"], "status": "verified"})

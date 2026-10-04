@@ -1,5 +1,11 @@
 # Knowledge Change Log
 
+## 2026-10-04
+
+- Consolidated workflow snapshot overlays, atomic JSON/CSV persistence, payment-series validation/read-back, payment evidence matching and ledger reference comparisons in typed core helpers, retaining resource-specific policies and compatibility APIs.
+
+- Preserved dynamic mutation-token routing during 401 refresh retries, bounded negative retry delays, isolated concurrent JSON checkpoint staging with failure cleanup, and fixed Windows UTF-8 input for the payment review JavaScript test.
+
 ## 2026-10-03
 
 - Grouped possible GSTIN discrepancy pairs once in the FY report, excluding their sides from the other detailed missing-document queues while preserving monthly reconciliation counts.

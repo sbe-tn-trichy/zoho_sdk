@@ -10,6 +10,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Mapping, TypedDict
 
+from workflows.core.checkpoint import atomic_text_writer
+
 
 class ComparisonRow(TypedDict):
     period: str
@@ -190,14 +192,8 @@ def compare_gstr3b_to_pnl(
 
 def write_comparison_csv(rows: list[ComparisonRow], path: Path) -> Path:
     """Write a validated comparison to CSV, replacing an existing report atomically."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    try:
-        with temporary.open("w", newline="", encoding="utf-8-sig") as handle:
-            writer = csv.DictWriter(handle, fieldnames=FIELDS)
-            writer.writeheader()
-            writer.writerows(rows)
-        temporary.replace(path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    with atomic_text_writer(path, encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
     return path

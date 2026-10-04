@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
+
+from workflows.core.checkpoint import write_atomic_json
 
 
 def sync_account_catalog(
@@ -137,9 +138,4 @@ def refresh_mapping_account_names(
 
 def write_mapping_config(path: Path, config: Mapping[str, Any]) -> None:
     """Atomically write refreshed mapping metadata."""
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(
-        json.dumps(config, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    os.replace(temporary, path)
+    write_atomic_json(path, config, ensure_ascii=False, default=None)

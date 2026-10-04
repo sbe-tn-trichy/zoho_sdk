@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 from zoho.helpers import parse_date
+
+from workflows.core.snapshots import SnapshotPolicy, refresh_snapshot
 
 
 def _money(value: Any) -> float:
@@ -88,77 +89,20 @@ def unchanged_zero_tax_expenses(
 
 
 def refresh_bill_snapshot(
-    *,
-    books: Any,
-    snapshot_path: Path,
-    organization_id: str,
-    workspace_id: str,
+    *, books: Any, snapshot_path: Path, organization_id: str, workspace_id: str,
     analytics_loader: Callable[[], tuple[Sequence[Mapping[str, Any]], Sequence[Mapping[str, Any]], datetime]],
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    """Use a recent local snapshot or Analytics, then overlay 24h Books edits.
+    """Refresh the bill schema using a validated Analytics/Books overlay."""
+    def load_baseline() -> tuple[tuple[Sequence[Mapping[str, Any]], Sequence[Mapping[str, Any]]], datetime]:
+        bills, vendors, source_at = analytics_loader()
+        return (bills, vendors), source_at
 
-    A stale snapshot is rebased from Analytics before the delta. Snapshot writes
-    occur only after all pages pass validation, preserving the prior good copy.
-    """
-    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    snapshot: Mapping[str, Any] | None = None
-    if snapshot_path.is_file():
-        loaded = json.loads(snapshot_path.read_text(encoding="utf-8"))
-        if (loaded.get("schema_version") == 1
-                and loaded.get("organization_id") == organization_id
-                and loaded.get("workspace_id") == workspace_id):
-            snapshot = loaded
-    if snapshot and current - _timestamp(str(snapshot["checked_at"])) <= timedelta(hours=24):
-        baseline = list(snapshot["bills"])
-        source_at = _timestamp(str(snapshot["analytics_at"]))
-    else:
-        bill_rows, vendor_rows, source_at = analytics_loader()
-        if source_at.tzinfo is None:
-            raise ValueError("Analytics export timestamp must include a timezone")
-        source_at = source_at.astimezone(timezone.utc)
-        if current - source_at > timedelta(hours=24):
-            raise ValueError("Analytics bill baseline is older than 24 hours")
-        baseline = convert_analytics_bills(bill_rows, vendor_rows)
-
-    # The 24-hour overlap covers Analytics' three-hour sync lag and edits made
-    # while the export was running. Do not advance the snapshot on API failure.
-    cutoff = current - timedelta(hours=24)
-    parameter = cutoff.strftime("%Y-%m-%dT%H:%M:%S+0000")
-    by_id = {str(row["bill_id"]): dict(row) for row in baseline}
-    page = 1
-    while True:
-        response = books.bills.list(params={
-            "last_modified_time": parameter, "page": page, "per_page": 200,
-        })
-        rows = response.get("bills", [])
-        if not isinstance(rows, list):
-            raise ValueError("Books returned an invalid bills page")
-        for row in rows:
-            bill_id = str(row.get("bill_id") or "")
-            modified = str(row.get("last_modified_time") or "")
-            if not bill_id or not modified:
-                raise ValueError("Books changed bill lacks ID or modified time")
-            parsed = datetime.fromisoformat(modified.replace("Z", "+00:00"))
-            if parsed.tzinfo is None or parsed.astimezone(timezone.utc) < cutoff - timedelta(minutes=5):
-                raise ValueError("Books did not honor the last_modified_time filter")
-            by_id[bill_id] = dict(row)
-        if not response.get("page_context", {}).get("has_more_page", False):
-            break
-        if not rows:
-            raise ValueError("Books reported more changed bills but returned an empty page")
-        page += 1
-
-    payload = {
-        "schema_version": 1,
-        "organization_id": organization_id,
-        "workspace_id": workspace_id,
-        "analytics_at": source_at.isoformat(),
-        "checked_at": current.isoformat(),
-        "bills": list(by_id.values()),
-    }
-    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = snapshot_path.with_suffix(snapshot_path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-    temporary.replace(snapshot_path)
-    return payload["bills"]
+    return refresh_snapshot(
+        api=books.bills, snapshot_path=snapshot_path, organization_id=organization_id,
+        workspace_id=workspace_id, analytics_loader=load_baseline, now=now,
+        convert_baseline=lambda rows: convert_analytics_bills(*rows),
+        policy=SnapshotPolicy(id_key="bill_id", rows_key="bills", response_keys=("bills",),
+                              timestamp=_timestamp, label="bill", require_source_timezone=True,
+                              missing_page_is_empty=True),
+    )

@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from zoho.helpers import unwrap_record
+
+from workflows.core.checkpoint import write_atomic_json
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,6 @@ class CustomerPaymentDateUpdater:
         }
 
         if checkpoint_path:
-            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-            checkpoint_path.write_text(json.dumps(output_payload, indent=2) + "\n", encoding="utf-8")
+            write_atomic_json(checkpoint_path, output_payload, default=None)
 
         return output_payload

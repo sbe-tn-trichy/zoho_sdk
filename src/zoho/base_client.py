@@ -290,7 +290,10 @@ class BaseZohoClient:
                             f"{self.service_name.capitalize()} token refresh returned an empty token."
                         )
                     self.access_token = refreshed_token
-                    token = str(refreshed_token)
+                    if hasattr(refreshed_token, "get_token_for_request"):
+                        token = refreshed_token.get_token_for_request(actual_is_mutation)
+                    else:
+                        token = str(refreshed_token)
                 else:
                     token = current_token
                 req_headers["Authorization"] = f"Zoho-oauthtoken {token}"
@@ -321,7 +324,7 @@ class BaseZohoClient:
                     header_val = response.headers.get("Retry-After")
                     if header_val:
                         try:
-                            retry_after = min(int(header_val), 60)
+                            retry_after = max(0, min(int(header_val), 60))
                         except Exception:
                             pass
                 self.logger.warning(

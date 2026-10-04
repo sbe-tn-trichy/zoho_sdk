@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from typing import Any, Mapping, TypedDict
+
+from workflows.core.payments import payment_series_params, payment_series_records, payment_number_suffix
+from workflows.core.matching import parse_currency_amount as _amount
 
 
 class VendorPaymentMove(TypedDict):
@@ -19,28 +21,17 @@ class VendorPaymentMove(TypedDict):
     bill_numbers: list[str]
 
 
-def _amount(value: Any) -> Decimal:
-    return Decimal(str(value).replace("INR", "").replace(",", "").strip())
-
-
 def _last_suffix(books: Any, prefix: str) -> int:
-    response = books.vendor_payments.list({
-        "payment_number_startswith": prefix, "sort_column": "payment_number",
-        "sort_order": "D", "page": 1, "per_page": 1,
-    })
-    context = response.get("page_context") or {}
-    if (context.get("sort_column") != "payment_number" or context.get("sort_order") != "D"
-            or not any(c.get("column_name") == "payment_number" and c.get("search_text") == prefix
-                       and c.get("comparator") == "startswith"
-                       for c in context.get("search_criteria") or [])):
-        raise ValueError(f"Books did not confirm vendor series lookup: {prefix}")
-    records = response.get("vendorpayments", response.get("vendor_payments", []))
+    response = books.vendor_payments.list(payment_series_params(prefix))
+    records = payment_series_records(
+        response, prefix, response_keys=("vendorpayments", "vendor_payments"),
+        error_message=f"Books did not confirm vendor series lookup: {prefix}",
+    )
     if len(records) != 1:
         raise ValueError(f"No existing vendor payment found in {prefix}")
     number = str(records[0].get("payment_number") or "")
-    if not number.startswith(prefix) or not number[len(prefix):].isdigit():
-        raise ValueError(f"Invalid highest vendor payment number: {number}")
-    return int(number[len(prefix):])
+    return payment_number_suffix(
+        number, prefix, error_message=f"Invalid highest vendor payment number: {number}")
 
 
 def propose_vendor_payment_moves(

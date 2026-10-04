@@ -74,6 +74,12 @@ exempt or zero-rated.
 The Books vendor-credit endpoint is `vendorcredits`. The verifier accepts both
 `vendor_credits` and `vendorcredits` response keys in the change overlay.
 
+Bill, expense and vendor-credit snapshot refreshes share
+`workflows.core.snapshots.refresh_snapshot`. Resource adapters retain their
+existing schema, timestamp and conversion policies while the helper owns cache
+reuse, freshness checks, validated change overlays and atomic writes. See
+[shared workflow helpers](workflow-helpers.md).
+
 Approved many-to-one purchase entries, including supplier debit notes, can be described in a local JSON map
 (`output/gstr2_aggregate_mappings.json` by default). The CLI and dashboard
 load this map automatically. A mapping removes individual portal invoices and

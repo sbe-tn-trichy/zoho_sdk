@@ -5,6 +5,43 @@ description: Payment inspection and renumbering, customer validation and invoice
 
 # Workflow helpers and API migration
 
+## Shared workflow mechanics
+
+Supported helpers are exported from `workflows.core`; their implementations stay
+in small modules rather than a single generic workflow engine.
+
+- `core.snapshots.refresh_snapshot` owns scoped cache reuse, baseline freshness,
+  complete 200-row change pagination, modified-time validation, ID overlays and
+  atomic persistence. `SnapshotPolicy` carries schema/response keys and timestamp
+  parsing; adapters provide Analytics loaders and converters. GSTR-2 bills retain
+  the `bills` snapshot field and mandatory timezone timestamps; expense/credit
+  snapshots retain `resource`/`rows`, alternate credit response keys and their
+  Asia/Kolkata assumption for timezone-free row timestamps. Baseline freshness is
+  checked before conversion. Adapters retain empty-data and tax-mapping rules.
+- `core.payments` provides descending series request parameters, confirmed filter
+  and sort validation, suffix extraction, and `PaymentState` read-back checks.
+  Customer/vendor workflows pass their own response keys and bank-account fields,
+  and retain allocation preflight, numbering, mutation and recovery policies.
+- `PaymentEvidence`, `payment_evidence_matches` and `build_payment_indexes` share
+  normalized reference/date/absolute-amount matching and native indexes. The two
+  payment backfills retain opposite write directions and distinct identifier
+  conflict rules. Customer-name matching is an explicit adapter; customer-ID
+  matching does not substitute a display name.
+- `core.matching.parse_currency_amount` preserves strict Decimal currency/grouping
+  parsing for reviewed moves, including invalid-input exceptions. It does not
+  impose a new finite/sign policy. `references_intersect` compares only nonempty,
+  stripped, lowercased references; it does not remove punctuation.
+- `core.checkpoint.atomic_text_writer` stages a unique file beside its target,
+  preserves the prior target when formatting fails, closes before replacement,
+  retries Windows file-lock errors and cleans staging files. `write_atomic_json`
+  uses it and exposes indentation, ASCII escaping and serialization options.
+  AIS, account mapping, collection review, payment-date checkpoints and GSTR-2
+  snapshots use this shared persistence; GSTR-3B CSV retains its UTF-8 BOM.
+
+Atomic replacement gives concurrent writers last-replacement-wins semantics,
+not a read-modify-write transaction. Financial mutation and snapshot policies
+remain in their domain workflows. Compatibility entry points are retained.
+
 Generic document-number parsing lives in `zoho.helpers.sequences.parse_doc_number`.
 It returns `(prefix, trailing_integer, observed_width)`; width zero means no
 numeric suffix. The old Books GST import remains a lower-layer re-export.

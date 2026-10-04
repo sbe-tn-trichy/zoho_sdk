@@ -11,7 +11,7 @@ okf_version: "0.2"
 
 ## Reference
 
-* [Workflow Helpers and Migration](workflow-helpers.md) - Shared FY/sequence contracts, payment inspection and safe renumbering, customer validation and YAML sales-order API replacements.
+* [Workflow Helpers and Migration](workflow-helpers.md) - Shared snapshots, persistence, payment identity/series/read-back helpers, FY/sequence contracts, and workflow API migrations.
 
 * [AIS Master Reconciliation](ais-reconciliation.md) - Efficient read-only AIS master comparison with Books, explicit purchase bases and snapshot replay.
 

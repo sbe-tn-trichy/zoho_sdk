@@ -80,7 +80,7 @@ categorizeSelectedExpenses().then(() => {
 }).catch(error => { console.error(error); process.exitCode = 1; });
 `, {document, assert, console, process, confirm() {return true;}, setTimeout() {}, fetch() {return new Promise(() => {});}});
 """
-        subprocess.run([node, "-e", harness], input=script, text=True, check=True,
+        subprocess.run([node, "-e", harness], input=script, encoding="utf-8", check=True,
                        capture_output=True)
 
     def test_html_offers_ambiguous_review_with_candidate_details(self):

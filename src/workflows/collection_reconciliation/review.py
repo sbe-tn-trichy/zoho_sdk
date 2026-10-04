@@ -35,6 +35,8 @@ from .bank_statement import (
     is_travel_allowance_withdrawal,
 )
 
+from workflows.core.checkpoint import write_atomic_json
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -1423,11 +1425,4 @@ class OnlinePaymentReviewService:
         entry["bank_name"] = name
 
     def _save(self, batch: Mapping[str, Any]) -> None:
-        path = self.config.state_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(batch, indent=2, default=str) + "\n",
-            encoding="utf-8",
-        )
-        temporary.replace(path)
+        write_atomic_json(self.config.state_path, batch)

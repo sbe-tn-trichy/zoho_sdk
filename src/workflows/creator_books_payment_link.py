@@ -8,9 +8,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from zoho.helpers.transactions import unwrap_record
+
+from workflows.core.payments import PaymentEvidence, build_payment_indexes, payment_evidence_matches
 from workflows.core.checkpoint import write_atomic_json
 from workflows.core.matching import normalize_payment_reference, parse_date, to_decimal, to_text
-from zoho.helpers.transactions import unwrap_record
 
 
 def _normalized(value: Any) -> str:
@@ -20,16 +22,7 @@ def _normalized(value: Any) -> str:
 def build_native_payment_indexes(
     payments: Sequence[Mapping[str, Any]],
 ) -> Tuple[Dict[str, Mapping[str, Any]], Dict[str, List[Mapping[str, Any]]]]:
-    by_id: Dict[str, Mapping[str, Any]] = {}
-    by_number: Dict[str, List[Mapping[str, Any]]] = {}
-    for payment in payments:
-        payment_id = to_text(payment.get("payment_id") or payment.get("id"))
-        payment_number = _normalized(payment.get("payment_number"))
-        if payment_id:
-            by_id[payment_id] = payment
-        if payment_number:
-            by_number.setdefault(payment_number, []).append(payment)
-    return by_id, by_number
+    return build_payment_indexes(payments)
 
 
 def resolve_books_payment(
@@ -62,18 +55,9 @@ def resolve_books_payment(
     target_amount = to_decimal(creator.get("amount"))
     target_reference = _normalized(creator.get("reference"))
     target_customer = _normalized(creator.get("customer_name"))
-    candidates: List[Mapping[str, Any]] = []
-    for payment in payments:
-        amount = to_decimal(payment.get("amount"))
-        if parse_date(payment.get("date")) != target_date:
-            continue
-        if amount is None or target_amount is None or abs(amount) != abs(target_amount):
-            continue
-        if _normalized(payment.get("reference_number")) != target_reference:
-            continue
-        if _normalized(payment.get("customer_name")) != target_customer:
-            continue
-        candidates.append(payment)
+    evidence = PaymentEvidence(target_date, target_amount, target_reference, target_customer)
+    candidates = [payment for payment in payments if payment_evidence_matches(
+        payment, evidence, customer_key="customer_name", normalize_customer=_normalized)]
     if len(candidates) == 1:
         return candidates[0], "date_amount_reference_customer"
     if len(candidates) > 1:

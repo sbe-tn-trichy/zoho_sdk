@@ -40,6 +40,22 @@ def to_text(value: Any) -> str:
     return "" if value is None else str(value).strip()
 
 
+def parse_currency_amount(value: Any, *, currency: str = "INR") -> Decimal:
+    """Parse the strict currency/grouping format used by reviewed payment moves.
+
+    Keeps Decimal's invalid-input exceptions and numeric semantics; callers retain
+    their own finite/sign policy rather than silently treating invalid values as zero.
+    """
+    return Decimal(str(value).replace(currency, "").replace(",", "").strip())
+
+
+def references_intersect(left: Sequence[Any], right: Sequence[Any]) -> bool:
+    """Compare nonempty references after stripping and lowercasing only."""
+    left_refs = {str(value or "").strip().lower() for value in left} - {""}
+    right_refs = {str(value or "").strip().lower() for value in right} - {""}
+    return bool(left_refs & right_refs)
+
+
 def normalize_payment_reference(value: Any) -> str:
     """Normalize a payment or transaction reference: strip whitespace, remove punctuation/non-alphanumerics, casefold."""
     return "".join(character for character in to_text(value).casefold() if character.isalnum())
