@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
+import yaml
 
 from apps import update_books_statement_sheet as app
 from workflows.books_pnl_notes import NOTE_INPUTS, NOTE_SHEET
@@ -29,9 +30,9 @@ def test_pnl_only_preview_uses_saved_mapping_without_catalog(monkeypatch, tmp_pa
 
 
 def test_main_uses_dedicated_default_mapping(monkeypatch, tmp_path, capsys):
-    mapping_path = tmp_path / "books_statement_mapping.json"
-    mapping_path.write_text(json.dumps({
-        "spreadsheet_id": "sheet-from-json",
+    mapping_path = tmp_path / "accounting-mapping.yaml"
+    mapping_path.write_text(yaml.safe_dump({
+        "spreadsheet_id": "sheet-from-yaml",
         "location_ids": ["location-1", "location-2"],
         "mappings": [{
             "report": "profitandloss",
@@ -160,3 +161,18 @@ def test_equity_apply_requires_closing_formula(monkeypatch, tmp_path):
     with pytest.raises(ValueError, match="Expected closing-balance formula"):
         app.main([str(path), "--equity-only", "--apply"])
     app.requests.post.assert_not_called()
+
+
+@pytest.mark.parametrize("content", ["mappings: [", "- invalid-root"])
+def test_invalid_yaml_fails_before_api_access(monkeypatch, tmp_path, content):
+    path = tmp_path / "mapping.yaml"
+    path.write_text(content, encoding="utf-8")
+    client = Mock()
+    monkeypatch.setattr(app, "get_books_client", client)
+    with pytest.raises(SystemExit):
+        app.main([str(path)])
+    client.assert_not_called()
+
+
+def test_default_mapping_path():
+    assert app.DEFAULT_MAPPING == app.PROJECT_ROOT / "config" / "accounting-mapping.yaml"

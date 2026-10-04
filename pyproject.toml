@@ -14,6 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 workflows = [
+    "PyYAML>=6.0.3",
     "xlrd>=2.0.1",
     "pdfplumber>=0.10.0",
     "python-dotenv>=1.0.0",

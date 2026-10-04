@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence
 
-from workflows.core.checkpoint import write_atomic_json
+from workflows.core.checkpoint import atomic_text_writer, write_atomic_json
 
 
 def sync_account_catalog(
@@ -113,11 +113,11 @@ def refresh_mapping_account_names(
     """Refresh ordered account_names arrays for every account-ID mapping."""
     mappings = config.get("mappings")
     if not isinstance(mappings, list):
-        raise ValueError("Mapping JSON must contain a mappings array")
+        raise ValueError("Mapping configuration must contain a mappings array")
     changed = False
     for mapping in mappings:
         if not isinstance(mapping, MutableMapping):
-            raise ValueError("Every mapping must be a JSON object")
+            raise ValueError("Every mapping must be an object")
         raw_ids = mapping.get("account_ids")
         if raw_ids is None:
             continue
@@ -138,4 +138,11 @@ def refresh_mapping_account_names(
 
 def write_mapping_config(path: Path, config: Mapping[str, Any]) -> None:
     """Atomically write refreshed mapping metadata."""
-    write_atomic_json(path, config, ensure_ascii=False, default=None)
+    if path.suffix.lower() in {".yaml", ".yml"}:
+        import yaml
+
+        text = yaml.safe_dump(dict(config), allow_unicode=True, sort_keys=False)
+        with atomic_text_writer(path) as staged:
+            staged.write(text)
+    else:
+        write_atomic_json(path, config, ensure_ascii=False, default=None)

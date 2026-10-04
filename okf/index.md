@@ -11,6 +11,8 @@ okf_version: "0.2"
 
 ## Reference
 
+* [GST Cash-ledger Comparison](gst-cash-ledger.md) - Cash tax balances versus output minus input GST.
+
 * [Workflow Helpers and Migration](workflow-helpers.md) - Shared snapshots, persistence, payment identity/series/read-back helpers, FY/sequence contracts, and workflow API migrations.
 
 * [AIS Master Reconciliation](ais-reconciliation.md) - Efficient read-only AIS master comparison with Books, explicit purchase bases and snapshot replay.
@@ -22,6 +24,7 @@ okf_version: "0.2"
 * [Zoho Books Client](zoho-books.md) - Books resource access, pagination, and customer-only contact retrieval.
 * [Books Financial Statement Sheet](books-statement-sheet.md) - Reviewed Books report mappings into the linked FY 2025–26 Google Sheets template.
 * [Filed IT Balance Sheet Comparison](it-balance-sheet-comparison.md) - Read-only FY 2024–25 filed balance-sheet comparison with Books.
+* [Audited Financials Comparison](audited-financials-comparison.md) - Audited XLSX P&L, balance sheet and stock comparison with live or saved Books reports and editable YAML mapping.
 * [Duplicate Customer Payment Check](duplicate-payment-check.md) - Read-only detection of customer payments sharing the same customer, date, and amount.
 * [Customer Payment Date Mismatch](customer-payment-date-mismatch.md) - Read-only detection of customer payments where payment date differs from invoice application dates.
 * [Polycab RSO Import](polycab-rso-import.md) - Parse Polycab return-sales-order PDFs, create location-scoped Books sales orders, and attach the source PDF.

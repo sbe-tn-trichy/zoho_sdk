@@ -78,6 +78,28 @@ uses that relationship to keep different GST registrations isolated.
 
 ## Financial account transactions
 
+`reports.trial_balance(from_date=..., to_date=..., rule=None, cash_based=False,
+show_rows="non_zero")` requests `reports/trialbalance` with opening balance,
+net debit, net credit and closing balance columns, preserving the raw response
+and Dr/Cr formatting. Use `show_rows="all"` to include zero rows. It validates
+date order, basis and any echoed rule. Organization and OAuth authentication
+come from the SDK client; browser cookies and CSRF headers are unnecessary.
+
+`workflows.fetch_trial_balance_for_gstin(api, from_date=..., to_date=...,
+gstin=...)` applies the registration's configured location scope.
+`workflows.fetch_trial_balance_for_firm(api, from_date=..., to_date=..., firm="BD")`
+accepts case-insensitive firm aliases with normalized whitespace from
+`config/firm-reports.yaml`; identities, GSTINs, default firm and location scopes
+are configuration data, with no registration-specific constants in the helper.
+Omitting `firm` uses the YAML `default_firm`. Pass `config_path=Path(...)` or set
+`FIRM_REPORT_CONFIG` to select another YAML. The older GSTIN helper delegates to
+this helper and also accepts configured firm aliases. Unknown firms and invalid
+or ambiguous configurations fail before any request. These are reviewed
+organization-specific scopes, not automatic discovery from GSTIN.
+The helper returns the report without writing files
+and supplies the audited comparison's trial-balance snapshot. Public OAuth endpoint
+availability still needs live verification; automated tests mock network access.
+
 `reports.profit_and_loss_schedule_format(from_date=..., to_date=..., rule=...)`
 requests the schedule-format P&L figures for an explicit ISO date range. The
 `zoho.helpers.fetch_profit_and_loss_schedule_format(api, from_date=...,
@@ -162,6 +184,35 @@ required.
 transactions = api.chart_of_accounts.list_all_transactions(
     "123456789",
     {"date_start": "2026-04-01", "date_end": "2026-04-30"},
+)
+```
+
+## Account Transactions report
+
+`reports.account_transactions(account_ids, *, from_date, to_date, page=1,
+per_page=500, cash_based=False, response_option=0)` calls the OAuth API route
+`reports/accounttransaction`. Option `0` returns raw nested
+`account_transactions` groups, opening/closing balances, totals, and
+`page_context.has_more_page`. Option `2` returns count metadata in
+`page_context.total` and `total_pages`, without transaction rows. Both options
+were verified live against the public API.
+
+The method mirrors the browser's ungrouped report with an account-ID `in`
+rule, running balance and branch location columns, and explicit custom dates.
+It validates the echoed date range, basis, account rule and page, plus the
+option-specific payload and pagination fields. It returns a single page;
+callers must fetch further pages while `has_more_page` is true. Dates are
+required: omitting them can default to the current month. Browser session
+headers and CSRF tokens are unnecessary; the client supplies OAuth and
+organization scope.
+
+```python
+rows = api.reports.account_transactions(
+    [account_id], from_date="2022-08-01", to_date="2026-10-31"
+)
+counts = api.reports.account_transactions(
+    [account_id], from_date="2022-08-01", to_date="2026-10-31",
+    response_option=2,
 )
 ```
 

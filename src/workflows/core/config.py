@@ -58,6 +58,7 @@ def _load_config_dict(
     project_root = project_root or root_dir
     home = home or Path.home()
     candidate_paths = [
+        project_root / "config" / "config.json",
         project_root / "zoho_config.json",
         project_root / "config.json",
         home / ".config" / "zoho" / "config.json",

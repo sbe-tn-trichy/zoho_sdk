@@ -18,7 +18,7 @@ Runtime configuration is loaded using a prioritized multi-tier hierarchy:
 
 1. **Environment Variables**: Explicit process environment variables (`os.environ`).
 2. **Project `.env` File**: Local `.env` in the repository root (not committed).
-3. **Project Configuration File (`zoho_config.json` or `config.json`)**: Local JSON configuration profile in the project root (ignored in `.gitignore`).
+3. **Project Configuration File**: `config/config.json` is preferred, followed by legacy root `zoho_config.json` and `config.json` (all ignored in `.gitignore`).
 4. **User Home Config (`~/.config/zoho/config.json` or `~/.zoho/config.json`)**: User-level global configuration profiles.
 
 The first existing JSON file in that order is authoritative. Invalid JSON,
@@ -31,7 +31,26 @@ can organize settings into readable module and workflow sections (`core`,
 `dashboard`, `creator`, `neoseal`, `polycab`, `fan`, `zeiss`, `banking`), or
 declare flat keys directly; grouped keys are automatically flattened for runtime lookup.
 
+Keep the local accounting mapping in `config/accounting-mapping.yaml` alongside
+the runtime JSON. `config/accounting-mapping.example.yaml` documents calculation
+coefficients, report paths, and spreadsheet-row account mappings with generic
+account names. Copy and adapt the example to the exact Books account names and
+target workbook rows. The mapping is separate from runtime JSON configuration;
+the Books statement sheet updater uses this path by default, including its
+spreadsheet ID, location scope, statement mappings, equity, and P&L notes.
+Other accounting report tooling can accept its path explicitly. Local mapping data is
+Git-ignored; the example is safe to commit.
+
 Supported configuration keys:
+
+- `FIRM_REPORT_CONFIG`: Path to the editable firm report YAML; defaults to
+  `config/firm-reports.yaml`. Its `default_firm` selects the default registration.
+  Each `firms` entry contains `name`, `gstin`, optional `aliases`, and `scope`
+  with `comparator` (`in` or `not_in`) and non-empty `location_ids`.
+  Firm identifiers and scopes live exclusively in this local, Git-ignored YAML.
+  The generic `config/firm-reports.example.yaml` is safe to commit. Helpers reread
+  the YAML on every call, validate alias uniqueness and scopes, and fail before
+  network access on invalid configuration.
 
 - `PAYMENT_CASH_ACCOUNT_ID`: Cash-deposit transfer source, default `1094368000005226023`.
 - `PAYMENT_SALARY_EXPENSE_ACCOUNT_ID`: Salary expense account, default `1094368000000000543`.

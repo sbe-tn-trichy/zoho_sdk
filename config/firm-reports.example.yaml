@@ -1,0 +1,18 @@
+# Copy to firm-reports.yaml and review all firm identities and location scopes.
+# Firm keys, names, GSTINs and aliases may all be used to select a firm.
+default_firm: MAIN
+firms:
+  MAIN:
+    name: Main Firm
+    gstin: REPLACE_WITH_MAIN_GSTIN
+    aliases: [Main]
+    scope:
+      comparator: not_in
+      location_ids: ['REPLACE_WITH_OTHER_FIRM_LOCATION_ID']
+  OTHER:
+    name: Other Firm
+    gstin: REPLACE_WITH_OTHER_GSTIN
+    aliases: [Other]
+    scope:
+      comparator: in
+      location_ids: ['REPLACE_WITH_OTHER_FIRM_LOCATION_ID']

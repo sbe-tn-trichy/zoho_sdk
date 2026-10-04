@@ -83,6 +83,30 @@ def test_purchase_account_ids_load_from_active_profile(tmp_path: Path):
     assert loaded["fan_purchase_account_id"] == "fan-account"
 
 
+def test_config_folder_precedes_legacy_root_configuration(tmp_path: Path):
+    project = tmp_path / "project"
+    (project / "config").mkdir(parents=True)
+    (project / "config" / "config.json").write_text(
+        json.dumps({"core": {"org_id": "folder-org"}}), encoding="utf-8"
+    )
+    (project / "zoho_config.json").write_text(
+        json.dumps({"org_id": "legacy-org"}), encoding="utf-8"
+    )
+    assert _load_config_dict(project, tmp_path / "home")["org_id"] == "folder-org"
+
+
+@pytest.mark.parametrize("content", ["{invalid", "[]", '{"active_profile":"missing","profiles":{}}'])
+def test_invalid_config_folder_does_not_fall_back(tmp_path: Path, content: str):
+    project = tmp_path / "project"
+    (project / "config").mkdir(parents=True)
+    (project / "config" / "config.json").write_text(content, encoding="utf-8")
+    (project / "zoho_config.json").write_text(
+        json.dumps({"org_id": "legacy-org"}), encoding="utf-8"
+    )
+    with pytest.raises(ValueError):
+        _load_config_dict(project, tmp_path / "home")
+
+
 def test_config_json_in_project_root_is_loaded(tmp_path: Path):
     project = tmp_path / "project"
     project.mkdir()

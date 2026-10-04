@@ -53,3 +53,17 @@ def test_refresh_mapping_names_rejects_unknown_account_id():
     config = {"mappings": [{"account_ids": ["missing"]}]}
     with pytest.raises(ValueError, match="unknown Books account IDs: missing"):
         refresh_mapping_account_names(config, {})
+
+
+@pytest.mark.parametrize("suffix", [".yaml", ".yml", ".json"])
+def test_mapping_refresh_preserves_other_accounting_sections(tmp_path, suffix):
+    import yaml
+    from workflows.books_account_catalog import write_mapping_config
+    path = tmp_path / ("mapping" + suffix)
+    config = {"calculations": {"sales": {"accounts": {"Sales": 1}}},
+              "mappings": [{"account_ids": ["a"], "account_names": ["Old"]}]}
+    assert refresh_mapping_account_names(config, {"a": "Sales"})
+    write_mapping_config(path, config)
+    loaded = json.loads(path.read_text()) if suffix == ".json" else yaml.safe_load(path.read_text())
+    assert loaded == config
+    assert not list(tmp_path.glob("*.tmp"))

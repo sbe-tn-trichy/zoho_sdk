@@ -1,6 +1,6 @@
 """Preview or apply mapped Zoho Books report amounts to a Google Sheet.
 
-Configuration JSON contains ``spreadsheet_id``, a non-empty ``location_ids``
+Configuration YAML or JSON contains ``spreadsheet_id``, a non-empty ``location_ids``
 array, and a ``mappings`` array. Each mapping has report, sheet, current_cell,
 previous_cell, and either source_path (an array of JSON keys/indexes) or
 account_ids (stable Zoho Books account IDs). Optional multiplier is a decimal.
@@ -16,6 +16,8 @@ from decimal import Decimal
 from pathlib import Path
 
 import requests
+import yaml
+import yaml
 
 from workflows.books_statement_sheet import (
     EquityMapping,
@@ -34,7 +36,7 @@ from workflows.books_pnl_notes import NOTE_INPUTS, NOTE_SHEET, prepare_pnl_note_
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_MAPPING = PROJECT_ROOT / "books_statement_mapping.json"
+DEFAULT_MAPPING = PROJECT_ROOT / "config" / "accounting-mapping.yaml"
 DEFAULT_ACCOUNT_DB = PROJECT_ROOT / "output" / "books_accounts.sqlite3"
 CELL = re.compile(r"^[A-Z]+[1-9][0-9]*$")
 
@@ -46,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         nargs="?",
         default=DEFAULT_MAPPING,
-        help=f"Reviewed JSON cell-to-report mapping (default: {DEFAULT_MAPPING.name})",
+        help=f"Reviewed YAML or JSON cell-to-report mapping (default: {DEFAULT_MAPPING})",
     )
     parser.add_argument("--apply", action="store_true", help="Write after preview and formula checks")
     parser.add_argument("--equity-only", action="store_true", help="Preview or update only the equity note")
@@ -63,28 +65,33 @@ def main(argv: list[str] | None = None) -> int:
     if not args.mapping.is_file():
         parser.error(
             f"Mapping file not found: {args.mapping}. Copy "
-            "examples/books_statement_mapping.sample.json to "
-            f"{DEFAULT_MAPPING.name} and review its account IDs and cells."
+            "config/accounting-mapping.example.yaml to "
+            f"{DEFAULT_MAPPING} and review its account IDs and cells."
         )
-    config = json.loads(args.mapping.read_text(encoding="utf-8"))
+    text = args.mapping.read_text(encoding="utf-8")
+    try:
+        config = (yaml.safe_load(text) if args.mapping.suffix.lower() in {".yaml", ".yml"}
+                  else json.loads(text))
+    except (yaml.YAMLError, json.JSONDecodeError) as exc:
+        parser.error(f"Invalid mapping configuration: {exc}")
     if not isinstance(config, dict):
-        parser.error("Mapping JSON must be an object with spreadsheet_id and mappings")
+        parser.error("Mapping configuration must be an object with spreadsheet_id and mappings")
     spreadsheet_id = args.spreadsheet_id or config.get("spreadsheet_id")
     if not isinstance(spreadsheet_id, str) or not spreadsheet_id.strip():
-        parser.error("Mapping JSON must contain a non-empty spreadsheet_id")
+        parser.error("Mapping configuration must contain a non-empty spreadsheet_id")
     location_ids = config.get("location_ids")
     if (not isinstance(location_ids, list) or not location_ids
             or any(not isinstance(value, str) or not value.strip() for value in location_ids)):
-        parser.error("Mapping JSON must contain a non-empty location_ids array")
+        parser.error("Mapping configuration must contain a non-empty location_ids array")
     raw = config.get("mappings")
     if not isinstance(raw, list):
-        parser.error("Mapping JSON must contain a mappings array")
+        parser.error("Mapping configuration must contain a mappings array")
     if args.pnl_only:
         if args.equity_only:
             parser.error("Choose --pnl-only or --equity-only")
         pnl = config.get("pnl_notes")
         if not isinstance(pnl, dict) or pnl.get("sheet") != NOTE_SHEET:
-            parser.error("Mapping JSON needs pnl_notes with the reviewed note sheet")
+            parser.error("Mapping configuration needs pnl_notes with the reviewed note sheet")
         token = os.environ.get("GOOGLE_SHEETS_ACCESS_TOKEN")
         if args.apply and not token:
             parser.error("Set GOOGLE_SHEETS_ACCESS_TOKEN before --apply")
@@ -138,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     if equity_config is not None and not isinstance(equity_config, dict):
         parser.error("equity must be an object")
     if args.equity_only and equity_config is None:
-        parser.error("Mapping JSON must contain equity for --equity-only")
+        parser.error("Mapping configuration must contain equity for --equity-only")
     equity_mappings: list[EquityMapping] = []
     if equity_config is not None:
         if (not isinstance(equity_config.get("movement_header_cell"), str)

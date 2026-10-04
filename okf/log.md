@@ -1,6 +1,56 @@
 # Knowledge Change Log
 
+## 2026-10-05
+
+- Support regrouping the audited GST asset into fixed assets without changing audited totals or GST payable.
+
+- Allow GST-netted compared asset and liability totals while preserving gross Books snapshots.
+
+- Support pending unmapped operating-expense exclusions in the audited comparison without changing Books net profit or statement totals.
+
+- Show unmatched audited-comparison account balances as absolute amounts with Dr/Cr, reversing the statement section's normal side for negative balances.
+
+- Monthly Analytics GST comparison uses a combined CGST/SGST/IGST total against the following month's verified three cash-tax accounts, excluding CESS.
+
+- Added monthly GST movement comparisons with following-month cash-tax debits, including an Analytics route and explicit payment-proxy and ITC limitations.
+
+- Added read-only GST cash-ledger comparison by tax head, with scoped live reports, saved mode and explicit mismatch tolerance.
+
 ## 2026-10-04
+
+- Audited comparison respects a reviewed Sundry Debtors mapping and removes its unmapped warning when configured.
+
+- Unmatched audited-comparison accounts omit balances that round to zero at two decimals; nonzero debit and credit balances remain visible.
+
+- Audited comparison ends with unmatched statement accounts and balances; group mappings cover children while headline totals and residual expenses do not imply account-level matches.
+
+- Audited financials GST Payable now compares output GST minus input GST, including net-credit and zero cases, without changing statement totals.
+
+- Added the live-verified Books Account Transactions report for raw ledger pages (response option 0) and count metadata (option 2), with explicit dates and validated account scope.
+
+- Added optional reviewed P&L account additions to balance-sheet comparison rows, with explicit provenance and unchanged Books report totals.
+
+- Audited comparison renders balance differences with accounting-aware Dr/Cr labels, explains the opposite adjustment direction, and preserves signed numeric results.
+
+- Live trial balance uses an accounts tree with values records; comparison preserves formatted Dr/Cr balances and validates scope fields while tolerating display metadata.
+
+- Audited comparison replaces horizontal P&L with trial balance, retains all account balance columns, and uses configured firm scope for all filtered reports. Saved reruns require a trial-balance snapshot.
+
+## 2026-10-04
+
+- Moved trial-balance firm identities, aliases, default selection and location rules into editable local YAML with a generic example and fail-closed validation.
+
+- Added BD/Bharath Distributors and SBE/Sri Bharath Electricals trial-balance aliases, preserving GSTIN calls and selecting the corresponding SBE exclusion or inclusion.
+
+- Added the Books trial-balance resource method and reviewed GSTIN-scoped helper using an SBE exclusion, with date/basis/rule validation and raw report preservation.
+
+- Added a timezone-qualified creation timestamp beneath the audited comparison report title, separate from Books snapshot retrieval time.
+
+- Promoted audited XLSX P&L, balance-sheet and horizontal stock comparisons into a reusable workflow and read-only CLI with editable YAML, saved snapshot replay and financial validation.
+
+- Switched the Books statement sheet updater to the shared accounting YAML, preserving calculation sections and supporting atomic YAML account-name refresh plus explicit JSON paths.
+
+- Prefer `config/config.json` for runtime configuration, retaining legacy root fallbacks; keep local accounting mappings alongside it with a generic tracked YAML example.
 
 - Consolidated workflow snapshot overlays, atomic JSON/CSV persistence, payment-series validation/read-back, payment evidence matching and ledger reference comparisons in typed core helpers, retaining resource-specific policies and compatibility APIs.
 

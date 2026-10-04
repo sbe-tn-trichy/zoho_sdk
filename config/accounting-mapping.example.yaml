@@ -1,0 +1,119 @@
+# Copy to accounting-mapping.yaml and use exact Books account names.
+# Coefficients: 1 adds, -1 subtracts. Derived keys reference calculations below.
+# Report paths identify nested report sections; row keys refer to column B
+# in the target P&L expense and balance-sheet tabs. Adapt rows to your workbook.
+# Other Expenses is the residual after mapped operating expenses.
+calculations:
+  sales:
+    accounts:
+      Sales: 1
+      Service Income: 1
+  income:
+    accounts:
+      Operating Income: 1
+      Non Operating Income: 1
+  cogs:
+    path:
+      - Gross Profit
+      - Cost of Goods Sold
+  interest:
+    accounts:
+      Interest Expense: 1
+  freight:
+    accounts:
+      Freight Inward: 1
+  op:
+    accounts:
+      Operating Expense: 1
+    derived:
+      interest: -1
+      freight: -1
+  other_income:
+    derived:
+      income: 1
+      sales: -1
+  gross:
+    derived:
+      income: 1
+      cogs: -1
+      freight: -1
+  operating:
+    derived:
+      gross: 1
+      op: -1
+pnl_expense_accounts:
+  '20':
+    - Advertising And Marketing
+  '21':
+    - Electricity
+  '24':
+    - Salaries and Employee Wage
+  '25':
+    - Rent Expense
+  '31':
+    - Depreciation Expense
+# Optional reviewed P&L amounts added to the corresponding balance-sheet row.
+excluded_pnl_expense_accounts: []
+balance_sheet_pnl_accounts: {}
+balance_sheet_accounts:
+  '6':
+    - Fixed Assets
+  '7':
+    - Inventory Asset
+  '8':
+    - Accounts Receivable
+  '16':
+    - Bank
+  '17':
+    - Cash
+  '24':
+    - Accounts Payable
+
+# Books financial statement sheet configuration
+spreadsheet_id: REPLACE_WITH_GOOGLE_SPREADSHEET_ID
+location_ids:
+- REPLACE_WITH_BOOKS_LOCATION_ID
+equity:
+  excluded_location_id: REPLACE_WITH_EXCLUDED_BOOKS_LOCATION_ID
+  interest_account_id: REPLACE_WITH_INTEREST_EXPENSE_ACCOUNT_ID
+  withdrawal_transaction_types:
+  - transfer_fund
+  - owner_drawings
+  movement_header_cell: I12
+  movement_header: 'Other net movement
+
+    (per Books, unclassified)'
+  mappings:
+  - account_id: REPLACE_WITH_OWNER_EQUITY_ACCOUNT_ID
+    sheet: Note 1 to 3
+    name_cell: B13
+    opening_cell: D13
+    interest_cell: G13
+    withdrawal_cell: H13
+    movement_cell: I13
+    closing_cell: J13
+mappings:
+- report: profitandloss
+  account_ids:
+  - REPLACE_WITH_PRODUCT_SALES_ACCOUNT_ID
+  account_names:
+  - AUTO_REFRESHED_FROM_BOOKS
+  sheet: Notes to P & L 19 to 25
+  current_cell: G6
+  previous_cell: E6
+- report: profitandloss
+  account_ids:
+  - REPLACE_WITH_SERVICE_SALES_ACCOUNT_ID
+  account_names:
+  - AUTO_REFRESHED_FROM_BOOKS
+  sheet: Notes to P & L 19 to 25
+  current_cell: G7
+  previous_cell: E7
+- report: profitandloss
+  account_ids:
+  - REPLACE_WITH_INTEREST_INCOME_ACCOUNT_ID
+  account_names:
+  - AUTO_REFRESHED_FROM_BOOKS
+  sheet: Notes to P & L 19 to 25
+  current_cell: G15
+  previous_cell: E15

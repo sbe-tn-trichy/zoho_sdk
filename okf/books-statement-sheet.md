@@ -11,7 +11,7 @@ Books organization and compares FY 2025–26 with FY 2024–25. It defaults to a
 read-only preview; `--apply` requires a Google Sheets OAuth access token in
 `GOOGLE_SHEETS_ACCESS_TOKEN` with permission to edit the workbook.
 
-The runner accepts a reviewed JSON configuration whose `mappings` array maps
+The runner accepts a reviewed YAML or JSON configuration whose `mappings` array maps
 each source to exact current and previous year input cells. A source can be a
 stable list of Books account IDs (`account_ids`) or a scalar report response
 path (`source_path`). Supported
@@ -21,9 +21,9 @@ the multiplier when a note convention reverses the Books sign. Account IDs are
 preferable to names or array positions because report display order can change.
 
 The spreadsheet ID, required Books location scope, and reviewed mappings are
-maintained separately from application code in the Git-ignored root file
-`books_statement_mapping.json`. An editable template is in
-`examples/books_statement_mapping.sample.json`; copy it to the root mapping
+maintained separately from application code in the Git-ignored file
+`config/accounting-mapping.yaml`. An editable template is in
+`config/accounting-mapping.example.yaml`; copy it to the local mapping
 file, set `spreadsheet_id` and `location_ids`, replace each account placeholder
 with a reviewed Books account ID, and add mappings for every other required
 note input. Reports always use `TransactionDate.CustomDate`, accrual basis, all
@@ -54,7 +54,7 @@ rows in `Note 1 to 3` and excludes the SBE location from the ledger.
 Before preparing report values, every run fetches and combines the active and
 inactive Books charts of accounts into `output/books_accounts.sqlite3`. For each mapping with
 `account_ids`, it resolves the IDs against that fresh snapshot and atomically
-refreshes the parallel `account_names` array in the JSON. Unknown IDs fail the
+refreshes the parallel `account_names` array in the mapping file. Unknown IDs fail the
 run, so changing an ID cannot leave a stale name unnoticed.
 
 Example mapping entry (replace the account ID with a reviewed Books account):
@@ -70,7 +70,7 @@ Example mapping entry (replace the account ID with a reviewed Books account):
 ```
 
 Run `.venv/bin/python apps/update_books_statement_sheet.py` for a preview using
-the dedicated root mapping, then rerun with `--apply` after reviewing the
+the dedicated YAML mapping, then rerun with `--apply` after reviewing the
 output. A different mapping path can still be supplied as the positional
 argument when needed. Add `--equity-only` to preview or update only the owner
 capital note.
@@ -91,7 +91,7 @@ partner interest using Note 3; its remaining interest lacks a loan-type split.
 The miscellaneous expense line includes signed purchase-discount and stock-transfer
 offsets. These note classifications require accounting review.
 
-The ignored root mapping now also contains `pnl_notes`: stable Books account-ID
+The ignored YAML mapping now also contains `pnl_notes`: stable Books account-ID
 groups for all FY 2025–26 P&L note input cells, the excluded branch, dates, and
 the Note 3 partner-interest source. Run
 `.venv/bin/python apps/update_books_statement_sheet.py --pnl-only` to preview
@@ -102,3 +102,8 @@ batch after checking that none is a formula. The workflow fetches one Books P&L
 report, computes disclosed residuals, and leaves all note and statement total
 formulas intact. Review the classification groups when new Books accounts are
 added or material account usage changes.
+
+The YAML retains accounting calculation and workbook-row sections used by other
+tooling. Account-name refresh preserves these sections and writes YAML atomically
+(formatting and comments may be normalized). Explicit JSON mapping paths remain
+supported. Install the workflows extra for PyYAML.
