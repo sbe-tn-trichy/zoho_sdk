@@ -5,10 +5,30 @@ from __future__ import annotations
 import logging
 import mimetypes
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from zoho.downloads import write_response_to_file
+from zoho.security import resolve_output_path
+
 logger = logging.getLogger("zoho.helpers.files")
+
+
+def download_books_document(
+    books_client: Any, resource_name: str, resource_id: str, document_id: str,
+    save_path: str,
+) -> str:
+    """Download a specific Books document; relative paths are confined to output/."""
+    if not re.fullmatch(r'[a-z][a-z0-9]*', resource_name):
+        raise ValueError('Invalid Books resource name')
+    if any(not re.fullmatch(r'[A-Za-z0-9_-]+', value) for value in (resource_id, document_id)):
+        raise ValueError('Invalid Books resource/document ID')
+    destination = resolve_output_path(save_path)
+    response = books_client.request(
+        'GET', f'{resource_name}/{resource_id}/documents/{document_id}', stream=True,
+    )
+    return write_response_to_file(response, destination)
 
 
 def workdrive_upload_file(

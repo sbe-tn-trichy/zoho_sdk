@@ -1,6 +1,7 @@
 """Higher-level overlay helpers and composite operations for Zoho SDK."""
 
 from .sequences import parse_doc_number
+from .references import format_reference_lines, parse_reference_lines, update_reference_lines
 from .accounts import (
     extract_bank_deposits,
     extract_bank_withdrawals,
@@ -35,6 +36,7 @@ from .inter_branch_ledger import (
 )
 from .profit_and_loss import fetch_profit_and_loss_schedule_format
 from .files import (
+    download_books_document,
     attach_file_to_books_resource,
     workdrive_upload_and_attach,
     workdrive_upload_file,
@@ -63,6 +65,7 @@ from .transactions import (
 )
 
 __all__ = [
+    "download_books_document", "format_reference_lines", "parse_reference_lines", "update_reference_lines",
     "parse_doc_number",
     "EquityLedgerEntry",
     "fetch_equity_general_ledger",
@@ -117,4 +120,3 @@ __all__ = [
     "allocate_documents_fifo",
     "unwrap_record",
 ]
-

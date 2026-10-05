@@ -2,6 +2,8 @@
 
 ## 2026-10-05
 
+- Added PDF-backed Polycab RMA credit review and checkpointed correction, with explicit labeled references, preserved rounding allocations and reusable download/reference helpers.
+
 - Support regrouping the audited GST asset into fixed assets without changing audited totals or GST payable.
 
 - Allow GST-netted compared asset and liability totals while preserving gross Books snapshots.
