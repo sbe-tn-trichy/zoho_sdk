@@ -1407,6 +1407,8 @@ class OnlinePaymentReviewService:
                 report_name,
             )
             for payment in payments:
+                if _text(payment.get(self.config.creator_books_id_field)):
+                    continue
                 annotated = dict(payment)
                 annotated["_review_payment_type"] = payment_type
                 annotated["_review_report_link_name"] = report_name

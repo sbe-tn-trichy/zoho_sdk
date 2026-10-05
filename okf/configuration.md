@@ -82,6 +82,10 @@ Supported configuration keys:
 - `ZEISS_LEDGER_PATH`: Zeiss reconciliation ledger path.
 - `POLYCAB_FOLDER_ID`: Destination WorkDrive folder ID.
 - `POLYCAB_VENDOR_ID`: Vendor ID for Polycab ledger reconciliation.
+- `POLYCAB_RMA_ITEM_ID`, `POLYCAB_RMA_ACCOUNT_ID`, and
+  `POLYCAB_CLEARING_ACCOUNT_ID`: Required item, expense-account, and contra
+  clearing-account IDs for the [Polycab credit review](polycab-credit-review.md).
+  The CLI also accepts explicit overrides and validates these before API access.
 - `NEOSEAL_PURCHASE_ACCOUNT_ID`: Purchase-account ID used to scope NeoSeal item-catalog workflows.
 - `NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID`: Google Sheet ID for the NeoSeal price list.
 - `NEOSEAL_STOCK_COUNT_SHEET_ID`: Zoho Sheet workbook ID for the active NeoSeal stock-count worksheet.

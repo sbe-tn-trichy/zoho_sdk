@@ -147,7 +147,7 @@
   <div class="toolbar">
     <input id="search" placeholder="Search customer, reference, amount, or narration">
     <select id="filter">
-      <option value="all">All entries</option>
+      <option value="all">Pending Creator payments</option>
       <option value="reviewable">Ready for review</option>
       <option value="expenses">Expenses</option>
       <option value="transfers">Cash transfers</option>
@@ -244,7 +244,7 @@
       const chosen = selectedPossibleCandidateId(e);
       return `<details open><summary class="warning">${possible.length} date-and-amount candidate${possible.length === 1 ? '' : 's'} · reference differs</summary>${possible.map(c => `<label class="candidate"><input type="radio" name="possible-${esc(e.id)}" value="${esc(c.transaction_id)}" data-entry-id="${esc(e.id)}" onchange="selectPossibleCandidate(this.dataset.entryId,this.value)" ${chosen === String(c.transaction_id) ? 'checked' : ''}> <strong>${esc(c.bank_name || 'Bank')}</strong> · ${esc(c.date)} · <span class="money">${money(c.amount)}</span><div class="ref">${esc(c.reference)}</div><div class="muted">${esc(c.description)}</div></label>`).join('')}</details>`;
     }
-    return '<span class="muted">No candidate</span>';
+    return '<span class="muted">Not available</span>';
   }
 
   function allocationHtml(e) {
@@ -293,7 +293,7 @@
     const shown = entries.filter(e => {
       const s = state(e), hay = JSON.stringify(e).toLowerCase();
       return (!q || hay.includes(q)) && (
-        filter === 'all' ||
+        (filter === 'all' && s !== 'pushed' && !e.archived) ||
         (filter === 'reviewable' && e.reviewable && s !== 'pushed') ||
         (filter === 'ambiguous' && isAmbiguous(e)) ||
         (filter === 'possible' && isPossible(e)) ||
@@ -455,7 +455,7 @@
     return (batch.entries || []).filter(e => {
       const s = state(e), hay = JSON.stringify(e).toLowerCase(),
         shown = (!q || hay.includes(q)) && (
-          filter === 'all' ||
+          (filter === 'all' && s !== 'pushed' && !e.archived) ||
           (filter === 'reviewable' && e.reviewable && s !== 'pushed') ||
           (filter === 'ambiguous' && isAmbiguous(e)) ||
           (filter === 'possible' && isPossible(e)) ||

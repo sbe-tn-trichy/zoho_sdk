@@ -8,6 +8,8 @@
 
 ## Project Purpose
 
+See the separate [Workflow Catalog](WORKFLOWS.md) for business workflow names and module locations, including Bank Statement Categorization.
+
 Python project providing typed Zoho API clients, reusable domain workflows, and
 application entry points. Install the packages with `pip install -e .`.
 

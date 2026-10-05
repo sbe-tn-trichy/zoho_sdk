@@ -243,6 +243,13 @@ payment is created and matched through that specific account. A transaction is
 never consumed by more than one Creator payment in the same refresh.
 
 The same queue combines Creator's `Online_Payments` and `Cheques` reports.
+Only source records whose configured Books transaction ID field (normally
+`Books_Transaction_Id`) is missing, null or blank are proposed. The default
+**Pending Creator payments** view retains every pending record, including records
+without a bank candidate, displayed as **Not available**. Multiple matches and
+reference-mismatch candidates remain visible for review. Completed local
+checkpoints remain available through the pushed filter rather than the default
+pending view.
 The two source reports, cheque-detail report, customer lookup report, and
 canonical checkpoint report are selected through the
 grouped `PAYMENT_CREATOR_REPORTS` runtime configuration, whose defaults retain

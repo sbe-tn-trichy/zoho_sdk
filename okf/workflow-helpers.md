@@ -10,6 +10,14 @@ description: Payment inspection and renumbering, customer validation and invoice
 Supported helpers are exported from `workflows.core`; their implementations stay
 in small modules rather than a single generic workflow engine.
 
+Generic Books document streaming and ordered labeled references are exported from
+`zoho.helpers`. `format_reference_lines`, `parse_reference_lines` and
+`update_reference_lines` retain repeated document labels and preserve unrelated
+human notes while replacing managed lines idempotently. Polycab-specific PDF
+interpretation, accounting eligibility, correction payloads and mutation guards
+remain in the [credit-review domain package](polycab-credit-review.md); its
+orchestrator contains only the review sequence.
+
 - `core.snapshots.refresh_snapshot` owns scoped cache reuse, baseline freshness,
   complete 200-row change pagination, modified-time validation, ID overlays and
   atomic persistence. `SnapshotPolicy` carries schema/response keys and timestamp

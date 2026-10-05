@@ -1,6 +1,14 @@
 # Knowledge Change Log
 
+## 2026-10-06
+
+- Scope the Creator-first bank review to online and cheque records without a Books transaction ID; show unmatched records as Not available and keep completed checkpoints outside the default pending view.
+
+- Added a separate workflow catalog, including Bank Statement Categorization under collection reconciliation, with module links and application guidance.
+
 ## 2026-10-05
+
+- Added PDF-backed Polycab RMA credit review and checkpointed correction, with explicit labeled references, preserved rounding allocations and reusable download/reference helpers.
 
 - Support regrouping the audited GST asset into fixed assets without changing audited totals or GST payable.
 

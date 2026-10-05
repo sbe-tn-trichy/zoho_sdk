@@ -99,6 +99,37 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertEqual(entry["allocation_status"], "fully_allocated")
         self.assertEqual(entry["invoice_allocations"][0]["amount_applied"], 1250.0)
 
+    def test_creator_sources_include_only_records_without_books_transaction(self):
+        for field in ("Books_Transaction_Id", "Custom_Books_ID"):
+            with self.subTest(field=field):
+                service = OnlinePaymentReviewService(
+                    self.creator, self.books,
+                    replace(self.config, creator_books_id_field=field,
+                            payment_reports=(("Online", "Online_Payments"),
+                                             ("Cheque", "Cheques"))),
+                )
+                pending = [dict(self.payment, ID=f"pending-{index}", **values)
+                           for index, values in enumerate(
+                               ({}, {field: None}, {field: ""}, {field: "   "}))]
+                confirmed = dict(self.payment, ID="confirmed", **{field: "12345"})
+                self.creator.get_all_records.side_effect = [
+                    [*pending, confirmed], [*pending, confirmed], [],
+                ]
+                rows = service._all_creator_payments()
+                self.assertEqual(len(rows), 8)
+                self.assertEqual({row["_review_payment_type"] for row in rows},
+                                 {"Online", "Cheque"})
+                self.assertNotIn("confirmed", {row["ID"] for row in rows})
+
+    def test_pending_creator_record_remains_visible_without_bank_match(self):
+        self.creator.get_all_records.side_effect = [[self.payment], [self.customer]]
+        self.books.bank_transactions.list_all.return_value = []
+        entries = self.service.refresh()["entries"]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["creator"]["payment_id"], "501")
+        self.assertIsNone(entries[0]["bank"])
+        self.assertFalse(entries[0]["reviewable"])
+
     def test_analytics_customer_name_must_match_unique_bank_row(self):
         analytics = MagicMock()
         self.bank["description"] = "UPI/9876543210@okaxis/receipt"

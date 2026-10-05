@@ -23,6 +23,16 @@ from .core.models import DotDict
 
 
 _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "RmaCreditPolicy": (".polycab_credit_review", "RmaCreditPolicy"),
+    "CreditAudit": (".polycab_credit_review", "CreditAudit"),
+    "CreditFinding": (".polycab_credit_review", "CreditFinding"),
+    "CreditMemoEvidence": (".polycab_credit_review", "CreditMemoEvidence"),
+    "CreditCorrectionPlan": (".polycab_credit_review", "CreditCorrectionPlan"),
+    "CreditCorrectionResult": (".polycab_credit_review", "CreditCorrectionResult"),
+    "CreditCorrectionError": (".polycab_credit_review", "CreditCorrectionError"),
+    "review_polycab_vendor_credits": (".polycab_credit_review", "review_polycab_vendor_credits"),
+    "build_credit_correction_plan": (".polycab_credit_review", "build_credit_correction_plan"),
+    "execute_credit_correction": (".polycab_credit_review", "execute_credit_correction"),
     "fetch_trial_balance_for_firm": (".audited_financials", "fetch_trial_balance_for_firm"),
     "fetch_trial_balance_for_gstin": (".audited_financials", "fetch_trial_balance_for_gstin"),
     "compare_audited_financials": (".audited_financials", "compare_audited_financials"),
@@ -139,6 +149,9 @@ def __dir__():
     return sorted(set(globals()) | set(_LAZY_EXPORTS))
 
 __all__ = [
+    "RmaCreditPolicy", "CreditAudit", "CreditFinding", "CreditMemoEvidence", "CreditCorrectionPlan",
+    "CreditCorrectionResult", "CreditCorrectionError", "review_polycab_vendor_credits",
+    "build_credit_correction_plan", "execute_credit_correction",
     "CustomerValidationReport",
     "ContactValidation",
     "ValidationIssue",
