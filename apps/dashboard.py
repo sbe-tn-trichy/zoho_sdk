@@ -11,7 +11,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -49,14 +49,6 @@ WORKFLOWS = (
         "Review required",
         "http://127.0.0.1:8765",
         "collection_reconciliation",
-    ),
-    WorkflowSpec(
-        2,
-        "Bank Statement Categorization preview",
-        "Refresh Creator matches and uncategorized bank suggestions without writing to Zoho.",
-        (sys.executable, "apps/payment_review.py", "--refresh-only"),
-        "Collections",
-        workflow="collection_reconciliation",
     ),
     WorkflowSpec(
         3,
@@ -199,8 +191,8 @@ def filter_dashboard_workflows(
     workflows: Sequence[WorkflowSpec],
     config: dict[str, Any],
 ) -> tuple[WorkflowSpec, ...]:
-    """Apply domain-level dashboard include/exclude configuration."""
-    allowed_keys = {"include", "exclude"}
+    """Apply configured domain visibility and group labels."""
+    allowed_keys = {"include", "exclude", "groups"}
     unknown_options = set(config) - allowed_keys
     if unknown_options:
         raise ValueError(
@@ -209,13 +201,28 @@ def filter_dashboard_workflows(
         )
 
     values: dict[str, set[str]] = {}
-    for option in allowed_keys:
+    for option in ("include", "exclude"):
         raw = config.get(option, [])
         if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
             raise ValueError(f"DASHBOARD_WORKFLOWS.{option} must be a list of workflow IDs.")
         values[option] = set(raw)
 
     known = {item.workflow for item in workflows}
+    groups = config.get("groups", {})
+    if not isinstance(groups, dict):
+        raise ValueError("DASHBOARD_WORKFLOWS.groups must be an object of group names to workflow ID lists.")
+    assignments: dict[str, str] = {}
+    for group, members in groups.items():
+        if not isinstance(group, str) or not group.strip() or group != group.strip() or group in {"Favorites", "All"}:
+            raise ValueError("Dashboard group names must be non-empty, trimmed, and cannot be Favorites or All.")
+        if not isinstance(members, list) or not all(isinstance(member, str) for member in members):
+            raise ValueError(f"DASHBOARD_WORKFLOWS.groups.{group} must be a list of workflow IDs.")
+        for member in members:
+            if member not in known:
+                raise ValueError(f"DASHBOARD_WORKFLOWS.groups references unknown workflow IDs: {member}")
+            if member in assignments:
+                raise ValueError(f"Workflow ID {member} is assigned to more than one group.")
+            assignments[member] = group
     configured = values["include"] | values["exclude"]
     unknown_workflows = configured - known
     if unknown_workflows:
@@ -227,7 +234,8 @@ def filter_dashboard_workflows(
     included = values["include"] or known
     excluded = values["exclude"]
     return tuple(
-        item for item in workflows
+        replace(item, category=assignments.get(item.workflow, item.category))
+        for item in workflows
         if item.workflow in included and item.workflow not in excluded
     )
 

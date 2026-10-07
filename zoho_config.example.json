@@ -15,7 +15,35 @@
       "dashboard": {
         "dashboard_workflows": {
           "include": [],
-          "exclude": []
+          "exclude": [],
+          "groups": {
+            "Reconciliation": [
+              "collection_reconciliation",
+              "vendor_ledger_reconciliation",
+              "vendor_customer_offset"
+            ],
+            "Audit": [
+              "duplicate_payment_check"
+            ],
+            "Inventory": [
+              "neoseal_audit",
+              "neoseal_stock_count",
+              "stock_transfer"
+            ],
+            "Customers": [
+              "creator_customer_sync"
+            ],
+            "Compliance": [
+              "gstr1_verification",
+              "gstr2_verification"
+            ],
+            "Purchasing": [
+              "polycab_credit_memos"
+            ],
+            "Sales": [
+              "polycab_rso"
+            ]
+          }
         }
       },
       "gstr2": {

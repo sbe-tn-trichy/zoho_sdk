@@ -9,6 +9,7 @@ from ..core.matching import to_text
 
 
 _SPACES = re.compile(r"[^a-z0-9]+")
+_REDACTED_VPA = re.compile(r"^x{2,}(.{4})$", re.IGNORECASE)
 _TA_SUFFIX = re.compile(r"(?:^|/)TA\s*$", re.IGNORECASE)
 
 GENERIC_NARRATION_TOKENS = {
@@ -43,8 +44,15 @@ def extract_remitter_tokens(description: Any) -> list[str]:
     # 2. VPA handles (e.g. user@bank, user@okaxis)
     for m in re.finditer(r"[a-zA-Z0-9._]{3,}@[a-zA-Z0-9]+", text):
         vpa = m.group(0)
+        prefix, handle = vpa.split("@")
+        redacted = _REDACTED_VPA.fullmatch(prefix)
+        if redacted:
+            # Keep the handle: four visible characters alone are not an identity.
+            suffix = redacted.group(1)
+            if not re.fullmatch(r"x+", suffix, re.IGNORECASE):
+                tokens.add(f"{suffix}@{handle}")
+            continue
         tokens.add(vpa)
-        prefix = vpa.split("@")[0]
         if len(prefix) >= 5 and not re.match(r"^x+$", prefix, re.IGNORECASE):
             tokens.add(prefix)
 
@@ -53,7 +61,8 @@ def extract_remitter_tokens(description: Any) -> list[str]:
         s = seg.strip(" -/:._")
         s_lower = s.lower()
         if (
-            len(s) >= 4
+            "@" not in s  # VPA tokens are handled above, including redaction
+            and len(s) >= 4
             and s_lower not in GENERIC_NARRATION_TOKENS
             and s_lower not in GENERIC_BANKS
             and not (s.isdigit() and len(s) != 10)  # non-phone numbers (amounts, cheques, years)
@@ -85,6 +94,7 @@ class CustomerFinderIndex:
     def __init__(self, finder_rows: Sequence[Mapping[str, Any]]) -> None:
         self.aliases: dict[str, set[str]] = {}
         self.descriptions: dict[str, set[str]] = {}
+        self.upi_suffixes: dict[str, set[str]] = {}
         for row in finder_rows:
             if not isinstance(row, Mapping):
                 continue
@@ -95,6 +105,10 @@ class CustomerFinderIndex:
             for alias in {normalized, _words(name.split(" - ", 1)[0])}:
                 if len(alias) >= 8 and len(alias.split()) >= 2:
                     self.aliases.setdefault(alias, set()).add(name)
+            for vpa in re.findall(r"[a-zA-Z0-9._]{3,}@[a-zA-Z0-9]+", to_text(row.get("Description"))):
+                local, handle = vpa.casefold().split("@")
+                if len(local) >= 4 and local[-4:] != "xxxx":
+                    self.upi_suffixes.setdefault(f"{local[-4:]}@{handle}", set()).add(name)
             description = _words(row.get("Description"))
             if len(description) >= 12:
                 self.descriptions.setdefault(description, set()).add(name)
@@ -104,6 +118,11 @@ class CustomerFinderIndex:
         if not description:
             return []
         names = set(self.descriptions.get(description, ()))
+        raw_description = to_text(transaction.get("description") or transaction.get("narration"))
+        for vpa in re.findall(r"[a-zA-Z0-9._]{3,}@[a-zA-Z0-9]+", raw_description):
+            local, handle = vpa.casefold().split("@")
+            if _REDACTED_VPA.fullmatch(local) and local[-4:] != "xxxx":
+                names.update(self.upi_suffixes.get(f"{local[-4:]}@{handle}", ()))
         padded = f" {description} "
         for alias, matching_names in self.aliases.items():
             if f" {alias} " in padded:

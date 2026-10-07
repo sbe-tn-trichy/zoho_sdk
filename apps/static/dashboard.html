@@ -364,24 +364,17 @@
     let favorites = new Set();
     try { favorites = new Set(JSON.parse(localStorage.getItem(favoritesKey) || '[]').map(Number)); } catch (_) { /* Browser storage may be unavailable. */ }
     if (favorites.size) activeTab = 'Favorites';
-    const reconciliationWorkflows = new Set([
-      'collection_reconciliation',
-      'vendor_ledger_reconciliation', 'vendor_customer_offset'
-    ]);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     function inTab(workflow, tab) {
       if (tab === 'Favorites') return favorites.has(workflow.number);
       if (tab === 'All') return true;
-      if (tab === 'Reconciliation') return reconciliationWorkflows.has(workflow.workflow);
       return workflow.category === tab;
     }
 
     function renderTabs() {
-      const categories = [...new Set(state.workflows.map(w => w.category))]
-        .filter(category => category !== 'Reconciliation').sort();
+      const categories = [...new Set(state.workflows.map(w => w.category))].sort();
       const tabs = ['Favorites'];
-      if (state.workflows.some(w => inTab(w, 'Reconciliation'))) tabs.push('Reconciliation');
       tabs.push(...categories, 'All');
       if (!tabs.includes(activeTab)) activeTab = 'All';
       const nav = document.getElementById('tabs');

@@ -165,6 +165,24 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         with self.assertRaisesRegex(ReconciliationError, "Conflict: Analytics historical records"):
             self.service.accept_and_push(entry["id"])
 
+    def test_redacted_upi_history_and_suffix_collision(self):
+        self.service.config = replace(self.config, customer_finder_view_id="view")
+        entry = {"bank": {"description": "UPI/XXuram@okaxis"},
+                 "creator": {"customer_name": "Example Customer"}}
+        rows = [{"Customer Name": "Example Customer",
+                 "Description": "UPI/sivakumaruram@okaxis"}]
+        self.service._check_customer_name(entry, rows)
+        self.assertTrue(entry["customer_name_valid"])
+        rows.append({"Customer Name": "Other Customer",
+                     "Description": "UPI/anotheruram@okaxis"})
+        self.service._check_customer_name(entry, rows)
+        self.assertFalse(entry["customer_name_valid"])
+        self.assertEqual(len(entry["historical_customer_names"]), 2)
+        self.service._check_customer_name(entry, [])
+        self.assertIsNone(entry["customer_name_valid"])
+        queries = self.service._historical_queries(["uram@okaxis"])
+        self.assertIn("%uram@okaxis%", queries[0])
+
     def test_analytics_no_history_keeps_entry_reviewable(self):
         analytics = MagicMock()
         self.bank["description"] = "UPI/brandnewremitter@okaxis/receipt"

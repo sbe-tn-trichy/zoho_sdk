@@ -184,10 +184,23 @@ downloading the full table. If historical records exist for that remitter, they
 must confirm the Creator customer name; if historical records belong to a different
 customer, acceptance is blocked as a conflict. If no prior records exist for that
 remitter, the exact date, amount, and reference match remains reviewable.
+Redacted UPI local IDs such as `XXuram@okaxis` search history using the
+visible four-character suffix plus handle (`uram@okaxis`), including older
+unredacted narrations. The suffix alone is never a remitter token. If the
+returned history includes a different customer, validation blocks acceptance
+even when the expected customer also appears; redacted IDs can collide.
+Date, amount, and reference predicates remain unchanged.
 A targeted lookup is also re-executed immediately before a push so a stale preview
 cannot authorize a payment.
 The review app uses the separate Analytics organization ID from
 `ANALYTICS_ORG_ID`; its default corresponds to the configured Finder view.
+The browser UI has a default Bank statement tab with bank columns first and
+only payments with bank candidates, plus the other bank categorization queue.
+The Creator records tab puts Creator columns first and includes payments without
+bank candidates. Both payment views group unique proposed bank matches separately
+from unmatched records, including ambiguous and reference-mismatch candidates.
+A proposed match is not a completed posting; existing status and confirmation
+controls still govern acceptance. Search and status filters apply within each tab.
 The browser UI presents Creator and bank values side by side. Rejection changes
 only the atomic local state file. `Accept & Push` revalidates that the bank line
 is still uncategorized and refreshes the customer's open Books invoices. The
@@ -229,8 +242,8 @@ both an explicit confirmation body and a random per-process review token. The
 queue state is stored at
 `output/collection_reconciliation/online_payments_review.json` by default.
 Pass `--refresh-only` to rebuild that production review state and print its
-entry counts without starting the HTTP server or writing to Zoho. This is the
-read-only payment preview exposed by the project dashboard.
+entry counts without starting the HTTP server or writing to Zoho. This CLI
+option remains available without a separate project dashboard entry.
 The UI supports selecting every ready proposal and confirming one bulk action.
 Bulk acceptance fetches the current uncategorized bank set once, then processes
 the selected payments sequentially so failures remain isolated and Books API

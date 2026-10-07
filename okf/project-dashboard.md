@@ -11,10 +11,10 @@ status: active
 `apps/dashboard.py` serves a local startup page at
 `http://127.0.0.1:8750`. The single-screen home page uses a compact workflow
 list on the left and a persistent run-output panel on the right. Tabs across the
-top show Favorites, Reconciliation, the available workflow categories, and All.
+top show Favorites, the configured workflow groups, and All.
 The star on each workflow adds or removes it from Favorites; selections persist
 in that browser. Search spans all workflows by name, number, or category.
-Workflow number 4 is retired so other shortcut numbers remain stable.
+Workflow numbers 2 and 4 are retired so other shortcut numbers remain stable.
 Safe, fully configured operations have a
 stable number and can be launched from their card (or by entering the exact
 number and pressing Enter). Operations requiring a source file, business
@@ -33,9 +33,21 @@ Workflow visibility is configured in the active `zoho_config.json` profile:
 ```json
 "dashboard_workflows": {
   "include": [],
-  "exclude": ["polycab_credit_memos", "vendor_customer_offset"]
+  "exclude": ["polycab_credit_memos", "vendor_customer_offset"],
+  "groups": {
+    "Reconciliation": ["collection_reconciliation", "vendor_ledger_reconciliation"],
+    "Inventory": ["neoseal_audit", "neoseal_stock_count", "stock_transfer"]
+  }
 }
 ```
+
+`groups` maps a tab label to workflow IDs. All operations belonging to an ID
+use that group; unassigned IDs retain their registry category. Each ID may
+appear only once. Blank or untrimmed labels and the reserved labels `Favorites`
+and `All` are rejected, as are unknown IDs and malformed lists. Groups apply
+before visibility filtering; empty groups do not produce tabs. Restart the
+dashboard after editing config. The browser derives tabs from these labels
+without hardcoded domain lists.
 
 An empty `include` list includes every registered domain. If `include` contains
 IDs, only those domains are shown. `exclude` is applied last and therefore wins
@@ -48,11 +60,9 @@ when an ID is present in both lists. Supported IDs are
 with unknown IDs or incorrectly typed values fails at dashboard startup rather
 than silently hiding the wrong operation.
 
-The numbered Bank Statement Categorization preview uses
-`apps/payment_review.py --refresh-only`. It reads the production
-Creator `Online_Payments` and `Cheques` reports, rebuilds the local review
-state, including other uncategorized bank lines and suggestions, prints a compact
-entry summary, and exits without writing to Zoho. The
+Bank Statement Categorization opens the review interface; its separate preview
+entry has been removed. The CLI still supports
+`apps/payment_review.py --refresh-only` for a read-only refresh. The
 generic `Collection_Records` schema workflow is not registered because that
 form is not part of the production `order-management-new` Creator app.
 
@@ -76,7 +86,7 @@ The same task can be run manually through **Tasks: Run Task**.
 From the repository root:
 
 ```bash
-python apps/dashboard.py
+.venv/bin/python apps/dashboard.py
 ```
 
 See [Development Runbook](development-runbook.md) and

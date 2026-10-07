@@ -72,7 +72,9 @@ Supported configuration keys:
   `All_Cheque_Details`, `All_Customers1`, and `All_Payments`, respectively.
 - `DASHBOARD_WORKFLOWS`: Object with `include` and `exclude` lists controlling
   which domain workflows appear on the local dashboard. An empty `include`
-  list means all workflows; `exclude` takes precedence.
+  list means all workflows; `exclude` takes precedence. Optional `groups` maps
+  group names to workflow ID lists for dashboard tabs; unassigned domains keep
+  their default category. See [Project Dashboard](project-dashboard.md).
 - `GSTR2_LOCATION_GSTIN_MAP`: Static object keyed by recipient GSTIN. Each
   value is a list of Books location IDs owned by that registration. GSTR-2 verification uses this snapshot to
   select the Books documents owned by the recipient registration and fails

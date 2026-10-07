@@ -26,7 +26,7 @@ const elements = new Map();
 const document = {
   querySelector() { return {content: 'token'}; },
   getElementById(id) {
-    if (!elements.has(id)) elements.set(id, {value: '', style: {}, addEventListener() {}});
+    if (!elements.has(id)) elements.set(id, {value: '', style: {}, addEventListener() {}, setAttribute(name, value) { this[name] = value; }});
     return elements.get(id);
   }
 };
@@ -35,6 +35,26 @@ batch = {entries: [{id: 'p1', reviewable: true}], bank_suggestions: [
   {transaction_id: 'ta1', kind: 'travel_allowance', description: 'Alice/TA'},
   {transaction_id: 'd1', kind: 'deposit', description: 'Customer deposit'}
 ]};
+document.getElementById('filter').value = 'all';
+batch.entries = [
+  {id: 'missing', creator: {customer_name: 'No bank customer'}},
+  {id: 'match', bank: {date: '2026-10-01', description: 'Matched narration'}, creator: {customer_name: 'Matched customer'}},
+  {id: 'possible', possible_candidates: [{transaction_id: 'candidate', description: 'Possible narration'}], creator: {customer_name: 'Possible customer'}}
+];
+render();
+assert.equal(document.getElementById('bankTab')['aria-selected'], 'true');
+assert.doesNotMatch(document.getElementById('rows').innerHTML, /No bank customer/);
+assert.ok(document.getElementById('rows').innerHTML.indexOf('Matched narration') < document.getElementById('rows').innerHTML.indexOf('Matched customer'));
+assert.match(document.getElementById('rows').innerHTML, /Unmatched records/);
+setPrimaryView('creator');
+assert.equal(document.getElementById('otherBankLines').hidden, true);
+assert.match(document.getElementById('rows').innerHTML, /No bank customer/);
+assert.ok(document.getElementById('rows').innerHTML.indexOf('Matched customer') < document.getElementById('rows').innerHTML.indexOf('Matched narration'));
+assert.ok(document.getElementById('rows').innerHTML.indexOf('Matched customer') < document.getElementById('rows').innerHTML.indexOf('No bank customer'));
+setPrimaryView('bank');
+document.getElementById('search').value = 'absent'; render();
+assert.match(document.getElementById('rows').innerHTML, /Matched records .* · 0/);
+document.getElementById('search').value = '';
 document.getElementById('filter').value = 'expenses'; render();
 assert.equal(document.getElementById('paymentTable').hidden, true);
 assert.equal(document.getElementById('acceptSelected').hidden, true);

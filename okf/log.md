@@ -1,5 +1,15 @@
 # Knowledge Change Log
 
+## 2026-10-07
+
+- Moved dashboard group membership into workflow configuration with validated domain assignments and dynamically derived tabs.
+
+- Support redacted UPI suffix-and-handle history searches and block mixed-customer collisions.
+
+- Added bank-first and Creator-first review tabs with grouped proposed matches and unmatched records.
+
+- Removed the separate Bank Statement Categorization preview dashboard entry; retained the review interface, CLI refresh option, and stable shortcut numbers.
+
 ## 2026-10-06
 
 - Scope the Creator-first bank review to online and cheque records without a Books transaction ID; show unmatched records as Not available and keep completed checkpoints outside the default pending view.

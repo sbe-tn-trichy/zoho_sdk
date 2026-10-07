@@ -77,6 +77,11 @@
     .refresh, .select { color: var(--blue); background: #eaf1ff; }
     .accept { color: white; background: var(--green); }
     .reject { color: var(--red); background: #feeceb; }
+    [hidden] { display: none !important; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tabs button { background: #eaf1ff; color: var(--blue); }
+    .tabs button[aria-selected="true"] { background: var(--blue); color: white; }
+    .group td { background: #edf2f8; font-weight: 700; }
     .table-wrap {
       overflow: auto;
       background: white;
@@ -144,10 +149,15 @@
 </header>
 <main>
   <section class="summary" id="summary"></section>
+  <div class="tabs" role="tablist" aria-label="Primary records">
+    <button id="bankTab" role="tab" aria-selected="true" aria-controls="reviewPanel" onclick="setPrimaryView('bank')">1 · Bank statement</button>
+    <button id="creatorTab" role="tab" aria-selected="false" aria-controls="reviewPanel" onclick="setPrimaryView('creator')">2 · Creator records</button>
+  </div>
+  <section id="reviewPanel" role="tabpanel" aria-labelledby="bankTab">
   <div class="toolbar">
     <input id="search" placeholder="Search customer, reference, amount, or narration">
     <select id="filter">
-      <option value="all">Pending Creator payments</option>
+      <option value="all">Pending records</option>
       <option value="reviewable">Ready for review</option>
       <option value="expenses">Expenses</option>
       <option value="transfers">Cash transfers</option>
@@ -168,7 +178,7 @@
   <div class="table-wrap" id="paymentTable">
     <table>
       <thead>
-        <tr>
+        <tr id="paymentHeaders">
           <th><input type="checkbox" id="selectVisible" title="Select all visible ready matches"></th>
           <th>Status</th>
           <th>Type</th>
@@ -186,6 +196,7 @@
       <tbody id="rows"></tbody>
     </table>
   </div>
+  <section id="otherBankLines">
   <h2 id="bankLinesTitle">Other uncategorized bank lines</h2>
   <p class="muted">Review TA and Salary withdrawals as expenses. CASH DEPOSIT is a transfer from Cash-SBE to the originating bank. Every categorization requires approval.</p>
   <div class="toolbar">
@@ -199,6 +210,8 @@
       <tbody id="bankRows"></tbody>
     </table>
   </div>
+  </section>
+  </section>
 </main>
 <div id="notice"></div>
 
@@ -207,6 +220,18 @@
   let batch = { entries: [] }, selected = new Set(), candidateSelections = new Map();
   const selectedExpenses = new Set();
   let expensesBusy = false;
+  let primaryView = 'bank';
+  const creatorHeaders = ['Status', 'Type', 'Payment / presented date', 'Customer', 'Bank', 'Amount', 'Reference', 'Proposed bank line', 'Invoice allocation', 'Match result', 'Actions'];
+  const bankColumnOrder = [0, 5, 8, 1, 2, 3, 4, 6, 7, 9, 10, 11];
+  function setPrimaryView(view) {
+    primaryView = view;
+    render();
+  }
+  function groupHeading(label, count, columns) {
+    return `<tr class="group"><td colspan="${columns}">${esc(label)} · ${count}</td></tr>`;
+  }
+  const hasBankCandidate = e => Boolean(e.bank || (e.ambiguous_candidates || []).length || (e.possible_candidates || []).length);
+
   const expenseEligible = row => ['travel_allowance', 'salary'].includes(row.kind) && row.categorization_status !== 'categorized';
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = v => {
@@ -283,14 +308,24 @@
     ].map(x => `<div class="card"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
 
     const q = document.getElementById('search').value.toLowerCase(), filter = document.getElementById('filter').value;
+    const bankPrimary = primaryView === 'bank';
+    for (const view of ['bank', 'creator']) {
+      document.getElementById(view + 'Tab').setAttribute('aria-selected', String(primaryView === view));
+    }
+    document.getElementById('reviewPanel').setAttribute('aria-labelledby', primaryView + 'Tab');
+    document.getElementById('otherBankLines').hidden = !bankPrimary;
+    const headerCells = [`<th><input type="checkbox" id="selectVisible" title="Select all visible ready matches"></th>`, ...creatorHeaders.map(h => `<th>${esc(h)}</th>`)];
+    document.getElementById('paymentHeaders').innerHTML = (bankPrimary ? bankColumnOrder.map(i => headerCells[i]) : headerCells).join('');
+    document.getElementById('selectVisible').onchange = e => toggleVisible(e.target.checked);
     const expensesOnly = filter === 'expenses';
     const transfersOnly = filter === 'transfers';
     document.getElementById('paymentTable').hidden = expensesOnly || transfersOnly;
     for (const id of ['selectReady', 'acceptSelected', 'selectedCount']) {
       document.getElementById(id).hidden = expensesOnly || transfersOnly;
     }
-    document.getElementById('bankLinesTitle').textContent = expensesOnly ? 'Expenses' : transfersOnly ? 'Cash transfers' : 'Other uncategorized bank lines';
+    document.getElementById('bankLinesTitle').textContent = expensesOnly ? 'Expenses' : transfersOnly ? 'Cash transfers' : 'Unmatched bank statement records';
     const shown = entries.filter(e => {
+      if (bankPrimary && !hasBankCandidate(e)) return false;
       const s = state(e), hay = JSON.stringify(e).toLowerCase();
       return (!q || hay.includes(q)) && (
         (filter === 'all' && s !== 'pushed' && !e.archived) ||
@@ -307,9 +342,9 @@
       if (!e || !eligible(e)) selected.delete(id);
     }
 
-    document.getElementById('rows').innerHTML = shown.map(e => {
+    const paymentRow = e => {
       const c = e.creator || {}, b = e.bank, s = state(e), busy = inProgress(e);
-      return `<tr>
+      const markup = `<tr>
         <td><input type="checkbox" aria-label="Select payment" ${selected.has(e.id) ? 'checked' : ''} ${eligible(e) ? '' : 'disabled'} onchange="toggleEntry('${esc(e.id)}',this.checked)"></td>
         <td><span class="badge ${esc(s)}">${esc(s)}</span>${e.push_status && e.push_status !== 'not_started' && e.push_status !== s ? `<div class="muted">${esc(e.push_status)}</div>` : ''}${e.error ? `<div class="error">${esc(e.error)}</div>` : ''}</td>
         <td><span class="badge">${esc(e.payment_type || 'Online')}</span></td>
@@ -328,7 +363,14 @@
           </div>
         </td>
       </tr>`;
-    }).join('');
+      const cells = markup.match(/<td[\s\S]*?<\/td>/g);
+      return bankPrimary ? `<tr>${bankColumnOrder.map(i => cells[i]).join('')}</tr>` : markup;
+    };
+    const matched = shown.filter(e => Boolean(e.bank));
+    const unmatched = shown.filter(e => !e.bank);
+    document.getElementById('rows').innerHTML =
+      groupHeading('Matched records (proposed bank match)', matched.length, 12) + matched.map(paymentRow).join('') +
+      groupHeading('Unmatched records (includes ambiguous and possible matches)', unmatched.length, 12) + unmatched.map(paymentRow).join('');
 
     const visibleEligible = shown.filter(eligible);
     document.getElementById('selectVisible').checked = visibleEligible.length > 0 && visibleEligible.every(e => selected.has(e.id));
@@ -346,13 +388,13 @@
     document.getElementById('selectExpenses').disabled = expensesBusy || !visibleExpenses.length;
     document.getElementById('categorizeSelectedExpenses').disabled = expensesBusy || !selectedExpenses.size;
     document.getElementById('expenseSelectedCount').textContent = `${selectedExpenses.size} expenses selected`;
-    document.getElementById('bankRows').innerHTML = bankRows.map(row => `<tr>
+    document.getElementById('bankRows').innerHTML = groupHeading('Unmatched bank records / other categorizations', bankRows.length, 7) + (bankRows.map(row => `<tr>
       <td>${expenseEligible(row) ? `<input type="checkbox" aria-label="Select expense" data-transaction-id="${esc(row.transaction_id)}" ${selectedExpenses.has(String(row.transaction_id)) ? 'checked' : ''} ${expensesBusy ? 'disabled' : ''} onchange="toggleExpense(this.dataset.transactionId,this.checked)">` : ''}</td>
       <td>${esc(row.bank_name)}</td><td>${esc(row.date)}</td><td class="money">${money(row.amount)}</td>
       <td>${esc(row.description)}</td>
       <td>${['travel_allowance', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.kind === 'vendor_advance' ? `Vendor advance: ${esc(row.vendor_name)} · Branch: ${esc(row.location_name)}` : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
       <td>${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'salary', 'cash_deposit', 'vendor_advance'].includes(row.kind) ? `<button class="accept" ${expensesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : row.kind === 'vendor_advance' ? 'Categorize vendor advance' : 'Categorize expense'}</button>` : '<span class="muted">Review in Books</span>'}</td>
-    </tr>`).join('') || `<tr><td colspan="7" class="muted">${expensesOnly ? 'No expense proposals.' : 'No other uncategorized bank lines.'}</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="7" class="muted">${expensesOnly ? 'No expense proposals.' : 'No other uncategorized bank lines.'}</td></tr>`);
   }
 
   function toggleExpense(id, checked) {
@@ -462,7 +504,7 @@
           (filter === 'unmatched' && !e.reviewable) ||
           s === filter
         );
-      return shown && eligible(e);
+      return shown && (primaryView !== 'bank' || hasBankCandidate(e)) && eligible(e);
     });
   }
 

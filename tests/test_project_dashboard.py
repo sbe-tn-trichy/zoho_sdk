@@ -113,6 +113,32 @@ def test_dashboard_workflow_config_rejects_unknown_ids():
         filter_dashboard_workflows(WORKFLOWS, {"exclude": ["typo"]})
 
 
+def test_configured_groups_apply_to_all_domain_operations_without_changing_registry():
+    selected = filter_dashboard_workflows(WORKFLOWS, {
+        "groups": {"Banking": ["collection_reconciliation", "duplicate_payment_check"]},
+        "exclude": ["duplicate_payment_check"],
+    })
+    assert {item.category for item in selected if item.workflow == "collection_reconciliation"} == {"Banking"}
+    assert next(item for item in selected if item.workflow == "neoseal_audit").category == "Inventory"
+    assert all(item.workflow != "duplicate_payment_check" for item in selected)
+    assert {item.category for item in WORKFLOWS if item.workflow == "collection_reconciliation"} == {"Collections"}
+
+
+@pytest.mark.parametrize("groups", [
+    [], {"": []}, {" Banking ": []}, {"All": []}, {"Favorites": []},
+    {"Banking": "collection_reconciliation"}, {"Banking": [1]},
+    {"Banking": ["typo"]},
+    {"Banking": ["collection_reconciliation"], "Review": ["collection_reconciliation"]},
+])
+def test_dashboard_rejects_invalid_groups(groups):
+    with pytest.raises(ValueError):
+        filter_dashboard_workflows(WORKFLOWS, {"groups": groups})
+
+
+def test_empty_group_config_preserves_categories():
+    assert filter_dashboard_workflows(WORKFLOWS, {"groups": {}}) == WORKFLOWS
+
+
 def test_runner_explains_when_workflow_needs_setup():
     runner = WorkflowRunner()
 
@@ -179,15 +205,13 @@ def test_runner_rejects_invalid_json_source_file(tmp_path: Path):
         runner.start(17, {"name": "return.json", "content": "not-json"})
 
 
-def test_payment_preview_uses_production_review_refresh():
+def test_payment_preview_is_removed_and_review_remains_available():
     runner = WorkflowRunner()
-
-    preview = next(
-        workflow for workflow in runner.list_workflows() if workflow["number"] == 2
-    )
-
-    assert preview["name"] == "Bank Statement Categorization preview"
-    assert "payment_review.py --refresh-only" in preview["command"]
+    workflows = runner.list_workflows()
+    assert all(workflow["number"] != 2 for workflow in workflows)
+    review = next(workflow for workflow in workflows if workflow["number"] == 1)
+    assert review["name"] == "Bank Statement Categorization"
+    assert "payment_review.py" in review["command"]
 
 
 def test_homepage_launcher_reuses_running_dashboard(monkeypatch):
@@ -257,7 +281,7 @@ const context = {
 };
 vm.runInNewContext(source + `
   state = { workflows: [
-    { number: 1, name: 'Payment reconciliation', description: 'Payments', category: 'Collections', workflow: 'collection_reconciliation', available: true, safety: 'Read-only' },
+    { number: 1, name: 'Payment reconciliation', description: 'Payments', category: 'Reconciliation', workflow: 'collection_reconciliation', available: true, safety: 'Read-only' },
     { number: 2, name: 'Neoseal audit', description: 'Items', category: 'Inventory', workflow: 'neoseal_audit', available: true, safety: 'Read-only' }
   ], runs: [] };
   render();

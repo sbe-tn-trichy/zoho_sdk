@@ -239,3 +239,23 @@ def test_polycab_advance_reviewed_posting(tmp_path, failure):
         service.categorize_bank_line("poly")
         action.assert_called_once()
     books.bank_transactions.categorize_as_expense.assert_not_called()
+
+
+@pytest.mark.parametrize("vpa,expected", [
+    ("XXuram@okaxis", ["uram@okaxis"]),
+    ("xx3974@ibl", ["3974@ibl"]),
+    ("XXXX3974@ibl", ["3974@ibl"]),
+    ("XXXXXX@okaxis", []),
+])
+def test_redacted_upi_search_keeps_suffix_and_handle(vpa, expected):
+    assert extract_remitter_tokens("UPI/" + vpa) == expected
+
+
+def test_redacted_upi_suggestions_include_all_suffix_collisions():
+    rows = [
+        {"Customer Name": "First Customer", "Description": "UPI/firsturam@okaxis"},
+        {"Customer Name": "Second Customer", "Description": "UPI/seconduram@okaxis"},
+        {"Customer Name": "Other Handle", "Description": "UPI/firsturam@ybl"},
+    ]
+    assert customer_name_suggestions({"description": "UPI/XXuram@okaxis"}, rows) == [
+        "First Customer", "Second Customer"]
