@@ -23,6 +23,12 @@ from .core.models import DotDict
 
 
 _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "sync_customer_numbers": (".customer_registration", "sync_customer_numbers"),
+    "CustomerNumberChange": (".customer_registration", "CustomerNumberChange"),
+    "CustomerNumberSyncResult": (".customer_registration", "CustomerNumberSyncResult"),
+    "register_customer": (".customer_registration", "register_customer"),
+    "CustomerRegistrationResult": (".customer_registration", "CustomerRegistrationResult"),
+    "CustomerRegistrationError": (".customer_registration", "CustomerRegistrationError"),
     "RmaCreditPolicy": (".polycab_credit_review", "RmaCreditPolicy"),
     "CreditAudit": (".polycab_credit_review", "CreditAudit"),
     "CreditFinding": (".polycab_credit_review", "CreditFinding"),
@@ -149,6 +155,8 @@ def __dir__():
     return sorted(set(globals()) | set(_LAZY_EXPORTS))
 
 __all__ = [
+    "sync_customer_numbers", "CustomerNumberChange", "CustomerNumberSyncResult",
+    "register_customer", "CustomerRegistrationResult", "CustomerRegistrationError",
     "RmaCreditPolicy", "CreditAudit", "CreditFinding", "CreditMemoEvidence", "CreditCorrectionPlan",
     "CreditCorrectionResult", "CreditCorrectionError", "review_polycab_vendor_credits",
     "build_credit_correction_plan", "execute_credit_correction",

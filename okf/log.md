@@ -1,5 +1,15 @@
 # Knowledge Change Log
 
+## 2026-10-08
+
+- Registration now maps Books `contact_number` to Creator `Customer_no`; added targeted preview-first backfill with collision checks and read-back verification.
+
+- Verified the live registration form uses `Name`; customer registration now accepts it while retaining legacy `Customer_Name` support.
+
+- Customer registration now creates records by default; explicit `--dry-run` or `dry_run=True` previews without writes.
+
+- Added paired Books/Creator customer registration, dry-run previews, linked IDs and explicit partial-failure recovery.
+
 ## 2026-10-07
 
 - Moved dashboard group membership into workflow configuration with validated domain assignments and dynamically derived tabs.

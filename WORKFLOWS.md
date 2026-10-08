@@ -110,3 +110,7 @@ Use each app's help and relevant OKF documentation for configuration, arguments 
 ## Shared infrastructure
 
 [workflows.core](src/workflows/core/) contains authentication factories, configuration, matching, dates, sequences, checkpoints, snapshots and payment primitives. It is shared infrastructure rather than a standalone business workflow. Empty and cache-only directories are excluded from this catalog.
+
+Customer registration in Books and Creator: [customer_registration](src/workflows/customer_registration/), run with [register_customer.py](apps/register_customer.py). See [usage and recovery](okf/customer-registration.md).
+
+Creator customer-number backfill: [sync_customer_numbers.py](apps/sync_customer_numbers.py), using [customer_registration](src/workflows/customer_registration/) with explicit Books IDs and a dry-run default.
