@@ -971,6 +971,15 @@ class OnlinePaymentReviewService:
         )
         entry["historical_customer_names"] = historical_names
 
+        if len(historical_names) > 1:
+            entry["customer_name_valid"] = None
+            entry["customer_name_reason"] = (
+                "Note: Analytics history matches multiple customers; "
+                "customer identity is inconclusive. Review may proceed. Matches: "
+                + ", ".join(historical_names)
+            )
+            return
+
         expected = " ".join(_text(entry["creator"].get("customer_name")).split()).casefold()
 
         def _matches_expected(name: str) -> bool:
@@ -982,8 +991,7 @@ class OnlinePaymentReviewService:
                 or clean_name.split(" - ")[0] == expected.split(" - ")[0]
             )
 
-        redacted_upi = bool(re.search(r"\bx{2,}[a-z0-9._]{4}@[a-z0-9]+", _text(bank_desc), re.IGNORECASE))
-        has_match = (all if redacted_upi else any)(_matches_expected(n) for n in historical_names)
+        has_match = any(_matches_expected(n) for n in historical_names)
         if has_match:
             entry["customer_name_valid"] = True
             entry["customer_name_reason"] = "Customer name confirmed by Analytics history."

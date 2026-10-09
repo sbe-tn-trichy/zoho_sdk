@@ -73,4 +73,23 @@ remain.
 
 # Related Knowledge
 
+## Purchase Query Table
+
+The saved `Purchases by Vendor - All Years` query table includes GST-bearing
+bills plus GST-bearing expenses less GST-bearing vendor credits, before GST.
+Bills require a positive sum of CGST, SGST, IGST and CESS amounts; vendor credits
+require positive `GST Present`. Zero-GST bills and commercial credits are
+excluded from this GST purchase comparison. GST expenses require a
+positive Analytics `Tax Value`; their `Sub Total (BCY)` and document count are
+shown separately as `GST Expenses` and `Expense Count`. Draft/void documents
+are excluded. Recipient GSTIN comes from the document location, and fiscal
+years run April through March. Bills use posting date with bill-date fallback;
+expenses use expense date and credits use vendor-credit date.
+
+Supplier grouping prefers vendor PAN, then vendor GSTIN-derived PAN, then
+expense GSTIN-derived PAN, with vendor/document identifiers as fallback.
+A left vendor join retains GST expenses without a vendor ID. Retain a backup
+of the existing SQL and compare a dynamic SQL preview with a fresh saved-table
+export when changing the definition.
+
 See [Package Architecture](architecture.md), [Configuration Reference](configuration.md), and [Development Runbook](development-runbook.md).

@@ -355,7 +355,7 @@
         <td class="ref">${esc(c.reference) || '<span class="muted">Missing</span>'}</td>
         <td>${bankHtml(e)}</td>
         <td class="allocation">${allocationHtml(e)}</td>
-        <td>${esc(e.reason)}</td>
+        <td>${esc(e.reason)}${e.customer_name_valid == null && e.historical_customer_names?.length > 1 ? `<div class="muted">${esc(e.customer_name_reason)}</div>` : ''}</td>
         <td>
           <div class="actions">
             <button class="reject" onclick="rejectEntry('${esc(e.id)}')" ${s === 'pushed' || busy || e.books_payment_id ? 'disabled' : ''}>Reject</button>

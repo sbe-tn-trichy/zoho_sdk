@@ -1,5 +1,21 @@
 # Knowledge Change Log
 
+## 2026-10-09
+
+- Excluded generic CHQ DEP - CTS CLG1 prefixes and clearing-location suffixes from customer evidence in bank statement categorization, preserving remitter details after a colon.
+
+- Payment review treats history matching multiple customers as an informational note and permits review and acceptance; a unique different historical customer remains blocking.
+
+- Exclude reverse-charge purchases from GSTR-2 comparison totals and queues by default using portal flags, Books RCM evidence, and exact supplier/document counterparts; retain explicit opt-in RCM reconciliation.
+
+- Restricted the vendor-purchase query table to positive GST bill/credit amounts, excluding zero-GST purchases and commercial credits while retaining GST expenses.
+
+- Extended the Analytics vendor-purchase query table with GST-bearing expenses, separate amount/count columns, and supplier-GSTIN fallback for expenses without vendor IDs; validated preview and saved export.
+
+- Stock transfers accept an explicit starting invoice number, check collisions, and verify the saved sequence; empty plans stop before creation.
+
+- Changed paired stock transfer pricing to purchase rate plus 1% markup, retaining two-decimal half-up rounding.
+
 ## 2026-10-08
 
 - Registration now maps Books `contact_number` to Creator `Customer_no`; added targeted preview-first backfill with collision checks and read-back verification.

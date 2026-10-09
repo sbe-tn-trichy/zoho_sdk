@@ -7,7 +7,7 @@ import pytest
 from zoho.inventory.resources.items import Items
 from workflows.stock_transfer import (
     build_plan, build_payloads, line_total, split_plan, transaction_dates,
-    validate_series_start_date, validate_stock,
+    invoice_numbers, validate_series_start_date, validate_stock,
 )
 
 
@@ -22,11 +22,22 @@ def item():
                 locations=[dict(stock, location_id='source'), dict(stock, location_id='destination', location_stock_on_hand=-8)])
 
 
+def test_explicit_invoice_numbers_preserve_width_and_increment():
+    assert invoice_numbers('SBE2627INV-00501', 'SBE2627INV-', 2) == ['SBE2627INV-00501', 'SBE2627INV-00502']
+    assert invoice_numbers('INV-999', 'INV-', 2) == ['INV-999', 'INV-1000']
+
+
+@pytest.mark.parametrize('number,prefix,count', [('INV-x', 'INV-', 1), ('OTHER-001', 'INV-', 1), ('001', '', 1), ('INV-001', 'INV-', -1)])
+def test_explicit_invoice_numbers_reject_invalid_inputs(number, prefix, count):
+    with pytest.raises(ValueError):
+        invoice_numbers(number, prefix, count)
+
+
 def test_caps_stock_and_commitments_and_revalidates():
     data = item()
     lines = build_plan([data], 'source', 'destination', ['p'])
     assert lines[0].quantity == 6
-    assert lines[0].rate == Decimal('103.00')
+    assert lines[0].rate == Decimal('101.00')
     data['locations'][0]['location_available_for_sale_stock'] = 5
     with pytest.raises(ValueError, match='Stock changed'):
         validate_stock(lines, [data], 'source', 'destination')
@@ -36,7 +47,7 @@ def test_markup_rate_rounds_half_up_to_two_decimal_places():
     data = item()
     data['purchase_rate'] = Decimal('100.005')
     lines = build_plan([data], 'source', 'destination', ['p'])
-    assert lines[0].rate == Decimal('103.01')
+    assert lines[0].rate == Decimal('101.01')
 
 
 @pytest.mark.parametrize('source,destination,expected', [(3, -8, 3), (10, -2, 2), (0, -2, 0), (-2, -2, 0), (10, 0, 0)])
@@ -75,6 +86,7 @@ def test_payloads_and_contact_gstin_guard():
     vendor = dict(contact_id='v', contact_type='vendor', status='active', gst_no='33SOURCE')
     pair = build_payloads(lines, source, dest, customer, vendor, date(2026, 9, 7), 'REF')
     assert pair['invoice']['line_items'][0]['quantity'] == pair['bill']['line_items'][0]['quantity'] == 6
+    assert pair['invoice']['line_items'][0]['rate'] == pair['bill']['line_items'][0]['rate'] == 101.0
     assert pair['bill']['line_items'][0]['account_id'] == 'asset'
     assert pair['invoice']['send'] is False
     vendor['gst_no'] = '33DEST'

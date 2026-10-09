@@ -58,6 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--analytics-workspace-id", default="264324000000002043",
                         help="Zoho Analytics workspace containing Bills and Vendors tables")
+    parser.add_argument("--include-rcm", action="store_true",
+                        help="Include reverse-charge purchases (excluded by default)")
     parser.add_argument("--analytics-bills-view-id", help="Explicit Analytics Bills view ID")
     parser.add_argument("--analytics-vendors-view-id", help="Explicit Analytics Vendors view ID")
     parser.add_argument("--analytics-expenses-view-id", help="Explicit Analytics Expenses view ID")
@@ -399,6 +401,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     config = GSTR2VerificationConfig(
         amount_tolerance=args.tolerance,
         include_drafts=args.include_drafts,
+        exclude_reverse_charge=not args.include_rcm,
         aggregate_mappings=mappings,
         location_gstin_map=Config.GSTR2_LOCATION_GSTIN_MAP,
     )

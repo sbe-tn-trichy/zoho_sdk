@@ -176,8 +176,9 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         rows.append({"Customer Name": "Other Customer",
                      "Description": "UPI/anotheruram@okaxis"})
         self.service._check_customer_name(entry, rows)
-        self.assertFalse(entry["customer_name_valid"])
+        self.assertIsNone(entry["customer_name_valid"])
         self.assertEqual(len(entry["historical_customer_names"]), 2)
+        self.assertIn("Note:", entry["customer_name_reason"])
         self.service._check_customer_name(entry, [])
         self.assertIsNone(entry["customer_name_valid"])
         queries = self.service._historical_queries(["uram@okaxis"])
@@ -202,6 +203,32 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertTrue(entry["reviewable"])
         self.assertIsNone(entry["customer_name_valid"])
         self.assertEqual(entry["customer_name_reason"], "No historical customer match found in Analytics.")
+
+    def test_multiple_historical_customers_allow_preview_and_push(self):
+        self.bank["description"] = "UPI/MOHAMED/KVBL"
+        analytics = MagicMock()
+        self.service = OnlinePaymentReviewService(
+            self.creator, self.books,
+            replace(self.config, analytics_workspace_id="workspace",
+                    customer_finder_view_id="view"), analytics_client=analytics,
+        )
+        rows = [{"Customer Name": name, "Description": self.bank["description"]}
+                for name in ("Other Customer", "Another Customer")]
+        analytics.queries.execute.return_value = rows
+        analytics.views.export_all.return_value = rows
+        entry = self._refresh()["entries"][0]
+        self.assertTrue(entry["reviewable"])
+        self.assertIsNone(entry["customer_name_valid"])
+        self.assertIn("multiple customers", entry["customer_name_reason"])
+        self.assertEqual(entry["allocation_status"], "fully_allocated")
+        self.books.customer_payments.create.return_value = {
+            "payment": {"payment_id": "books-payment-1", "payment_number": "PAY-0001"}}
+        self.books.bank_transactions.get_matches.return_value = {
+            "matching_transactions": [{"transaction_id": "books-payment-1",
+                                       "transaction_type": "customerpayment"}]}
+        pushed = self.service.accept_and_push(entry["id"])
+        self.assertEqual(pushed["push_status"], "pushed")
+        self.assertIsNone(pushed["customer_name_valid"])
 
     def test_refresh_preserves_ambiguous_bank_candidates_for_review(self):
         second_bank = {

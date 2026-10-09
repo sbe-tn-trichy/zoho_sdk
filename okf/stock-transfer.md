@@ -12,7 +12,7 @@ The supported scope is distinct GST registrations in the same state. Invoice
 customer GSTIN must match the destination; bill vendor GSTIN must match the source.
 
 `workflows.stock_transfer` exports `TransferLine`, `build_plan`, `build_payloads`,
-and `validate_stock`. Each line rate is the item purchase rate plus a fixed 3%
+and `validate_stock`. Each line rate is the item purchase rate plus a default 1%
 markup, rounded half-up to two decimal places before totals and document splits
 are calculated. Quantities are the minimum of destination accounting-stock
 shortage and source accounting, physical, and uncommitted stock. Negative or zero
@@ -27,7 +27,10 @@ intra-state tax; bills debit the inventory account.
 The CLI requires `--maximum-invoice-total`, `--starting-date`, and
 `--ending-date`. It also requires `--invoice-number-prefix` and rejects a start
 date earlier than the latest existing invoice date in that exact source-location
-number series. The threshold includes tax. It splits item quantities across
+number series.
+`--starting-invoice-number` optionally assigns consecutive explicit invoice
+numbers with the original suffix width; existing numbers are rejected before
+creation and returned numbers are verified. The threshold includes tax. It splits item quantities across
 multiple matched invoice/bill pairs so each invoice stays at or below the cap.
 Dates are assigned across the inclusive range in order, cycle when there are
 more documents than dates, and always exclude Sundays.
@@ -42,7 +45,7 @@ The application writes its plan and execution journal under
 `output/stock_transfer/<reference>/`. It checks for existing references before
 creation, validates each returned draft, and checks live stock again before
 posting. It marks invoices sent without emailing and opens bills, then reads back
-both documents and verifies nonnegative source accounting stock. No physical
+item stock and verifies nonnegative source accounting stock. No physical
 package, shipment, receipt, payment, or e-invoice submission is created.
 
 ## Partial execution and concurrency

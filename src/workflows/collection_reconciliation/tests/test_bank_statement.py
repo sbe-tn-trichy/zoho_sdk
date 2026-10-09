@@ -82,6 +82,30 @@ def test_extract_remitter_tokens_handles_upi_and_neft():
     cheque_desc = "CHQ DEP - CTS CLG1 - THANJAVUR: SRI JAIKRISHNA HARDWARES AND ELECTRICALS :INDIAN BANK"
     tokens_chq = extract_remitter_tokens(cheque_desc)
     assert "SRI JAIKRISHNA HARDWARES AND ELECTRICALS" in tokens_chq
+    assert "THANJAVUR" not in tokens_chq
+
+
+@pytest.mark.parametrize("description", [
+    "CHQ DEP - CTS CLG1 - THANJAVUR",
+    "chq dep-cts clg1-thanjavur",
+    "CHQ DEP - CTS CLG1",
+    "CHQ DEP - CTS CLG1 - TRICHY",
+    "CHQ DEP - CTS CLG1 - CHENNAI CLEARING CENTRE",
+])
+def test_cheque_clearing_narration_is_not_customer_evidence(description):
+    rows = [{"Customer Name": "Example Customer", "Description": description}]
+    assert extract_remitter_tokens(description) == []
+    assert customer_name_suggestions({"description": description}, rows) == []
+
+
+@pytest.mark.parametrize("prefix", ["CHQ DEP - CTS CLG1", "CHQ DEP - CTS CLG1 - THANJAVUR", "CHQ DEP - CTS CLG1 - TRICHY"])
+def test_cheque_clearing_prefix_preserves_actual_customer(prefix):
+    rows = [{"Customer Name": "Example Customer", "Description": prefix},
+            {"Customer Name": "Thanjavur Agencies"},
+            {"Customer Name": "Sri Jaikrishna Hardwares", "Description": prefix + ": SRI JAIKRISHNA HARDWARES"}]
+    assert customer_name_suggestions(
+        {"description": prefix + ": SRI JAIKRISHNA HARDWARES"}, rows
+    ) == ["Sri Jaikrishna Hardwares"]
 
 
 def test_customer_name_suggested_from_neft_narration():

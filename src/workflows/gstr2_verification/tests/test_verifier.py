@@ -23,6 +23,37 @@ def test_normalize_doc_number():
     assert normalize_doc_number("") == ""
 
 
+@pytest.mark.parametrize('flag,excluded', [('true', True), ('false', False), (True, True), (False, False)])
+def test_rcm_bill_flag_does_not_treat_false_string_as_true(flag, excluded):
+    books = MagicMock()
+    books.bills.list_all.return_value = [{
+        'bill_id': 'rcm-bill', 'bill_number': 'INV1', 'date': '2025-09-27',
+        'total': 810, 'is_reverse_charge_applied': flag,
+    }]
+    bills = GSTR2Verifier(books)._fetch_books_bills(date(2025, 9, 1), date(2025, 9, 30), [])
+    assert len(bills) == (0 if excluded else 1)
+
+
+def test_portal_rcm_identity_excludes_bill_without_summary_rcm_flag():
+    books = MagicMock()
+    books.bills.list_all.return_value = [{
+        'bill_id': 'rcm-bill', 'bill_number': 'INV1', 'date': '2025-09-27',
+        'gst_no': '33AABCV3609C1ZU', 'total': 810,
+    }]
+    books.expenses.list_all.return_value = []
+    books.vendor_credits.list_all.return_value = []
+    portal = {'data': {'rtnprd': '092025', 'docdata': {'b2b': [{
+        'ctin': '33AABCV3609C1ZU', 'inv': [{
+            'inum': 'INV1', 'dt': '27-09-2025', 'val': 810,
+            'txval': 810, 'rev': 'Y', 'cgst': 20.25, 'sgst': 20.25,
+        }],
+    }]}}}
+    result = GSTR2Verifier(books).run(portal)
+    assert result['metadata']['config']['exclude_reverse_charge'] is True
+    assert result['reconciliation']['summary']['books_total_bills_count'] == 0
+    assert result['reconciliation']['summary']['gstr2_total_docs'] == 0
+
+
 def test_same_vendor_and_amount_do_not_override_different_expense_reference():
     verifier = GSTR2Verifier(MagicMock())
     gstin = "33AAACH2702H1Z7"
@@ -632,7 +663,12 @@ def test_reverse_charge_expense_matches_rcm_portal_invoice():
                  "rev": "Y", "itcavl": "Y"}],
     }], "cdnr": []}}}
 
-    rec = GSTR2Verifier(books).run(portal)["reconciliation"]
+    excluded = GSTR2Verifier(books).run(portal)["reconciliation"]
+    assert excluded["summary"]["matched_count"] == 0
+    assert excluded["summary"]["missing_in_books_count"] == 0
+    assert excluded["summary"]["books_total_expenses_count"] == 0
+    rec = GSTR2Verifier(books, GSTR2VerificationConfig(
+        exclude_reverse_charge=False)).run(portal)["reconciliation"]
 
     assert rec["summary"]["matched_count"] == 1
     assert rec["summary"]["missing_in_books_count"] == 0

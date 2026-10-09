@@ -18,6 +18,17 @@ status: active
 cross-check between a downloaded GSTR-2 or GSTR-2B return JSON file and Zoho Books
 purchases (bills, GST-bearing expenses, and vendor credits).
 
+Reverse-charge purchases are excluded by default from both portal and Books
+comparison pools. Portal `rev=Y`, explicit Books RCM flags, and positive
+reverse-charge tax amounts identify exclusions. An exact supplier-GSTIN plus
+normalized invoice/reference identity from a portal RCM document also excludes
+the Books counterpart when its summary omits RCM fields. Excluded documents do
+not contribute to matching, missing queues, or purchase totals. The portal's
+filed ITC summary remains source data, including its RCM figures.
+Set `GSTR2VerificationConfig(exclude_reverse_charge=False)` or CLI `--include-rcm`
+to restore RCM reconciliation. Analytics summaries without an RCM flag cannot
+identify unmatched RCM bills by themselves; do not infer RCM from GSTIN alone.
+
 The verifier reads a static registered-GSTIN to Books-location-ID-list snapshot from
 `GSTR2_LOCATION_GSTIN_MAP`. The map is maintained in the active configuration
 profile. It is
@@ -62,7 +73,8 @@ locally by month. Tax or reverse-charge details may still require individual
 Books reads when a summary is inconclusive or a value mismatch needs inspection.
 An expense
 joins the ordinary supplier-invoice matching pool only when its forward
-`tax_amount`, tax summary, or summed line-item tax is positive. Expenses with
+`tax_amount`, tax summary, or summed line-item tax is positive. When RCM inclusion
+is explicitly enabled, expenses with
 positive `reverse_charge_tax_amount` join only reverse-charge portal matches;
 they are excluded from the ordinary supplier-filed GST expense risk list when
 unmatched. The workflow loads full expense detail when the list response is

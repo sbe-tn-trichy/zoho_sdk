@@ -19,7 +19,7 @@ except ImportError:
 from workflows.core.auth import get_books_client, get_inventory_client
 from workflows.stock_transfer import (
     build_plan, build_payloads, line_total, split_plan, transaction_dates,
-    validate_series_start_date, validate_stock,
+    invoice_numbers, validate_series_start_date, validate_stock,
 )
 
 
@@ -35,6 +35,7 @@ def main():
     parser.add_argument('--invoice-number-prefix', required=True,
                         help='Exact prefix identifying the source invoice number series')
     parser.add_argument('--starting-date', type=date.fromisoformat, required=True)
+    parser.add_argument('--starting-invoice-number', help='Explicit first invoice number; subsequent suffixes increment')
     parser.add_argument('--ending-date', type=date.fromisoformat, required=True)
     parser.add_argument('--maximum-invoice-total', type=Decimal, required=True,
                         help='Maximum final invoice value, including tax')
@@ -84,6 +85,9 @@ def main():
     details = fetch_details(ids)
     lines = build_plan(details, args.source, args.destination, args.purchase_account_id)
     documents = split_plan(lines, args.maximum_invoice_total)
+    if not documents:
+        raise ValueError('No eligible stock to transfer')
+    numbers = invoice_numbers(args.starting_invoice_number, args.invoice_number_prefix, len(documents)) if args.starting_invoice_number else []
     dates = transaction_dates(args.starting_date, args.ending_date)
     existing_invoices = books.invoices.list_all(params={
         'location_id': args.source, 'sort_column': 'date', 'sort_order': 'D',
@@ -99,6 +103,11 @@ def main():
             document_lines, locations[args.source], locations[args.destination], customer, vendor,
             dates[(index - 1) % len(dates)], reference,
         ))
+        if numbers:
+            payload_sets[-1]['invoice']['invoice_number'] = numbers[index - 1]
+            matches = books.invoices.list_all(params={'invoice_number': numbers[index - 1]})
+            if any(row.get('invoice_number') == numbers[index - 1] for row in matches) and not args.resume:
+                raise ValueError(f'Invoice number already exists: {numbers[index - 1]}')
     resumed_document = int(resume_state.get('document') or 0) if resume_state else 0
     for resource in (books.invoices, books.bills):
         for index in range(1, len(documents) + 1):
@@ -112,7 +121,7 @@ def main():
     print(json.dumps({'items': len(lines), 'quantity': str(sum(line.quantity for line in lines)),
                       'documents': len(documents),
                       'largest_estimated_total': str(max(sum(line_total(line) for line in doc) for doc in documents)),
-                      'markup_percentage': '3', 'apply': args.apply}), flush=True)
+                      'markup_percentage': '1', 'apply': args.apply}), flush=True)
     if not args.apply:
         return
     state = resume_state or {'reference': args.reference, 'stage': 'preflight'}
@@ -122,6 +131,8 @@ def main():
         journal.write_text(json.dumps(state, default=str, indent=2))
 
     def verify_document(doc, kind, expected, expected_lines):
+        if kind == 'invoice' and expected.get('invoice_number') and doc.get('invoice_number') != expected['invoice_number']:
+            raise ValueError('Created invoice number mismatch')
         if doc['location_id'] != expected['location_id'] or doc['gst_no'] != expected['gst_no']:
             raise ValueError('Created document location/GSTIN mismatch')
         actual = {str(row['item_id']): row for row in doc['line_items']}
@@ -168,7 +179,7 @@ def main():
         if index <= resumed_document:
             continue
         checkpoint('creating_invoice', document=index, completed=completed)
-        invoice = books.invoices.create(payloads['invoice'])['invoice']
+        invoice = books.invoices.create(payloads['invoice'], params={'ignore_auto_number_generation': 'true'} if numbers else None)['invoice']
         checkpoint('invoice_created', document=index, completed=completed, invoice=invoice)
         verify_document(invoice, 'invoice', payloads['invoice'], document_lines)
         if invoice['status'] != 'draft' or Decimal(str(invoice['total'])) > args.maximum_invoice_total:

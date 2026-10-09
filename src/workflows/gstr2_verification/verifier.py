@@ -43,6 +43,7 @@ class GSTR2VerificationConfig:
     fiscal_year_start_month: int = 4
     aggregate_mappings: tuple[AggregatePurchaseMapping, ...] = ()
     location_gstin_map: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    exclude_reverse_charge: bool = True
 
 
 def normalize_doc_number(value: Any) -> str:
@@ -64,6 +65,14 @@ def _to_float(val: Any) -> float:
         return float(str(val).replace(",", "").strip())
     except (ValueError, TypeError):
         return 0.0
+
+
+def _is_reverse_charge(document: Mapping[str, Any]) -> bool:
+    """Recognize explicit Books RCM flags and reverse-charge tax amounts."""
+    return any(str(document.get(key) or '').strip().lower() in {'true', 'yes', 'y', '1'}
+               for key in ('reverse_charge', 'is_reverse_charge_applied', 'is_reverse_charge')) or any(
+        _to_float(document.get(key)) > 0
+        for key in ('reverse_charge_tax_amount', 'reverse_charge_tax_total'))
 
 
 def _parse_portal_date(date_str: Any) -> Optional[date]:
@@ -171,6 +180,18 @@ class GSTR2Verifier:
             start_date, end_date, fetch_errors, location_gstins, recipient_gstin,
         )
 
+        if self.config.exclude_reverse_charge:
+            rcm_keys = {(doc['supplier_gstin'], doc['norm_number'])
+                        for doc in gstr2_docs if doc['reverse_charge']}
+            gstr2_docs = [doc for doc in gstr2_docs if not doc['reverse_charge']]
+            def forward_purchase(doc: Mapping[str, Any]) -> bool:
+                return not (_is_reverse_charge(doc) or _is_reverse_charge(doc.get('raw', {}))
+                            or (doc.get('gst_no'), doc.get('norm_number')) in rcm_keys
+                            or (doc.get('gst_no'), doc.get('norm_ref_number')) in rcm_keys)
+            books_bills = [doc for doc in books_bills if forward_purchase(doc)]
+            books_expenses = [doc for doc in books_expenses if forward_purchase(doc)]
+            books_credits = [doc for doc in books_credits if forward_purchase(doc)]
+
         # 4. Perform Matching & Classification
         reconciliation = self._reconcile(
             gstr2_docs=gstr2_docs,
@@ -196,6 +217,7 @@ class GSTR2Verifier:
                 "config": {
                     "amount_tolerance": self.config.amount_tolerance,
                     "include_drafts": self.config.include_drafts,
+                    "exclude_reverse_charge": self.config.exclude_reverse_charge,
                 },
             },
             "portal_itc_summary": itc_summary_portal,
@@ -435,6 +457,9 @@ class GSTR2Verifier:
             if not self.config.include_drafts and status == "draft":
                 continue
 
+            if self.config.exclude_reverse_charge and _is_reverse_charge(b):
+                continue
+
             bill_num = str(b.get("bill_number") or "").strip()
             ref_num = str(b.get("reference_number") or "").strip()
             total_val = _to_float(b.get("total") or b.get("amount"))
@@ -577,6 +602,8 @@ class GSTR2Verifier:
                 expense.get("reverse_charge_tax_amount")
                 or expense.get("reverse_charge_tax_total")
             )
+            if self.config.exclude_reverse_charge and _is_reverse_charge(expense):
+                continue
             if tax_amount is None and reverse_charge_tax <= 0.0:
                 errors.append({
                     "source": f"expense:{expense_id or 'unknown'}",
@@ -1337,6 +1364,7 @@ def render_markdown_report(result: Dict[str, Any]) -> str:
         f"- **Return Period:** `{meta['return_period']}` ({meta['start_date']} to {meta['end_date']})",
         f"- **Portal Generation Date:** `{meta['portal_generation_date']}`",
         f"- **Amount Match Tolerance:** ±₹{meta['config']['amount_tolerance']:.2f}",
+        f"- **RCM Purchases:** {'Excluded' if meta['config'].get('exclude_reverse_charge', False) else 'Included'}",
         "",
         "## Executive Summary",
         "",

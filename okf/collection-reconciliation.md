@@ -117,6 +117,12 @@ matches are never written automatically.
 
 # Online Payments Human Review
 
+Generic `CHQ DEP - CTS CLG1` narration prefixes, including any clearing-location
+suffix up to the first colon, are excluded from remitter tokens and customer
+suggestions, ignoring case and spacing around separators. Actual customer text
+after the colon remains eligible; bank date, amount, and cheque-reference
+matching are unchanged.
+
 Withdrawal narrations containing the exact token `POLY2300277498` (case-insensitive)
 propose a **vendor advance** to **Polycab**, branch **Sri Bharath Electricals**.
 This rule precedes salary and TA rules and excludes the line from customer matching.
@@ -180,15 +186,16 @@ historical categorized records in Analytics `Payment Customer Finder` view
 `264324000006111037` in workspace `264324000000002043`. The workflow extracts
 remitter identifiers (UPI VPA, phone numbers, remitter names) from the bank line
 narration and executes targeted SQL queries against the Finder view rather than
-downloading the full table. If historical records exist for that remitter, they
-must confirm the Creator customer name; if historical records belong to a different
-customer, acceptance is blocked as a conflict. If no prior records exist for that
+downloading the full table. If historical records identify exactly one customer, that customer must confirm
+the Creator customer name; a unique different customer blocks acceptance as a
+conflict. History matching multiple distinct customers is inconclusive: the UI
+shows a note and the candidate remains eligible for invoice preview and acceptance
+subject to the other matching and allocation checks. If no prior records exist for that
 remitter, the exact date, amount, and reference match remains reviewable.
 Redacted UPI local IDs such as `XXuram@okaxis` search history using the
 visible four-character suffix plus handle (`uram@okaxis`), including older
-unredacted narrations. The suffix alone is never a remitter token. If the
-returned history includes a different customer, validation blocks acceptance
-even when the expected customer also appears; redacted IDs can collide.
+unredacted narrations. The suffix alone is never a remitter token. Redacted IDs can collide; multiple historical customers therefore produce the
+same non-blocking note, while a unique different customer still blocks acceptance.
 Date, amount, and reference predicates remain unchanged.
 A targeted lookup is also re-executed immediately before a push so a stale preview
 cannot authorize a payment.

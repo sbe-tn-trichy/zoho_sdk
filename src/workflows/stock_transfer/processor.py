@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+import re
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from workflows.core.matching import to_decimal
@@ -48,7 +49,7 @@ def stocks(item: Mapping[str, Any], source: str, destination: str):
 
 def build_plan(
     items: Sequence[Mapping[str, Any]], source: str, destination: str,
-    purchase_account_ids: Sequence[str], markup_percentage: Decimal = Decimal('3'),
+    purchase_account_ids: Sequence[str], markup_percentage: Decimal = Decimal('1'),
 ) -> List[TransferLine]:
     """Match exact item IDs and cap shortage quantities at uncommitted source stock."""
     if not source or not destination or source == destination:
@@ -120,6 +121,16 @@ def transaction_dates(starting_date: date, ending_date: date) -> List[date]:
     if not dates:
         raise ValueError('Date range contains no non-Sunday dates')
     return dates
+
+
+def invoice_numbers(starting_number: str, prefix: str, count: int) -> List[str]:
+    """Expand an explicit invoice number, preserving the numeric suffix width."""
+    suffix = starting_number.removeprefix(prefix)
+    if not prefix or not starting_number.startswith(prefix) or not re.fullmatch(r'[0-9]+', suffix):
+        raise ValueError('Starting invoice number must match the prefix with a numeric suffix')
+    if count < 0:
+        raise ValueError('Invoice count must be nonnegative')
+    return [f'{prefix}{int(suffix) + index:0{len(suffix)}d}' for index in range(count)]
 
 
 def validate_series_start_date(

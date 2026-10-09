@@ -11,6 +11,13 @@ from ..core.matching import to_text
 _SPACES = re.compile(r"[^a-z0-9]+")
 _REDACTED_VPA = re.compile(r"^x{2,}(.{4})$", re.IGNORECASE)
 _TA_SUFFIX = re.compile(r"(?:^|/)TA\s*$", re.IGNORECASE)
+_CHEQUE_CLEARING_NARRATION = re.compile(
+    r"\bCHQ\s+DEP\s*-\s*CTS\s+CLG1\b[^:]*", re.IGNORECASE
+)
+
+
+def _customer_narration(value: Any) -> str:
+    return _CHEQUE_CLEARING_NARRATION.sub("", to_text(value)).strip(" -/: ")
 
 GENERIC_NARRATION_TOKENS = {
     "upi", "cr", "dr", "no remark", "payment from ph", "sent using payt",
@@ -32,7 +39,7 @@ GENERIC_BANKS = {
 
 def extract_remitter_tokens(description: Any) -> list[str]:
     """Extract distinct search tokens (UPI VPA, phone, remitter name) from bank narration."""
-    text = to_text(description).strip()
+    text = _customer_narration(description)
     if not text:
         return []
     tokens: set[str] = set()
@@ -109,16 +116,16 @@ class CustomerFinderIndex:
                 local, handle = vpa.casefold().split("@")
                 if len(local) >= 4 and local[-4:] != "xxxx":
                     self.upi_suffixes.setdefault(f"{local[-4:]}@{handle}", set()).add(name)
-            description = _words(row.get("Description"))
+            description = _words(_customer_narration(row.get("Description")))
             if len(description) >= 12:
                 self.descriptions.setdefault(description, set()).add(name)
 
     def suggest(self, transaction: Mapping[str, Any]) -> list[str]:
-        description = _words(transaction.get("description") or transaction.get("narration"))
+        raw_description = _customer_narration(transaction.get("description") or transaction.get("narration"))
+        description = _words(raw_description)
         if not description:
             return []
         names = set(self.descriptions.get(description, ()))
-        raw_description = to_text(transaction.get("description") or transaction.get("narration"))
         for vpa in re.findall(r"[a-zA-Z0-9._]{3,}@[a-zA-Z0-9]+", raw_description):
             local, handle = vpa.casefold().split("@")
             if _REDACTED_VPA.fullmatch(local) and local[-4:] != "xxxx":
