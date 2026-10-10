@@ -41,6 +41,10 @@ zoho (API Clients & Auth) <-- workflows (Business Engines) <-- apps (Web UIs & C
 
 # Design Rules
 
+The agreed [development priorities and scope rules](../AGENTS.md#development-priorities)
+govern implementation choices. Repository guidance owns these standards; this
+concept documents the architectural boundaries they apply to.
+
 - Lower layers (`zoho`, `workflows`) never import from `apps` or `scripts`.
 - Public APIs are exported through the relevant package `__init__.py`.
 - UI templates live in `apps/static/`, not in Python string literals.

@@ -1,6 +1,7 @@
 """Higher-level overlay helpers and composite operations for Zoho SDK."""
 
 from .sequences import parse_doc_number
+from .records import get_verified_record
 from .references import format_reference_lines, parse_reference_lines, update_reference_lines
 from .accounts import (
     extract_bank_deposits,
@@ -65,6 +66,7 @@ from .transactions import (
 )
 
 __all__ = [
+    "get_verified_record",
     "download_books_document", "format_reference_lines", "parse_reference_lines", "update_reference_lines",
     "parse_doc_number",
     "EquityLedgerEntry",

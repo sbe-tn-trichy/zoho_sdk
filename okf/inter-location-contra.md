@@ -47,7 +47,7 @@ Zoho Books has distinct update contracts for journals, payments, and bank
 transactions, so a reviewed move must use the appropriate source document API
 and verify both sides afterward.
 
-`uv run python apps/create_inter_location_contra_query_table.py` validates a
+`uv run python apps/manage_inter_location_contra_query_table.py` validates a
 live Analytics query over synced customer payments, vendor payments, journal
 items, journals, and locations. `--apply` saves it as the `Inter Location
 Contra FY25-27` Query Table. It is scoped to the clearing account and the two
@@ -66,8 +66,9 @@ payment to its allocated invoices and each vendor payment to its allocated
 bills, taking location from the invoice and bill records themselves. Contra
 pairs show one row per invoice/bill allocation combination and may repeat.
 Journal pairs have no bill allocation. Use
-`apps/update_inter_location_contra_query_table.py --apply` to update the saved
-view after changing this query. Updating requires `ZohoAnalytics.modeling.update`.
+`apps/manage_inter_location_contra_query_table.py --view-id ID --apply` to update
+the saved view after changing this query. Historical create/update commands
+delegate to this manager; the update adapter retains its configured default view ID. Updating requires `ZohoAnalytics.modeling.update`.
 
 Run `uv run python apps/propose_inter_location_updates.py` to read the saved
 Query Table and create `output/inter_location_location_proposals.md` and its

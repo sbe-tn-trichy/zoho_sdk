@@ -857,10 +857,11 @@ print(result["tax_summary"]["consolidated"])
 
 ## Tests
 
-All tests are in `tests/`, one file per service. Run from project root:
+SDK and application tests live in `tests/`; domain tests also live under
+`src/workflows/`. Run both from the project root:
 
 ```bash
-uv run pytest tests/
+.venv/bin/pytest -q
 ```
 
 Log output during tests goes to `tests/logs/`. Set `TESTING=true` or run under pytest to activate test log path automatically.

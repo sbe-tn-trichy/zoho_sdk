@@ -6,7 +6,7 @@ from dataclasses import replace
 from typing import Any, Callable
 
 from zoho.helpers.references import update_reference_lines
-from .evidence import read_record
+from zoho.helpers.records import get_verified_record
 from .models import (CreditAudit, CreditCorrectionError, CreditCorrectionPlan,
                      CreditCorrectionResult, RmaCreditPolicy)
 from .rules import evaluate, money, reference_pairs
@@ -137,12 +137,12 @@ def execute_credit_correction(
     before = _records(plan.audit)
     current = {}
     for name, (resource_name, key, id_key) in _RESOURCES.items():
-        current[name] = read_record(getattr(books_client, resource_name), before[name][id_key], key, id_key)
+        current[name] = get_verified_record(getattr(books_client, resource_name), before[name][id_key], key, id_key)
         if _concurrency_state(current[name], name) != _concurrency_state(before[name], name):
             raise ValueError(f'{name} changed since planning; audit and plan again')
     # Confirm the PDF invoice is live, belongs to this customer/location, and supports allocations.
     for allocation in current['payment']['invoices']:
-        invoice = read_record(books_client.invoices, allocation['invoice_id'], 'invoice', 'invoice_id')
+        invoice = get_verified_record(books_client.invoices, allocation['invoice_id'], 'invoice', 'invoice_id')
         if (invoice.get('customer_id') != plan.policy.customer_id
                 or invoice.get('location_id') != current['vc'].get('location_id')
                 or invoice.get('invoice_number') != allocation['invoice_number']
@@ -153,7 +153,7 @@ def execute_credit_correction(
     try:
         for name, (resource_name, key, id_key) in _RESOURCES.items():
             resource = getattr(books_client, resource_name)
-            latest = read_record(resource, before[name][id_key], key, id_key)
+            latest = get_verified_record(resource, before[name][id_key], key, id_key)
             if _concurrency_state(latest, name) != _concurrency_state(current[name], name):
                 raise ValueError(f'{name} changed during execution')
             if not _already_matches(latest, plan.payloads[name]):
@@ -162,7 +162,7 @@ def execute_credit_correction(
                 response = resource.update(latest[id_key], deepcopy(plan.payloads[name]))
                 if response.get('code') != 0:
                     raise ValueError(f'{name} update was not acknowledged')
-            after = read_record(resource, latest[id_key], key, id_key)
+            after = get_verified_record(resource, latest[id_key], key, id_key)
             expected = _financial_state(before[name], name)
             if name == 'vc':
                 field_id = next(x['customfield_id'] for x in before[name]['custom_fields'] if x.get('api_name') == plan.policy.against_invoice_field)

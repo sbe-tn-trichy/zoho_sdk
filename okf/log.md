@@ -1,5 +1,15 @@
 # Knowledge Change Log
 
+## 2026-10-10
+
+- Extracted verified resource-detail reads into `zoho.helpers.records` and migrated Polycab review/correction callers, retaining domain guards in workflows.
+
+- Recorded agreed development priorities, task acceptance, and coding standards in repository guidance, linked from architecture documentation.
+
+- Simplified project onboarding and documented overlap ownership; consolidated inter-location Query Table commands behind the manager while retaining historical saved-view defaults.
+
+- Added GSTR-1 document GST amounts, invoice/credit/net financial summaries by registration and location, and Markdown rendering with incomplete-tax retrieval reporting.
+
 ## 2026-10-09
 
 - Excluded generic CHQ DEP - CTS CLG1 prefixes and clearing-location suffixes from customer evidence in bank statement categorization, preserving remitter details after a colon.

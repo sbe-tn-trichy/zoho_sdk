@@ -7,6 +7,39 @@
 - Before a multi-file or behavior-changing task, read [`okf/index.md`](okf/index.md)
   and the relevant concepts. Correct stale concepts in the same change.
 
+## Development Priorities
+
+Apply these priorities in order; satisfying the requested outcome must preserve
+correctness and data safety:
+
+1. **Requested business outcome:** Deliver the task's required behavior. Avoid
+   speculative features, frameworks, and unrelated cleanup.
+2. **Correctness and data safety:** Preserve accounting rules, vendor scoping,
+   explicit mutation intent, recovery checkpoints, and required live verification.
+3. **Usability:** Make command selection, inputs, defaults, reports, and errors
+   understandable. Explain what an operation will change.
+4. **Readability:** Use focused functions, descriptive names, typed inputs, and
+   business rules that are easy to locate. Comments explain reasons rather than
+   repeat mechanics already clear from the code.
+5. **Reuse and maintainability:** Share mechanics only when their semantics match.
+   Keep distinct business rules separate even when their implementations resemble
+   one another.
+6. **Performance:** Optimize demonstrated bottlenecks, especially repeated API
+   calls, without obscuring correctness.
+
+## Task Scope and Acceptance
+
+- Establish the expected outcome, acceptance criteria, and whether live changes
+  are authorized from the user's request and session context. Ask only when
+  material information or authorization is missing; routine work does not need
+  a separate approval step.
+- Complete the agreed scope before introducing adjacent improvements.
+- Tie refactoring to a concrete usability, correctness, or maintenance problem.
+  Preserve behavior unless a behavior change is requested or necessary for the
+  authorized fix. File size alone is not a reason to rewrite a module.
+- For project cleanup, prioritize clear workflow ownership and command selection
+  before extracting specific duplicated logic.
+
 ## Architecture
 
 - Library code lives in `src/zoho/` (low-level clients) and `src/workflows/`
@@ -21,6 +54,15 @@
 
 - Prefer small reusable modules and established dependencies over duplicate or
   bespoke infrastructure.
+- Extend the existing owner first. Add a module when it has a distinct
+  responsibility, and prefer small helpers with explicit inputs over generic
+  engines with many switches.
+- Compare business semantics before consolidating code; similar names or
+  structure alone do not establish duplication.
+- Give each operation a clear primary entry point. Retain older commands only
+  for needed compatibility, documented and covered by tests.
+- Fail with actionable context. Never silently skip invalid financial records
+  or report incomplete work as successful.
 - Books and Inventory resources reuse `zoho.base_resource.BaseResource`.
 - Reuse `workflows.core.matching` conversions when their semantics fit.
 - Public APIs use explicit typed parameters. Use `TypedDict` or dataclasses for
@@ -77,6 +119,9 @@
 
 When a change creates durable knowledge about architecture, configuration,
 operations, public APIs, compatibility, or known limitations:
+
+Keep one documentation owner for each topic and link to it elsewhere instead
+of copying detailed instructions.
 
 1. Update the relevant OKF concept and its nearest `index.md` if needed.
 2. Give each concept file (except `index.md` and `log.md`) YAML frontmatter with

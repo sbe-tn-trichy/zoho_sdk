@@ -10,13 +10,6 @@ from zoho.helpers.references import parse_reference_lines
 from .models import CreditMemoEvidence, RmaCreditPolicy
 
 
-def read_record(resource: Any, identifier: str, key: str, id_key: str) -> dict[str, Any]:
-    record = resource.get(identifier).get(key)
-    if not isinstance(record, dict) or str(record.get(id_key)) != identifier:
-        raise ValueError(f'Books returned an invalid {key} detail for {identifier}')
-    return record
-
-
 def credit_list(books: Any, policy: RmaCreditPolicy, start: date, end: date,
                 numbers: Sequence[str]) -> list[dict[str, Any]]:
     if start > end:

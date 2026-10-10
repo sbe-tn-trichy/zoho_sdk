@@ -7,6 +7,24 @@ description: Payment inspection and renumbering, customer validation and invoice
 
 ## Shared workflow mechanics
 
+`zoho.helpers.records.get_verified_record(resource, identifier, key, id_key)`
+fetches a resource detail, requires a dictionary under the explicit response
+key, and verifies the explicit ID field against the requested string ID.
+Numeric response IDs are compared as strings; missing IDs, malformed responses,
+and mismatched identities raise `ValueError`. Resource request errors propagate.
+It is also exported from `zoho.helpers`. Polycab credit review and correction
+use this helper for credits, journals, payments and invoices; their financial
+and mutation policies remain in the workflow. The former internal
+`polycab_credit_review.evidence.read_record` function was removed.
+
+```python
+from zoho.helpers import get_verified_record
+
+bill = get_verified_record(
+    books.bills, identifier=bill_id, key="bill", id_key="bill_id",
+)
+```
+
 Supported helpers are exported from `workflows.core`; their implementations stay
 in small modules rather than a single generic workflow engine.
 

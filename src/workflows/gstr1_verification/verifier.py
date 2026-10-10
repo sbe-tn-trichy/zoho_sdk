@@ -1,5 +1,7 @@
 """Read-only checks performed before preparing the monthly GSTR-1 return."""
 
+from .amounts import document_amounts, summarize_amounts
+
 import calendar
 import re
 from dataclasses import dataclass
@@ -66,6 +68,7 @@ def _document_info(record: Mapping[str, Any], document_type: str) -> Dict[str, A
         "status": str(record.get("status") or ""),
         "customer_name": _first(record, ("customer_name", "contact_name")),
         "total": record.get("total"),
+        "gst_amounts": record.get("gst_amounts"),
         "location_id": str(record.get("location_id") or "") or None,
         "location_name": record.get("location_name"),
     }
@@ -97,6 +100,9 @@ class GSTR1Verifier:
         sequence_credit_notes = self._safe_list_documents(
             self.books.credit_notes, "credit_notes_sequence", fy_start, fy_end, fetch_errors
         )
+
+        self._load_amounts(target_invoices, self.books.invoices, "invoice", fetch_errors)
+        self._load_amounts(target_credit_notes, self.books.credit_notes, "creditnote", fetch_errors)
 
         registration_meta, location_to_registration = self._registration_metadata(locations)
         grouped_target_invoices = self._group_by_registration(
@@ -167,6 +173,7 @@ class GSTR1Verifier:
             )
             registration_reports[registration_key] = {
                 **metadata,
+                "financial_summary": summarize_amounts(raw_invoices, raw_credit_notes),
                 "passed": (
                     draft_check["passed"]
                     and sequence_check["passed"]
@@ -228,6 +235,7 @@ class GSTR1Verifier:
                 "sequence_scope_start": fy_start.isoformat(),
                 "sequence_scope_end": fy_end.isoformat(),
             },
+            "financial_summary": summarize_amounts(target_invoices, target_credit_notes),
             "overall_passed": overall_passed,
             "complete": complete,
             "invoices": {"count": len(invoice_docs), "documents": invoice_docs},
@@ -242,6 +250,26 @@ class GSTR1Verifier:
             "warnings": [],
             "fetch_errors": fetch_errors,
         }
+
+    @staticmethod
+    def _load_amounts(
+        documents: Sequence[Dict[str, Any]], resource: Any, response_key: str,
+        errors: List[Dict[str, str]],
+    ) -> None:
+        for document in documents:
+            if str(document.get("status", "")).strip().lower() in ("void", "draft"):
+                continue
+            doc_id = document.get("invoice_id") or document.get("creditnote_id") or document.get("credit_note_id") or document.get("id")
+            try:
+                detail = document
+                if not all(key in detail for key in ("total_taxable_amount", "taxes", "tax_total", "total")):
+                    if not doc_id:
+                        raise ValueError("Missing document ID for tax detail retrieval")
+                    response = resource.get(str(doc_id))
+                    detail = response.get(response_key, response)
+                document["gst_amounts"] = document_amounts(detail)
+            except Exception as exc:
+                errors.append({"source": f"{response_key}_amounts", "document_id": str(doc_id or ""), "error": str(exc)})
 
     def _financial_year_range(self, target_start: date) -> Tuple[date, date]:
         return get_financial_year_range(
@@ -360,6 +388,7 @@ class GSTR1Verifier:
             draft_check = {"passed": not drafts, "count": len(drafts), "documents": drafts}
             metadata = location_meta.get(location_id, {})
             reports[location_id or "unassigned"] = {
+                "financial_summary": summarize_amounts(raw_invoices, raw_credit_notes),
                 "location_id": location_id or None,
                 "location_name": metadata.get("location_name"),
                 "passed": draft_check["passed"] and sequence_check["passed"] and einvoice_check["passed"],

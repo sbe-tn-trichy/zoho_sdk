@@ -24,6 +24,7 @@ def invoice(
         "status": status,
         "customer_name": "Customer",
         "total": 100,
+        "total_taxable_amount": 100, "tax_total": 0, "taxes": [],
         "location_id": location_id,
     }
     if einvoice_details is not None:
@@ -46,6 +47,7 @@ def credit_note(
         "status": status,
         "customer_name": "Customer",
         "total": 20,
+        "total_taxable_amount": 20, "tax_total": 0, "taxes": [],
         "location_id": location_id,
     }
     if einvoice_details is not None:
@@ -318,3 +320,58 @@ class TestGSTR1Verifier(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFinancialSummary(unittest.TestCase):
+    make_client = TestGSTR1Verifier.make_client
+
+    def test_net_taxes_excludes_void_and_draft_and_renders(self):
+        from workflows.gstr1_verification import render_markdown_report
+        doc = invoice('INV-001', '2026-07-01')
+        doc.update(total_taxable_amount='100.10', tax_total='18.02', total='118.00',
+                   taxes=[{'tax_name': 'CGST9', 'tax_amount': '9.01'}, {'tax_name': 'SGST9', 'tax_amount': '9.01'}])
+        credit = credit_note('CN-001', '2026-07-02')
+        credit.update(total_taxable_amount='10.10', tax_total='1.82', total='11.92',
+                      taxes=[{'tax_specific_type': 'igst', 'tax_amount': '1.82'}])
+        client = self.make_client([doc, invoice('INV-002', '2026-07-02', 'void'), invoice('INV-003', '2026-07-03', 'draft')], [credit])
+        report = verify_gstr1(client, month='2026-07')
+        summary = report['financial_summary']
+        self.assertTrue(summary['complete'])
+        self.assertEqual(summary['net'], dict(total_taxable=90.0, igst=-1.82, cgst=9.01, sgst=9.01, total=106.08))
+        self.assertEqual(report['gst_registrations']['unassigned']['financial_summary'], summary)
+        self.assertIn('Total Taxable | IGST | CGST | SGST | Total', render_markdown_report(report))
+        client.invoices.get.assert_not_called()
+
+    def test_detail_fetch_and_error_prevent_complete_result(self):
+        doc = invoice('INV-001', '2026-07-01')
+        del doc['taxes']
+        client = self.make_client([doc])
+        client.invoices.get.return_value = {'invoice': dict(doc, taxes=[])}
+        report = verify_gstr1(client, month='2026-07')
+        self.assertTrue(report['financial_summary']['complete'])
+        client.invoices.get.assert_called_once_with('INV-001')
+        bad = invoice('INV-001', '2026-07-01')
+        bad['taxes'] = [{'tax_name': 'CESS', 'tax_amount': 1}]
+        client = self.make_client([bad])
+        report = verify_gstr1(client, month='2026-07')
+        self.assertFalse(report['complete'])
+        self.assertFalse(report['overall_passed'])
+        self.assertFalse(report['financial_summary']['complete'])
+        self.assertEqual(report['fetch_errors'][0]['source'], 'invoice_amounts')
+
+    def test_detail_network_error_is_reported(self):
+        doc = invoice('INV-001', '2026-07-01')
+        del doc['taxes']
+        client = self.make_client([doc])
+        client.invoices.get.side_effect = RuntimeError('unavailable')
+        report = verify_gstr1(client, month='2026-07')
+        self.assertFalse(report['complete'])
+        self.assertIn('unavailable', report['fetch_errors'][0]['error'])
+
+    def test_empty_summary_and_invalid_amounts(self):
+        from workflows.gstr1_verification.amounts import document_amounts, summarize_amounts
+        self.assertTrue(summarize_amounts([], [])['complete'])
+        for taxable, taxes, total_tax in [('NaN', [], 0), ('100', [{'tax_name': 'IGST18', 'tax_amount': 18}], 17)]:
+            with self.subTest(taxable=taxable, total_tax=total_tax):
+                with self.assertRaises(ValueError):
+                    document_amounts({'total_taxable_amount': taxable, 'total': 118, 'taxes': taxes, 'tax_total': total_tax})

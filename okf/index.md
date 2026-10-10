@@ -9,6 +9,8 @@ okf_version: "0.2"
 * [Project Overview](project-overview.md) - Unified purpose, scope, low-level clients, and workflow domain boundaries.
 * [Package Architecture](architecture.md) - Layered package architecture, import direction rules, and subpackage encapsulation.
 
+* [Project Organization](project-organization.md) - Navigation ownership and overlapping command boundaries.
+
 ## Reference
 
 * [Workflow Catalog](../WORKFLOWS.md) - Business workflow names, module locations and application guidance.

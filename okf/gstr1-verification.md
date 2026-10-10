@@ -58,7 +58,8 @@ enabled for the organisation.
 
 ## Safety and completeness
 
-The workflow calls only location, invoice, and credit-note list operations. It
+The workflow calls location, invoice, and credit-note list operations and
+read-only document detail operations when tax fields are absent from lists. It
 never pushes, cancels, or updates a transaction. Any location, monthly, or
 sequence-scope API failure is recorded under `fetch_errors`, sets `complete` to
 false, and prevents `overall_passed` from becoming true.
@@ -67,3 +68,20 @@ false, and prevents `overall_passed` from becoming true.
 
 See [Zoho Books Client](zoho-books.md), [Package Architecture](architecture.md),
 and [Development Runbook](development-runbook.md).
+
+## Financial amounts and Markdown
+
+Reports expose `financial_summary` at the overall, GST registration, and
+location levels, with separate `invoices`, `credit_notes`, and `net` amounts.
+The fields are `total_taxable`, `igst`, `cgst`, `sgst`, and `total` (INR).
+Credit notes are deducted from invoices; draft and void documents are excluded.
+Document records expose `gst_amounts`. Decimal arithmetic avoids accumulation
+errors; document totals retain Books rounding and adjustments.
+
+Taxable amounts come from Books `total_taxable_amount`, and GST components
+come from document `taxes`, reconciled to `tax_total`. Missing, invalid, or
+unsupported tax components create fetch errors and incomplete summaries,
+rather than silently substituting zero. Incomplete totals are partial.
+`render_markdown_report(report)` renders checks and financial tables by GSTIN
+and location. Detail fetching increases read-only API calls for active monthly
+documents whose list responses lack tax fields.
