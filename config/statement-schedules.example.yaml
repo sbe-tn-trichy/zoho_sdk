@@ -11,6 +11,7 @@ sheet_ids: {balancesheet: 0, profitandloss: 1177861729, notes: 41480615, assets:
 # Own account totals are used. Parent subtotal and repeated closing rows are excluded.
 # account_notes maps stable Books account IDs to note numbers and overrides paths.
 account_notes: {}
+inventory_rollforward: {purchases_note: 13, inventory_note: 7}
 standalone_paths:
   - [EQUITY AND LIABILITIES, 1. Shareholders' funds, b. Reserves and Surplus, Current Year Earnings]
 notes:
@@ -109,7 +110,7 @@ direct_inputs:
   - {statement: balancesheet, row: 12, report: balancesheet, path: [EQUITY AND LIABILITIES, 3. Non-current liabilities, d. Long Term Provisions]}
   - {statement: balancesheet, row: 15, report: balancesheet, path: [EQUITY AND LIABILITIES, 4. Current Liabilities, a. Short-term borrowings]}
   - {statement: balancesheet, row: 18, report: balancesheet, path: [EQUITY AND LIABILITIES, 4. Current Liabilities, d. Short Term Provisions]}
-  - {statement: profitandloss, row: 9, report: profitandloss, path: [IV. Expenses, 3. Changes in Inventories of finished goods work-in-progress and Stock-in-trade], expense: true}
+  - {statement: profitandloss, row: 9, report: profitandloss, path: [IV. Expenses, 3. Changes in Inventories of finished goods work-in-progress and Stock-in-trade], expense: true, inventory_changes: true}
   - {statement: profitandloss, row: 11, report: profitandloss, path: [IV. Expenses, 5. Finance Costs], expense: true}
   - {statement: profitandloss, row: 12, report: profitandloss, path: [IV. Expenses, 6. Depreciation And Amortization Expense], expense: true}
   - {statement: profitandloss, row: 16, report: profitandloss, path: [VI. Exceptional Items], exceptional: true}

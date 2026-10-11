@@ -2,6 +2,11 @@
 
 ## 2026-10-12
 
+- Statement schedules now derive net purchases from Books COGS and configured
+  opening/closing inventory, with the corresponding inventory movement preserving
+  source profit. Prior closing stock is reused and the earliest opening report
+  is fetched once; missing scope/date evidence and double counting fail.
+
 - Integrated GSTR-1 financial tables with Analytics readiness and HSN reporting;
   Books amount retrieval remains confined to force refresh.
 

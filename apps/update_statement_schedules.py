@@ -133,7 +133,14 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
     for address, entry in zip(values, old):
         if ":" not in address and address.split("!")[-1].startswith(("C", "D")):
             existing = (entry.get("values") or [[None]])[0][0]
-            if isinstance(existing, str) and existing.startswith("=") and existing != values[address][0][0]:
+            note_prefix = "='" + config["sheets"]["notes"].replace("'", "''") + "'!"
+            title, row, col, _, _ = grid_address(address)
+            is_note_target = any(config["sheets"][n["statement"]] == title and n["statement_row"] == row + 1
+                                 for n in config["notes"])
+            source_col = "B" if col == 2 else "C"
+            managed_note_link = is_note_target and isinstance(existing, str) and re.fullmatch(
+                re.escape(note_prefix + source_col) + r"[1-9]\d*", existing)
+            if isinstance(existing, str) and existing.startswith("=") and existing != values[address][0][0] and not managed_note_link:
                 raise ValueError(f"Unexpected existing formula in {address}")
     # The runner supplies an output path checked before any network call.
     snapshot = Path(config["backup_path"])
@@ -179,7 +186,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.apply and not os.environ.get("GOOGLE_SHEETS_ACCESS_TOKEN"):
         parser.error("Set GOOGLE_SHEETS_ACCESS_TOKEN with spreadsheet edit scope before --apply")
     sources = (json.loads(args.saved.read_text(encoding="utf-8")) if args.saved else fetch_schedule_sources(
-        get_books_client(), periods=config["periods"], excluded_location_id=config["excluded_location_id"]))
+        get_books_client(), periods=config["periods"], excluded_location_id=config["excluded_location_id"],
+        include_opening_inventory=bool(config.get("inventory_rollforward"))))
     if sources.get("organization_id") != str(config["organization_id"]):
         raise ValueError("Books organization does not match configuration")
     (output / "sources.json").write_text(json.dumps(sources, indent=2), encoding="utf-8")
@@ -190,6 +198,12 @@ def main(argv: list[str] | None = None) -> int:
              "", "| FY | Assets | Liabilities | Profit before tax |", "| --- | ---: | ---: | ---: |"]
     for label, check in plan.checks.items():
         lines.append(f"| {label} | {check['assets']} | {check['liabilities']} | {check['profit_before_tax']} |")
+    if config.get("inventory_rollforward"):
+        lines.extend(["", "## Purchases and inventory movement", "", "Net purchases = COGS − opening stock + closing stock. Changes in inventories = COGS − net purchases.",
+                      "", "| FY | COGS | Opening stock | Closing stock | Net purchases | Changes in inventories |",
+                      "| --- | ---: | ---: | ---: | ---: | ---: |"])
+        for label, check in plan.checks.items():
+            lines.append(f"| {label} | {check['cogs']} | {check['opening_stock']} | {check['closing_stock']} | {check['net_purchases']} | {check['changes_in_inventories']} |")
     lines.extend(["", "## Depreciation verification", "", "| FY | Asset | Calculated | Posted | Difference |", "| --- | --- | ---: | ---: | ---: |"])
     for label, checks in plan.asset_checks.items():
         for check in checks:

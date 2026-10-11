@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Mapping, Sequence
@@ -71,13 +71,17 @@ class SchedulePlan:
 
 
 def fetch_schedule_sources(books: Any, *, periods: Sequence[Mapping[str, str]],
-                           excluded_location_id: str) -> dict[str, Any]:
+                           excluded_location_id: str, include_opening_inventory: bool = False) -> dict[str, Any]:
     """Fetch each report once per year, then each in-scope asset and history once."""
     if len(periods) != 2:
         raise ValueError("Exactly two periods are required")
-    reports = {p["label"]: fetch_schedule_reports(
-        books, from_date=p["start"], to_date=p["end"],
-        excluded_location_id=excluded_location_id) for p in periods}
+    reports = {}
+    for p in periods:
+        opening_date = (date.fromisoformat(p["start"]) - timedelta(days=1)).isoformat()
+        needs_opening = include_opening_inventory and not any(q["end"] == opening_date for q in periods)
+        reports[p["label"]] = fetch_schedule_reports(
+            books, from_date=p["start"], to_date=p["end"], excluded_location_id=excluded_location_id,
+            **({"include_opening_balance_sheet": True} if needs_opening else {}))
     assets = []
     seen = set()
     for asset in books.fixed_assets.list_iter(params={"filter_by": "Status.All"}, resource_key="fixedassets"):
@@ -103,6 +107,24 @@ def fetch_schedule_sources(books: Any, *, periods: Sequence[Mapping[str, str]],
     return result
 
 
+def _validate_report(report: Mapping[str, Any], kind: str, *, start: str, end: str,
+                     excluded_location_id: str) -> None:
+    context = report.get("page_context", {})
+    if (report.get("code") != 0 or not isinstance(report.get(KEYS[kind]), list)
+            or context.get("to_date") != end
+            or (kind == "profitandloss" and context.get("from_date") != start)
+            or context.get("cash_based") != "false"
+            or context.get("filter_by") != "TransactionDate.CustomDate"):
+        raise ValueError("Schedule dates, basis or response shape do not match")
+    rule = context.get("rule", {})
+    columns = rule.get("columns", [])
+    if (rule.get("criteria_string") != "1" or len(columns) != 1
+            or any(columns[0].get(key) != value for key, value in {
+                "field": "location_name", "value": [excluded_location_id],
+                "comparator": "not_in", "group": "branch", "index": 1}.items())):
+        raise ValueError("Schedule did not apply the configured branch exclusion")
+
+
 def validate_sources(sources: Mapping[str, Any], *, periods: Sequence[Mapping[str, str]],
                      excluded_location_id: str) -> None:
     if len(periods) != 2 or sources.get("periods") != list(periods) or sources.get("excluded_location_id") != excluded_location_id:
@@ -113,20 +135,8 @@ def validate_sources(sources: Mapping[str, Any], *, periods: Sequence[Mapping[st
             raise ValueError("Invalid financial period")
         for kind in KEYS:
             report = sources["reports"][p["label"]][kind]
-            context = report.get("page_context", {})
-            if (report.get("code") != 0 or not isinstance(report.get(KEYS[kind]), list)
-                    or context.get("to_date") != p["end"]
-                    or (kind == "profitandloss" and context.get("from_date") != p["start"])
-                    or context.get("cash_based") != "false"
-                    or context.get("filter_by") != "TransactionDate.CustomDate"):
-                raise ValueError("Schedule dates, basis or response shape do not match")
-            rule = context.get("rule", {})
-            columns = rule.get("columns", [])
-            if (rule.get("criteria_string") != "1" or len(columns) != 1
-                    or any(columns[0].get(key) != value for key, value in {
-                        "field": "location_name", "value": [excluded_location_id],
-                        "comparator": "not_in", "group": "branch", "index": 1}.items())):
-                raise ValueError("Schedule did not apply the configured branch exclusion")
+            _validate_report(report, kind, start=p["start"], end=p["end"],
+                             excluded_location_id=excluded_location_id)
     seen = set()
     for item in sources["assets"]:
         asset = item["asset"]
@@ -135,6 +145,37 @@ def validate_sources(sources: Mapping[str, Any], *, periods: Sequence[Mapping[st
         if not location or location == excluded_location_id or identity in seen:
             raise ValueError("Invalid asset location or duplicate asset")
         seen.add(identity)
+
+
+def _opening_inventory(sources: Mapping[str, Any], config: Mapping[str, Any],
+                      period: Mapping[str, str], note_number: int) -> Decimal:
+    """Use prior closing stock with identical account overrides and verified scope."""
+    opening_date = (date.fromisoformat(period["start"]) - timedelta(days=1)).isoformat()
+    prior = next((p for p in config["periods"] if p["end"] == opening_date), None)
+    report = (sources["reports"][prior["label"]]["balancesheet"] if prior else
+              sources["reports"][period["label"]].get("balancesheet-opening"))
+    if report is None:
+        raise ValueError(f"Missing opening inventory balance sheet at {opening_date}")
+    _validate_report(report, "balancesheet", start=opening_date, end=opening_date,
+                     excluded_location_id=config["excluded_location_id"])
+    seen = set()
+    total = Decimal(0)
+    for node, path in nodes(report[KEYS["balancesheet"]]):
+        account = str(node.get("account_id") or "")
+        if not account:
+            continue
+        if account in seen:
+            raise ValueError(f"Duplicate opening inventory account: {account}")
+        seen.add(account)
+        override = config.get("account_notes", {}).get(account)
+        candidates = [n for n in config["notes"] if n["report"] == "balancesheet" and
+                      (n["number"] == override if override is not None else
+                       any(path[:len(p)] == tuple(p) for p in n["paths"]))]
+        if len(candidates) > 1:
+            raise ValueError(f"Ambiguous opening inventory classification: {node['name']}")
+        if candidates and candidates[0]["number"] == note_number:
+            total += amount(node["total"])
+    return total
 
 
 def verify_asset(asset: Mapping[str, Any], history: Sequence[Mapping[str, Any]], *,
@@ -266,11 +307,37 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
                 item = classified[number].setdefault(identity, {"name": node["name"], "amounts": {}})
                 item["amounts"][label] = value
                 totals[label][number] += value
+    rollforward = config.get("inventory_rollforward")
+    inventory_checks = {}
+    if rollforward:
+        purchases_note = rollforward["purchases_note"]
+        inventory_note = rollforward["inventory_note"]
+        purchase_config = next((n for n in notes if n["number"] == purchases_note), None)
+        inventory_config = next((n for n in notes if n["number"] == inventory_note), None)
+        changes = [d for d in config["direct_inputs"] if d.get("inventory_changes")]
+        if (purchase_config is None or inventory_config is None
+                or purchase_config["report"] != "profitandloss" or inventory_config["report"] != "balancesheet"
+                or len(changes) != 1 or changes[0]["report"] != "profitandloss"
+                or changes[0]["statement"] != purchase_config["statement"]
+                or not changes[0].get("expense") or purchases_note not in config["checks"]["expense_notes"]):
+            raise ValueError("Invalid inventory rollforward configuration")
+        for period in periods:
+            label = period["label"]
+            if section(sources["reports"][label]["profitandloss"], "profitandloss", changes[0]["path"]):
+                raise ValueError("Source inventory changes must be zero when purchases source represents COGS")
+            opening = _opening_inventory(sources, config, period, inventory_note)
+            closing = totals[label][inventory_note]
+            cogs = totals[label][purchases_note]
+            purchases = cogs - opening + closing
+            inventory_checks[label] = {"cogs": cogs, "opening_stock": opening, "closing_stock": closing,
+                                       "net_purchases": purchases, "changes_in_inventories": cogs - purchases}
+            totals[label][purchases_note] = purchases
     note_sheet = config["sheets"]["notes"]
     rows: list[list[Any]] = [[config["company"]], ["Notes forming part of the Financial Statements"],
                             ["Particulars", periods[0]["end"], periods[1]["end"]]]
     total_rows = {}
     header_rows = {}
+    cogs_row = None
     for note in notes:
         number = note["number"]
         header_rows[number] = len(rows) + 1
@@ -287,6 +354,13 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
         rows.append(["Total", *[(f"=SUM({col}{first_row})" if first_row == last_row
                                  else f"=SUM({col}{first_row}:{col}{last_row})") if last_row >= first_row else "=0"
                                 for col in ("B", "C")]])
+        if rollforward and number == rollforward["purchases_note"]:
+            cogs_row = len(rows)
+            rows[-1][0] = "Cost of goods sold (Books)"
+            rows.append(["Opening inventory", *[float(money(inventory_checks[label]["opening_stock"])) for label in labels]])
+            rows.append(["Closing inventory", *[float(money(inventory_checks[label]["closing_stock"])) for label in labels]])
+            rows.append(["Net purchases", *[f"={col}{cogs_row}-{col}{cogs_row + 1}+{col}{cogs_row + 2}" for col in ("B", "C")]])
+            total_rows[number] = len(rows)
         rows.append([])
     values = {qualified(note_sheet, f"A1:C{len(rows)}"): rows}
     for note in notes:
@@ -299,8 +373,12 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
     for direct in config["direct_inputs"]:
         sheet = config["sheets"][direct["statement"]]
         for col, label in zip(("C", "D"), labels):
-            value = section(sources["reports"][label][direct["report"]], direct["report"], direct["path"])
-            values[qualified(sheet, f"{col}{direct['row']}")] = [[float(money(value))]]
+            if rollforward and direct.get("inventory_changes"):
+                source_col = "B" if col == "C" else "C"
+                value = "=" + qualified(note_sheet, f"{source_col}{cogs_row}") + f"-{col}{purchase_config['statement_row']}"
+            else:
+                value = float(money(section(sources["reports"][label][direct["report"]], direct["report"], direct["path"])))
+            values[qualified(sheet, f"{col}{direct['row']}")] = [[value]]
     checks = {}
     for label in labels:
         report = sources["reports"][label]
@@ -314,7 +392,8 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
         expense = sum((totals[label][n] for n in config["checks"]["expense_notes"]), Decimal(0))
         for direct in config["direct_inputs"]:
             if direct.get("expense"):
-                expense += section(report["profitandloss"], "profitandloss", direct["path"])
+                expense += (inventory_checks[label]["changes_in_inventories"] if rollforward and direct.get("inventory_changes")
+                            else section(report["profitandloss"], "profitandloss", direct["path"]))
         expected_assets = section(report["balancesheet"], "balancesheet", ["ASSETS"])
         expected_liabilities = section(report["balancesheet"], "balancesheet", ["EQUITY AND LIABILITIES"])
         expected_pbt = section(report["profitandloss"], "profitandloss", config["checks"]["profit_before_tax_path"])
@@ -327,6 +406,7 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
                 raise ValueError(f"{label} {description} does not reconcile: {actual} versus {expected}")
         checks[label] = {"assets": str(money(assets)), "liabilities": str(money(liabilities)),
                          "profit_before_tax": str(money(pbt))}
+        checks[label].update({key: str(money(value)) for key, value in inventory_checks.get(label, {}).items()})
         warnings.append(f"{label}: Books branch-rule echo verifies requested scope; SBE-named accounts can retain balances.")
     asset_checks = {}
     asset_rows: list[list[Any]] = []

@@ -9,6 +9,7 @@ import yaml
 from workflows.statement_schedules import build_schedule_plan, fetch_schedule_sources, validate_sources, verify_asset
 from zoho.books.resources.fixed_assets import FixedAssets
 from apps.update_statement_schedules import apply_plan, grid_address, main, update_requests
+from workflows.statement_schedules.workflow import KEYS, nodes
 
 
 def asset():
@@ -114,6 +115,9 @@ def config_and_sources():
                                      "profitandloss": {"code": 0, "page_context": deepcopy(context), "schedule_profit_and_loss": pnl}}
     sources = {"reports": reports, "assets": [], "periods": config["periods"], "excluded_location_id": "excluded",
                "organization_id": config["organization_id"]}
+    opening = deepcopy(reports["fy2024-25"]["balancesheet"])
+    opening["page_context"]["to_date"] = "2024-03-31"
+    reports["fy2024-25"]["balancesheet-opening"] = opening
     return config, sources
 
 
@@ -125,6 +129,82 @@ def test_plan_links_two_year_notes_and_does_not_write_statement_subtotals():
     assert plan.values["'Balance Sheet'!D6"][0][0].startswith("='Notes to Accounts'!C")
     assert "'Balance Sheet'!C31" not in plan.values
     assert "'Profit and Loss'!C19" not in plan.values
+
+
+@pytest.mark.parametrize("stocks", [(10, 20, 30), (30, 20, 10), (0, 0, 0), (20, 20, 20)])
+def test_purchases_and_inventory_movement_preserve_cogs_and_profit(stocks):
+    config, sources = config_and_sources()
+    earlier, prior, current = stocks
+    for label, closing in (("fy2025-26", current), ("fy2024-25", prior)):
+        report = sources["reports"][label]
+        for node, path in nodes(report["balancesheet"][KEYS["balancesheet"]]):
+            if node.get("account_id") == "id7":
+                node["total"] = closing
+            elif node.get("account_id") == "id6":
+                node["total"] = 100 - closing
+        for node, path in nodes(report["profitandloss"][KEYS["profitandloss"]]):
+            if node.get("account_id") == "id13":
+                node["total"] = 50
+            elif path == tuple(config["checks"]["profit_before_tax_path"]):
+                node["total"] = -50
+    opening = sources["reports"]["fy2024-25"]["balancesheet-opening"]
+    for node, _ in nodes(opening[KEYS["balancesheet"]]):
+        if node.get("account_id") == "id7":
+            node["total"] = earlier
+    plan = build_schedule_plan(sources, config)
+    for label, initial, closing in (("fy2025-26", prior, current), ("fy2024-25", earlier, prior)):
+        check = plan.checks[label]
+        assert Decimal(check["net_purchases"]) == 50 - initial + closing
+        assert Decimal(check["changes_in_inventories"]) == initial - closing
+        assert Decimal(check["net_purchases"]) + Decimal(check["changes_in_inventories"]) == 50
+        assert check["profit_before_tax"] == "-50.00"
+    assert plan.values["'Profit and Loss'!C9"][0][0].endswith("-C8")
+    assert plan.values["'Profit and Loss'!D9"][0][0].endswith("-D8")
+    rows = next(rows for address, rows in plan.values.items() if "A1:C" in address)
+    assert rows[plan.note_total_rows[13] - 1][0] == "Net purchases"
+
+
+def test_opening_inventory_uses_account_overrides_outside_inventory_section():
+    config, sources = config_and_sources()
+    config["account_notes"]["outside"] = 7
+    sources["reports"]["fy2024-25"]["balancesheet-opening"][KEYS["balancesheet"]].append(
+        {"account_id": "outside", "name": "Mapped stock", "total": 25})
+    plan = build_schedule_plan(sources, config)
+    assert plan.checks["fy2024-25"]["opening_stock"] == "25.00"
+    assert plan.checks["fy2024-25"]["net_purchases"] == "-25.00"
+    assert plan.checks["fy2024-25"]["changes_in_inventories"] == "25.00"
+
+
+@pytest.mark.parametrize("bad", ["missing", "date", "scope", "duplicate", "source_changes"])
+def test_inventory_rollforward_rejects_missing_or_unverified_opening_and_double_counting(bad):
+    config, sources = config_and_sources()
+    prior = sources["reports"]["fy2024-25"]
+    opening = prior["balancesheet-opening"]
+    if bad == "missing":
+        del prior["balancesheet-opening"]
+    elif bad == "date":
+        opening["page_context"]["to_date"] = "2025-03-31"
+    elif bad == "scope":
+        opening["page_context"]["rule"]["columns"][0]["value"] = ["other"]
+    elif bad == "duplicate":
+        opening[KEYS["balancesheet"]].append({"account_id": "id7", "name": "Duplicate stock", "total": 1})
+    else:
+        for node, path in nodes(prior["profitandloss"][KEYS["profitandloss"]]):
+            if path[-1].startswith("3. Changes"):
+                node["total"] = 1
+    with pytest.raises(ValueError):
+        build_schedule_plan(sources, config)
+
+
+def test_fetch_reuses_prior_year_close_and_fetches_earliest_opening_once(monkeypatch):
+    config, sources = config_and_sources()
+    fetch = Mock(side_effect=[sources["reports"][p["label"]] for p in config["periods"]])
+    monkeypatch.setattr("workflows.statement_schedules.workflow.fetch_schedule_reports", fetch)
+    books = Mock(organization_id="org")
+    books.fixed_assets.list_iter.return_value = []
+    fetch_schedule_sources(books, periods=config["periods"], excluded_location_id="excluded", include_opening_inventory=True)
+    assert "include_opening_balance_sheet" not in fetch.call_args_list[0].kwargs
+    assert fetch.call_args_list[1].kwargs["include_opening_balance_sheet"] is True
 
 
 @pytest.mark.parametrize("bad", ["date", "scope", "basis", "duplicate", "unmapped", "total", "target"])
@@ -225,7 +305,7 @@ class SheetsSession:
         entries = []
         for address in params["ranges"]:
             if self.read_count == 2:
-                value = [["=SUM(A1)"]] if self.existing_formula and address == "'Balance Sheet'!C6" else []
+                value = [[self.existing_formula if isinstance(self.existing_formula, str) else "=SUM(A1)"]] if self.existing_formula and address == "'Balance Sheet'!C6" else []
             else:
                 title, row, col, end_row, end_col = grid_address(address)
                 value = [[self.cells.get((title, r, c), "") for c in range(col, end_col)] for r in range(row, end_row)]
@@ -279,6 +359,15 @@ def test_apply_never_reports_success_when_readback_differs(tmp_path):
     session = SheetsSession(config, corrupt_readback=True)
     with pytest.raises(ValueError, match="read-back differs"):
         apply_plan("spreadsheet", plan.values, access_token="mock-token", config=config, session=session)
+    assert len(session.posted) == 1
+
+
+def test_apply_accepts_previous_generated_note_link_after_note_rows_move(tmp_path):
+    config, sources = config_and_sources()
+    config["backup_path"] = str(tmp_path / "backup.json")
+    plan = build_schedule_plan(sources, config)
+    session = SheetsSession(config, existing_formula="='Notes to Accounts'!B999")
+    apply_plan("spreadsheet", plan.values, access_token="mock-token", config=config, session=session)
     assert len(session.posted) == 1
 
 

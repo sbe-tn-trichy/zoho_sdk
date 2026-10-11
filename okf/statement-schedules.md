@@ -16,7 +16,10 @@ is [statement-schedules.example.yaml](../config/statement-schedules.example.yaml
 
 Run `.venv/Scripts/python.exe apps/update_statement_schedules.py` for a read-only
 live preview. Each period makes one Schedule III P&L and one Schedule III balance
-sheet request, four report requests overall. The endpoints' verified default
+sheet request. With inventory rollforward enabled, one additional balance sheet
+at the earlier year's opening date is fetched, five report requests overall.
+The later year's opening inventory reuses the earlier year's closing report.
+The endpoints' verified default
 responses contain no prior-year comparison column, so the runner fetches each
 year separately. It checks echoed dates, accrual basis and branch exclusion.
 Assets outside the excluded location are read once, with paginated valuation
@@ -31,6 +34,18 @@ Standalone current-year earnings is explicitly included despite lacking an ID.
 The bank/cash and stock account overrides correct their presentation when Books
 places them under Other Current Assets. A branch-rule echo does not establish
 transaction-level exclusion: SBE-named accounts can retain returned balances.
+
+`inventory_rollforward` identifies the purchases and inventory notes; the expense
+direct input marked `inventory_changes` receives the calculated movement.
+Books' purchases section represents COGS. Net purchases equal COGS minus opening
+inventory plus closing inventory; changes in inventories equal COGS minus net
+purchases (opening minus closing). Note 13 shows the COGS subtotal and both stock
+balances before its calculated net purchases total. Opening stock uses the same
+account classifications as closing stock, including ID overrides. Missing or
+incorrectly scoped opening reports fail; nonzero source inventory changes fail
+to prevent double counting. Both calculated expense lines still reconcile to
+COGS and the source profit. Offline snapshots need `balancesheet-opening` in the
+earlier period's report bundle.
 
 Generated notes manage columns A:C, with current/prior year input values and
 subtotal formulas. Statement detail rows link to the dynamic note totals and
@@ -60,7 +75,8 @@ Git-ignored.
 
 `--apply` needs `GOOGLE_SHEETS_ACCESS_TOKEN` with edit access. The runner verifies
 tab names and IDs, bounds and native validation, refuses unexpected statement
-formulas, saves `sheet-before.json`, and writes a single native batch using only
+formulas (allowing previous generated note links to move), saves
+`sheet-before.json`, and writes a single native batch using only
 `userEnteredValue`. External text stays literal; generated formulas stay formulas.
 Formatting is preserved. It reads back every changed value/formula and checks
 for formula errors before reporting success. Old rows in the managed note/asset
