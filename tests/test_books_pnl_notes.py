@@ -55,3 +55,23 @@ def test_pnl_note_mapping_rejects_missing_account():
             excluded_location_id="excluded", account_groups=mapping,
             partner_interest=Decimal("3"),
         )
+
+
+def test_live_schedule_shape_and_closing_sections():
+    books, mapping = _fixture()
+    sections = books.reports.profit_and_loss_schedule_format.return_value["profit_and_loss"][0]["account_transactions"]
+    by_name = {section["name"]: section["account_transactions"] for section in sections}
+    operating = by_name["Operating Expense"]
+    operating.append({**operating[0], "section": True})
+    books.reports.profit_and_loss_schedule_format.return_value = {"schedule_profit_and_loss": [
+        {"name": "I. Revenue from operations", "account_transactions": by_name["Operating Income"]},
+        {"name": "II. Other Income", "account_transactions": by_name["Non Operating Income"]},
+        {"name": "IV. Expenses", "account_transactions": [
+            {"name": "2. Purchases of stock in trade", "account_transactions": by_name["Cost of Goods Sold"]},
+            {"name": "7. Other Expenses", "account_transactions": operating},
+        ]},
+    ]}
+    result = prepare_pnl_note_updates(books, from_date="2025-04-01", to_date="2026-03-31",
+        excluded_location_id="excluded", account_groups=mapping, partner_interest=Decimal("3"))
+    assert result["'Notes to P & L 19 to 25'!G6"] == Decimal("100")
+    assert result["'Notes to P & L 19 to 25'!G46"] == Decimal("10")

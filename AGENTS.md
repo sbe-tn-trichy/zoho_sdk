@@ -105,6 +105,16 @@ correctness and data safety:
 
 ## Safety and Verification
 
+- Analytics design and metadata analysis must use `workflows.analytics_catalog.AnalyticsCatalog`
+  and the canonical SQLite catalog. Use cached metadata for analysis and design
+  planning; show the last successful metadata sync time in Markdown outputs and
+  responses. Refresh metadata only when the user requests manual sync. After live
+  query-table changes, verify saved SQL with targeted read-back before reporting
+  success; this does not imply a full catalog sync. Report sync failures explicitly.
+- Maintain Analytics workflow/view references in `analytics_catalog/registry.py`;
+  provide explicit references for configurable view IDs. Use the catalog's workflow
+  impact report before changing shared views.
+
 - Generated project artifacts default to `output/`. APIs may honor a caller's
   explicit absolute path when documented and safely validated.
 - Never commit credentials, local configuration, generated output, logs, or

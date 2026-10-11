@@ -281,18 +281,34 @@ class Reports(BaseResource):
         return response
 
     def profit_and_loss_schedule_format(
+        self, *, from_date: str, to_date: str, rule: str,
+        cash_based: bool = False,
+    ) -> Mapping[str, Any]:
+        """Read ``reports/scheduleprofitandloss`` using OAuth and custom dates."""
+        return self._schedule_format("scheduleprofitandloss", "schedule_profit_and_loss",
+                                     from_date, to_date, rule, cash_based)
+
+    def balance_sheet_schedule_format(
+        self, *, from_date: str, to_date: str, rule: str,
+        cash_based: bool = False,
+    ) -> Mapping[str, Any]:
+        """Read ``reports/schedulebalancesheet`` using OAuth and custom dates."""
+        return self._schedule_format("schedulebalancesheet", "schedule_balance_sheet",
+                                     from_date, to_date, rule, cash_based)
+
+    def _schedule_format(
         self,
-        *,
+        endpoint: str,
+        rows_key: str,
         from_date: str,
         to_date: str,
         rule: str,
         cash_based: bool = False,
     ) -> Mapping[str, Any]:
-        """Fetch schedule-format P&L figures through the public P&L endpoint.
+        """Fetch the schedule P&L data endpoint with explicit dates and scope.
 
-        Books' web ``profitandloss-scheduleformat`` route is unavailable at the
-        public API (code 5); the regular report accepts the same date and rule
-        filters and returns the account totals needed by the statement.
+        Keep the raw schedule response; this is distinct from the ordinary P&L
+        and from the browser's ``profitandloss-scheduleformat`` view route.
         """
         try:
             start, end = date.fromisoformat(from_date), date.fromisoformat(to_date)
@@ -302,7 +318,13 @@ class Reports(BaseResource):
             raise ValueError("from_date must not be after to_date")
         if not rule:
             raise ValueError("rule is required")
-        response = self.client.request("GET", "reports/profitandloss", params={
+        if not isinstance(cash_based, bool):
+            raise ValueError("cash_based must be a boolean")
+        try:
+            requested_rule = json.loads(rule)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("rule must be valid JSON") from exc
+        response = self.client.request("GET", f"reports/{endpoint}", params={
             "filter_by": "TransactionDate.CustomDate",
             "from_date": from_date,
             "to_date": to_date,
@@ -310,21 +332,20 @@ class Reports(BaseResource):
             "rule": rule,
             "show_rows": "all",
             "is_expand": "true",
+            "response_option": 1,
         })
         if not isinstance(response, Mapping) or response.get("code") != 0:
-            raise ValueError("Books P&L request failed")
+            raise ValueError(f"Books {endpoint} request failed")
+        if not isinstance(response.get(rows_key), list):
+            raise ValueError(f"Books {endpoint} rows are missing")
         context = response.get("page_context")
         if not isinstance(context, Mapping) or (
-            context.get("from_date") != from_date
+            (endpoint == "scheduleprofitandloss" and context.get("from_date") != from_date)
             or context.get("to_date") != to_date
             or context.get("cash_based") != str(cash_based).lower()
             or context.get("filter_by") != "TransactionDate.CustomDate"
         ):
-            raise ValueError("Books P&L ignored the requested dates or basis")
-        try:
-            requested_rule = json.loads(rule)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("rule must be valid JSON") from exc
+            raise ValueError(f"Books {endpoint} ignored the requested dates or basis")
         applied_rule = context.get("rule")
         if not isinstance(requested_rule, Mapping) or not isinstance(applied_rule, Mapping) or (
             applied_rule.get("criteria_string") != requested_rule.get("criteria_string")

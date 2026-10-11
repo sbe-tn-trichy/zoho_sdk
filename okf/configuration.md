@@ -41,6 +41,13 @@ spreadsheet ID, location scope, statement mappings, equity, and P&L notes.
 Other accounting report tooling can accept its path explicitly. Local mapping data is
 Git-ignored; the example is safe to commit.
 
+The four-tab Schedule III workbook uses a separate Git-ignored
+`config/statement-schedules.yaml`. It defines the spreadsheet and organization
+identities, excluded location, both annual periods, note paths, account-ID
+classification overrides and destination rows. See
+[statement schedules](statement-schedules.md) and its generic configuration
+example; do not reuse the older workbook's cell mappings.
+
 Supported configuration keys:
 
 - `FIRM_REPORT_CONFIG`: Path to the editable firm report YAML; defaults to
@@ -79,6 +86,18 @@ Supported configuration keys:
   value is a list of Books location IDs owned by that registration. GSTR-2 verification uses this snapshot to
   select the Books documents owned by the recipient registration and fails
   closed when the map is empty, invalid, or missing a document location.
+- `GSTIN_ALIASES`: Object mapping registration GSTINs to short firm labels,
+  exposed as `Config.GSTIN_ALIASES`. Configure deployment-specific labels in
+  the active profile's `gstin_aliases` object, or provide a JSON object in the
+  `GSTIN_ALIASES` environment variable. Aliases do not alter location scopes
+  or replace GSTIN identifiers.
+- `GSTR1_FINANCIAL_CREDIT_NOTES`: Object mapping explicitly confirmed financial
+  credit-note IDs to explanatory labels. The GSTR-1 CLI passes these IDs into
+  `GSTR1VerificationConfig.financial_credit_note_ids`. These credits are GST
+  not applicable and are excluded from HSN and e-invoice validation while
+  remaining in draft and number-sequence checks. Deployment declarations live
+  in the Git-ignored local profile; absent HSNs or zero tax alone do not create
+  an exemption.
 - `FILES_DIR`: Directory containing Polycab credit memo PDFs.
 - `POLYCAB_LEDGER_PATH`: Polycab reconciliation ledger path.
 - `ZEISS_LEDGER_PATH`: Zeiss reconciliation ledger path.

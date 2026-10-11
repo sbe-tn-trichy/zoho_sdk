@@ -82,6 +82,8 @@ class TestAnalyticsMetadataDownloader(unittest.TestCase):
                 })
             if endpoint == "workspaces/w1/views":
                 return success({"views": views})
+            if endpoint == "workspaces/w1/querytables/t2":
+                return success({"viewId": "t2", "sqlQuery": 'SELECT * FROM "Accounts"'})
             if endpoint == "views/r1":
                 return success({
                     "views": {

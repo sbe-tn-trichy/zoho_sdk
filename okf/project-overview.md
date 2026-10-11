@@ -28,7 +28,7 @@ The unified source tree contains three distinct layers:
    - `workflows.bank_vendor_ledger_matching`: Bank-withdrawal matching against Books vendor payments or external vendor-ledger receipts.
    - `workflows.collection_reconciliation`: Incoming Creator collection matching, Books customer-payment categorization, Analytics-assisted exceptions, and Creator audit records.
    - `workflows.duplicate_payment_check`: Read-only detection of exact duplicate Books customer payments by customer, date, and amount.
-   - `workflows.gstr1_verification`: Read-only previous-month Books invoice and credit-note readiness checks for drafts, numbering, chronology, and e-invoice registration.
+   - `workflows.gstr1_verification`: Read-only previous-month Analytics invoice and credit-note readiness checks for drafts, numbering, chronology, and e-invoice registration; explicit force refresh reads Books.
    - `workflows.vendor_ledger_reconciliation`: Vendor ledger cleaning, matching, and Zeiss statement parsing.
    - `workflows.vendor_customer_offset`: GSTIN-safe clearing of linked customer receivables and vendor payables using paired payments.
    - `workflows.polycab_credit_memos`: Polycab credit memo PDF extraction, Zoho Books creation, attachment uploads, and WorkDrive uploads.

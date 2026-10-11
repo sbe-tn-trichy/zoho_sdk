@@ -3,6 +3,9 @@
   "profiles": {
     "production": {
       "core": {
+        "gstin_aliases": {
+          "<recipient-gstin>": "<firm-alias>"
+        },
         "token_url": "http://localhost:3000/server/new/tokens",
         "org_id": "<your-zoho-organization-id>",
         "analytics_org_id": "<your-analytics-organization-id>",
@@ -51,6 +54,11 @@
           "<recipient-gstin>": [
             "<books-location-id>"
           ]
+        }
+      },
+      "gstr1": {
+        "gstr1_financial_credit_notes": {
+          "<confirmed-financial-credit-note-id>": "Financial credit note; GST not applicable"
         }
       },
       "creator": {

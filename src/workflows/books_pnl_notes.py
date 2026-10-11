@@ -38,7 +38,27 @@ def prepare_pnl_note_updates(
     if not isinstance(partner_interest, Decimal) or not partner_interest.is_finite():
         raise ValueError("partner_interest must be a finite Decimal")
     groups: dict[str, dict[str, Decimal]] = {}
-    for parent in report.get("profit_and_loss", []):
+    parents = report.get("profit_and_loss", [])
+    if "schedule_profit_and_loss" in report:
+        schedule = report["schedule_profit_and_loss"]
+        def accounts(nodes):
+            result = []
+            for node in nodes:
+                if node.get("account_id") and not node.get("section"):
+                    result.append(node)
+                result.extend(accounts(node.get("account_transactions", [])))
+            return result
+        sections = {node["name"]: node for node in schedule}
+        expenses = sections.get("IV. Expenses", {}).get("account_transactions", [])
+        cogs = [node for node in expenses if node["name"].startswith(("1.", "2.", "3."))]
+        operating = [node for node in expenses if node["name"].startswith(("4.", "5.", "6.", "7."))]
+        parents = [{"account_transactions": [
+            {"name": "Operating Income", "account_transactions": accounts([sections.get("I. Revenue from operations", {})])},
+            {"name": "Non Operating Income", "account_transactions": accounts([sections.get("II. Other Income", {})])},
+            {"name": "Cost of Goods Sold", "account_transactions": accounts(cogs)},
+            {"name": "Operating Expense", "account_transactions": accounts(operating)},
+        ]}]
+    for parent in parents:
         for section in parent.get("account_transactions", []):
             if section.get("name") in {
                 "Operating Income", "Cost of Goods Sold", "Operating Expense",

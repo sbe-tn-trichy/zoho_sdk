@@ -5,6 +5,11 @@ description: Mapping Zoho Books financial reports into a linked Google Sheets st
 
 # Books financial statement sheet
 
+For the four-tab workbook with `Balance Sheet`, `Profit and Loss`,
+`Notes to Accounts` and `Assets & Depreciation`, use the separate
+[statement schedules updater](statement-schedules.md). The mappings and layout
+below describe the older workbook and must not be applied to the four-tab target.
+
 `apps/update_books_statement_sheet.py` updates the FY 2025–26 Google Sheets
 financial statement template from Zoho Books report data. It uses the configured
 Books organization and compares FY 2025–26 with FY 2024–25. It defaults to a
@@ -99,7 +104,8 @@ the current-year note values when `GOOGLE_SHEETS_ACCESS_TOKEN` is set; for an
 offline Sheets preview, supply `--partner-interest AMOUNT`. Add `--apply` to
 read current Note 3 partner interest and write the 19 mapped note inputs in one
 batch after checking that none is a formula. The workflow fetches one Books P&L
-report, computes disclosed residuals, and leaves all note and statement total
+schedule report, reads its revenue and expense categories while excluding
+repeated section closing rows, computes disclosed residuals, and leaves all note and statement total
 formulas intact. Review the classification groups when new Books accounts are
 added or material account usage changes.
 

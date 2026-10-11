@@ -24,6 +24,10 @@ def _flatten_profile(data: Dict[str, Any]) -> Dict[str, Any]:
         "payment_creator_reports",
         "dashboard_workflows",
         "gstin_to_vendor_id",
+        "gstin_aliases",
+        "gstr1_financial_credit_notes",
+        "gstr1_financial_credit_notes",
+        "gstin_aliases",
         "neoseal_stock_count_worksheets",
     }
     result: Dict[str, Any] = {}
@@ -155,6 +159,10 @@ class Config:
         {"include": [], "exclude": []},
     )
     GSTR2_LOCATION_GSTIN_MAP = get_mapping_config("GSTR2_LOCATION_GSTIN_MAP")
+    GSTIN_ALIASES = get_mapping_config("GSTIN_ALIASES")
+    GSTR1_FINANCIAL_CREDIT_NOTES = get_mapping_config("GSTR1_FINANCIAL_CREDIT_NOTES")
+    GSTR1_FINANCIAL_CREDIT_NOTES = get_mapping_config("GSTR1_FINANCIAL_CREDIT_NOTES")
+    GSTIN_ALIASES = get_mapping_config("GSTIN_ALIASES")
 
     # Zoho WorkDrive Configurations
     POLYCAB_FOLDER_ID = get_config("POLYCAB_FOLDER_ID", "")

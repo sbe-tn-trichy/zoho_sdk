@@ -1,5 +1,89 @@
 # Knowledge Change Log
 
+## 2026-10-12
+
+- Integrated GSTR-1 financial tables with Analytics readiness and HSN reporting;
+  Books amount retrieval remains confined to force refresh.
+
+- GSTR-2B fiscal-year monthly gaps now show signed gross Total Mismatch as
+  portal minus Books, including missing documents and paired value differences.
+
+- Schedule updater generates single-cell SUM formulas and integer day ratios for
+  prorated depreciation, preserving exact formula read-back after Google Sheets
+  normalizes formulas and long decimal literals.
+
+- Added a configuration-driven two-year Schedule III sheet updater with dynamic
+  note links, historical fixed-asset depreciation verification, offline replay,
+  reconciliation checks, and guarded native Sheets writes with read-back.
+  Annual reports are fetched separately because the verified default responses
+  do not include prior-year comparison data.
+
+## 2026-10-11
+
+- Other Expenses comparison now aggregates remaining schedule expense accounts
+  after excluding those mapped to named lines, with component amounts shown.
+
+- Comparison report mismatches now separate balance-sheet liabilities and
+  equities, assets, and profit-and-loss lines according to the source layout.
+
+- Created the Undeposited Funds deposit summary and supporting query table;
+  registered both views, verified saved SQL and totals, and documented inferred
+  payment candidates and aggregation safeguards.
+
+- Financial statement comparison Markdown groups mismatches, unmapped lines
+  and matches separately, with counts and source qualifications retained.
+
+- The audited Net Profit cell now compares with Books profit before tax,
+  following confirmation that income tax is disclosed separately; mapped
+  line qualifications are preserved in comparison output.
+
+- Opening stock in the financial statement comparison uses schedule
+  Inventories as of 31 March 2025 per the explicit workbook mapping instruction.
+  The source date is displayed in the report. Optional prior-period mappings
+  retain separate snapshot validation.
+
+- Corrected the schedule P&L SDK wrapper to use `reports/scheduleprofitandloss`
+  with expanded rows and response option 1 rather than the ordinary P&L route.
+  Verified both schedule endpoints with OAuth, added the balance-sheet wrapper,
+  and adapted P&L note extraction to the schedule schema. Added a read-only
+  Google statement comparison with exact mappings and offline snapshot replay.
+
+- Analytics analysis now reads cached SQLite without automatic refresh; metadata
+  outputs show the last successful sync time. `--sync` refreshes manually, and
+  managed SQL changes use targeted read-back without a full catalog sync.
+
+- Analytics schema 5 stores saved query SQL and workflow consumers. The catalog
+  service requires successful synchronization for design analysis and verifies
+  saved definitions after managed query-table updates.
+
+- GSTR-1 now excludes explicitly confirmed financial credit notes from HSN
+  and e-invoice checks as GST not applicable, retains draft/sequence checks,
+  and reports their exclusion separately. Deployment IDs are local config.
+
+- B2C credit-note HSN validation now accepts any customer's invoice under the
+  same seller GSTIN in the preceding six calendar months. Transaction GST
+  treatment takes precedence over the customer record; reports include rule
+  selection and qualifying invoice evidence. B2B retains customer history.
+
+- Added default Analytics credit-note HSN validation against prior invoices
+  for the same customer and seller GSTIN, including older financial years,
+  Markdown violation evidence and incomplete-data guards. Books force refresh
+  keeps Analytics as the HSN evidence source.
+
+- GSTR-1 CLI now writes Markdown by default with GSTIN aliases, location
+  summaries and exception evidence; structured JSON is an explicit optional
+  companion output. Exported the workflow Markdown renderer.
+
+- Corrected GSTR-1 Analytics mappings for synced credit-note identifiers and
+  the e-invoice status/reference columns used by Books table exports.
+
+- Added configurable GSTIN-to-firm labels through `GSTIN_ALIASES`, preserving
+  the alias mapping during profile flattening.
+
+- GSTR-1 verification defaults to Analytics fiscal-year exports, with explicit
+  Books force refresh, source reporting, and conservative missing e-invoice
+  evidence handling. Added a CLI with `--force-refresh`.
+
 ## 2026-10-10
 
 - Extracted verified resource-detail reads into `zoho.helpers.records` and migrated Polycab review/correction callers, retaining domain guards in workflows.

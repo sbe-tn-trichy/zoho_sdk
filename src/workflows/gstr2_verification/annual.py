@@ -3,9 +3,30 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from decimal import Decimal
 from typing import Any, Mapping, Sequence
 
 from .verifier import normalize_doc_number
+
+
+def total_mismatch(reconciliation: Mapping[str, Any]) -> Decimal:
+    """Net gross amount of unresolved gaps: signed GSTR-2B minus Books."""
+    def amount(value: Any, credit: bool) -> Decimal:
+        result = abs(Decimal(str(value)))
+        if not result.is_finite():
+            raise ValueError("Mismatch amounts must be finite")
+        return -result if credit else result
+
+    total = sum((amount(doc["total_value"], doc.get("doc_type") == "credit_note")
+                 for doc in reconciliation.get("missing_in_books", [])), Decimal(0))
+    for category in ("missing_in_gstr2_bills", "missing_in_gstr2_expenses",
+                     "missing_in_gstr2_credits"):
+        total -= sum((amount(doc["total"], category == "missing_in_gstr2_credits")
+                      for doc in reconciliation.get(category, [])), Decimal(0))
+    for item in reconciliation.get("value_mismatches", []):
+        credit = item["gstr2_doc"].get("doc_type") == "credit_note"
+        total += amount(item["gstr2_amount"], credit) - amount(item["books_amount"], credit)
+    return total.quantize(Decimal("0.01"))
 
 
 def fiscal_months(start_year: int) -> tuple[str, ...]:

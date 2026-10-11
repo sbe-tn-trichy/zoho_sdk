@@ -1,6 +1,6 @@
 """GSTR-2 verification package."""
 
-from .annual import fiscal_months, reconcile_fiscal_year, render_fiscal_year_missing_details
+from .annual import fiscal_months, reconcile_fiscal_year, render_fiscal_year_missing_details, total_mismatch
 from .bill_snapshot import convert_analytics_bills, refresh_bill_snapshot, unchanged_zero_tax_expenses
 from .purchase_snapshot import (
     convert_analytics_expenses, convert_analytics_credits, refresh_purchase_snapshot,
@@ -15,6 +15,7 @@ from .verifier import (
 )
 
 __all__ = [
+    "total_mismatch",
     "convert_analytics_bills",
     "refresh_bill_snapshot",
     "unchanged_zero_tax_expenses",

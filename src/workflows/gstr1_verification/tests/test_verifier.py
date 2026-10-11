@@ -1,13 +1,17 @@
 import unittest
 from datetime import date
+from functools import partial
 from unittest.mock import MagicMock
 
 from workflows.gstr1_verification import (
     GSTR1VerificationConfig,
     GSTR1Verifier,
-    verify_gstr1,
+    verify_gstr1 as _verify_gstr1,
 )
 
+
+# Existing fixtures exercise the live Books checks explicitly.
+verify_gstr1 = partial(_verify_gstr1, force_refresh=True)
 
 def invoice(
     number,

@@ -28,6 +28,7 @@ from workflows.gstr2_verification import (
     fiscal_months,
     reconcile_fiscal_year,
     render_fiscal_year_missing_details,
+    total_mismatch,
     refresh_bill_snapshot,
     refresh_purchase_snapshot,
     render_markdown_report,
@@ -655,8 +656,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                      f"{item['portal_month']} | `{item['supplier_gstin']}` | "
                      f"₹{item['total']:,.2f} | ₹{item['tax']:,.2f} |" for item in matches)
         lines.extend(["", "## Remaining Gaps", "",
-                      "| Month | Missing in Books | Missing in 2B Bills | Missing in 2B Expenses | Missing in 2B Credits | Value Mismatches |",
-                      "| :--- | ---: | ---: | ---: | ---: | ---: |"])
+                      "Total Mismatch is the net gross amount of unresolved gaps and value mismatches: GSTR-2B minus Books. Invoices are positive; credit notes are negative.", "",
+                      "| Month | Missing in Books | Missing in 2B Bills | Missing in 2B Expenses | Missing in 2B Credits | Value Mismatches | Total Mismatch |",
+                      "| :--- | ---: | ---: | ---: | ---: | ---: | ---: |"])
         for result in yearly_results:
             summary = result["reconciliation"]["summary"]
             lines.append(f"| {result['metadata']['target_month']} | "
@@ -664,7 +666,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                          f"{summary['missing_in_gstr2_bills_count']} | "
                          f"{summary['missing_in_gstr2_expenses_count']} | "
                          f"{len(result['reconciliation']['missing_in_gstr2_credits'])} | "
-                         f"{summary.get('value_mismatch_count', 0)} |")
+                         f"{summary.get('value_mismatch_count', 0)} | "
+                         f"₹{total_mismatch(result['reconciliation']):,.2f} |")
         lines.extend(render_fiscal_year_missing_details(yearly_results, tolerance=args.tolerance))
         annual_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"Fiscal year report written to: {annual_path.resolve()}")

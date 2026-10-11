@@ -85,3 +85,42 @@ def test_update_query_table_posts_config():
             return {}
 
     Views(Client()).update_query_table("w", "v", "SELECT 1")
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_managed_design_synchronizes_and_verifies_before_success(apply):
+    from unittest.mock import MagicMock, patch
+    from workflows.inter_location_analytics_report import sync_inter_location_contra_query_table
+
+    analytics = MagicMock()
+    row = {"Issue Type": "Customer payment vs invoice", "Debit Transaction ID": "cp",
+           "Credit Transaction ID": "invoice", "Debit Location ID": "a", "Credit Location ID": "b",
+           "Invoice ID": "invoice", "Invoice Location ID": "b"}
+    analytics.queries.execute.side_effect = [[row], [], []]
+    analytics.views.export_all.return_value = [row]
+    analytics.views.create_query_table.return_value = "q"
+    with patch("workflows.analytics_catalog.AnalyticsCatalog") as factory:
+        catalog = factory.return_value
+        catalog.cached_store.return_value.__enter__.return_value.find_views.return_value = []
+        result = sync_inter_location_contra_query_table(analytics, workspace_id="w", apply=apply)
+        catalog.cached_store.assert_called_once()
+        assert result["applied"] is apply
+        if apply:
+            catalog.verify_query_update.assert_called_once_with("q", result["sql"])
+        else:
+            catalog.verify_query_update.assert_not_called()
+            analytics.views.create_query_table.assert_not_called()
+
+
+def test_managed_design_stops_on_sync_failure():
+    from unittest.mock import MagicMock, patch
+    from workflows.analytics_catalog import MetadataSyncError
+    from workflows.inter_location_analytics_report import sync_inter_location_contra_query_table
+
+    analytics = MagicMock()
+    with patch("workflows.analytics_catalog.AnalyticsCatalog") as factory:
+        factory.return_value.cached_store.return_value.__enter__.side_effect = MetadataSyncError("offline")
+        with pytest.raises(MetadataSyncError):
+            sync_inter_location_contra_query_table(analytics, workspace_id="w", apply=True)
+        analytics.queries.execute.assert_not_called()
+        analytics.views.create_query_table.assert_not_called()

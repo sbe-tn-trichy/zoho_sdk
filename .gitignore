@@ -42,6 +42,7 @@ zoho_config.json
 config.json
 /config/accounting-mapping.yaml
 /config/firm-reports.yaml
+/config/statement-schedules.yaml
 books_statement_mapping.json
 .zoho_cache.json
 *.cache.json

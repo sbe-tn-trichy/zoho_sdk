@@ -175,8 +175,12 @@ normalized document number, document kind, reverse-charge status, total, and tax
 within tolerance clears both gaps. Ambiguous or value-different pairs stay open.
 The adjusted monthly Markdown and cumulative CSV reports are regenerated, and
 `yearly/FY-2025-26.md` records timing matches, remaining monthly gaps, an
-unresolved-queue total, supplier-level totals, and document-level review tables
-for portal-only items, Books-only items, and value mismatches. The document rows
+unresolved-queue total, supplier-level totals, and document-level review tables.
+The monthly Remaining Gaps table includes Total Mismatch after Value Mismatches:
+the net gross value of unresolved portal-only and Books-only documents plus
+paired value differences, calculated as GSTR-2B minus Books with invoices positive
+and credit notes negative. Cross-month resolved gaps are excluded.
+These cover portal-only items, Books-only items, and value mismatches. The document rows
 include dates, numbers, GSTINs, taxable value, GST, total, and review guidance.
 It also lists unique number/taxable/GST counterparts with differing supplier
 GSTINs for manual investigation, leaving both gaps open until corrected. The FY

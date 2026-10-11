@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from zoho.helpers.sequences import parse_doc_number
+from .hsn import check_credit_note_hsn, load_hsn_evidence
 from zoho.helpers import (
     get_financial_year_range,
     get_month_range,
@@ -27,10 +28,16 @@ class GSTR1VerificationConfig:
 
     e_invoice_applicable: bool = True
     fiscal_year_start_month: int = 4
+    validate_credit_note_hsn: bool = True
+    financial_credit_note_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not 1 <= self.fiscal_year_start_month <= 12:
             raise ValueError("fiscal_year_start_month must be between 1 and 12.")
+        if not isinstance(self.financial_credit_note_ids, tuple) or any(
+            not isinstance(value, str) or not value.strip() for value in self.financial_credit_note_ids
+        ):
+            raise ValueError("financial_credit_note_ids must contain non-empty string IDs.")
 
 
 def _month_range(month: str) -> Tuple[date, date]:
@@ -77,34 +84,60 @@ def _document_info(record: Mapping[str, Any], document_type: str) -> Dict[str, A
 class GSTR1Verifier:
     """Build an evidence-based, non-mutating GSTR-1 readiness report."""
 
-    def __init__(self, books_client: Any, config: Optional[GSTR1VerificationConfig] = None):
+    def __init__(self, books_client: Any = None, config: Optional[GSTR1VerificationConfig] = None,
+                 *, analytics_client: Any = None,
+                 analytics_workspace_id: str = "264324000000002043"):
         self.books = books_client
+        self.analytics = analytics_client
+        self.analytics_workspace_id = analytics_workspace_id
         self.config = config or GSTR1VerificationConfig()
 
-    def run(self, month: Optional[str] = None, as_of: Optional[date] = None) -> Dict[str, Any]:
+    def run(self, month: Optional[str] = None, as_of: Optional[date] = None,
+            *, force_refresh: bool = False) -> Dict[str, Any]:
         start, end = _month_range(month) if month is not None else _previous_month_range(as_of)
         fy_start, fy_end = self._financial_year_range(start)
         fetch_errors: List[Dict[str, str]] = []
 
-        locations = self._safe_list_locations(fetch_errors)
+        if force_refresh:
+            if self.books is None:
+                raise ValueError("force_refresh requires a Books client.")
+            locations = self._safe_list_locations(fetch_errors)
+            target_invoices = self._safe_list_documents(
+                self.books.invoices, "invoices", start, end, fetch_errors)
+            target_credit_notes = self._safe_list_documents(
+                self.books.credit_notes, "credit_notes", start, end, fetch_errors)
+            sequence_invoices = self._safe_list_documents(
+                self.books.invoices, "invoices_sequence", fy_start, fy_end, fetch_errors)
+            sequence_credit_notes = self._safe_list_documents(
+                self.books.credit_notes, "credit_notes_sequence", fy_start, fy_end, fetch_errors)
+        else:
+            if self.analytics is None:
+                raise ValueError("Default verification requires an Analytics client; use force_refresh=True for Books.")
+            from .analytics import load_records
 
-        target_invoices = self._safe_list_documents(
-            self.books.invoices, "invoices", start, end, fetch_errors
-        )
-        target_credit_notes = self._safe_list_documents(
-            self.books.credit_notes, "credit_notes", start, end, fetch_errors
-        )
-        sequence_invoices = self._safe_list_documents(
-            self.books.invoices, "invoices_sequence", fy_start, fy_end, fetch_errors
-        )
-        sequence_credit_notes = self._safe_list_documents(
-            self.books.credit_notes, "credit_notes_sequence", fy_start, fy_end, fetch_errors
-        )
+            locations = load_records(self.analytics, self.analytics_workspace_id, "locations", fetch_errors)
+            sequence_invoices = load_records(self.analytics, self.analytics_workspace_id, "invoices",
+                                             fetch_errors, fy_start, fy_end)
+            sequence_credit_notes = load_records(self.analytics, self.analytics_workspace_id, "credit_notes",
+                                                 fetch_errors, fy_start, fy_end)
+            target_invoices = [row for row in sequence_invoices
+                               if start <= _parse_date(row["date"]) <= end]
+            target_credit_notes = [row for row in sequence_credit_notes
+                                   if start <= _parse_date(row["date"]) <= end]
 
-        self._load_amounts(target_invoices, self.books.invoices, "invoice", fetch_errors)
-        self._load_amounts(target_credit_notes, self.books.credit_notes, "creditnote", fetch_errors)
+        if force_refresh:
+            self._load_amounts(target_invoices, self.books.invoices, "invoice", fetch_errors)
+            self._load_amounts(target_credit_notes, self.books.credit_notes, "creditnote", fetch_errors)
 
         registration_meta, location_to_registration = self._registration_metadata(locations)
+        hsn_credits, hsn_invoices, hsn_complete = [], [], True
+        if self.config.validate_credit_note_hsn and any(
+            str(doc.get("status") or "").strip().casefold() not in {"draft", "void"}
+            and str(doc.get("creditnote_id") or doc.get("credit_note_id") or "") not in self.config.financial_credit_note_ids
+            for doc in target_credit_notes
+        ):
+            hsn_credits, hsn_invoices, hsn_complete = load_hsn_evidence(
+                self.analytics, self.analytics_workspace_id, start, end, fetch_errors)
         grouped_target_invoices = self._group_by_registration(
             target_invoices, location_to_registration
         )
@@ -157,6 +190,10 @@ class GSTR1Verifier:
                 ),
             )
             einvoice_check = self._einvoice_check(raw_invoices, raw_credit_notes)
+            hsn_check = check_credit_note_hsn(
+                raw_credit_notes, hsn_credits, hsn_invoices, location_to_registration,
+                evidence_complete=hsn_complete, enabled=self.config.validate_credit_note_hsn,
+                financial_credit_note_ids=self.config.financial_credit_note_ids)
             draft_check = {
                 "passed": not drafts,
                 "count": len(drafts),
@@ -171,6 +208,15 @@ class GSTR1Verifier:
                 grouped_sequence_invoices.get(registration_key, []),
                 grouped_sequence_credit_notes.get(registration_key, []),
             )
+            for location in location_reports.values():
+                location_hsn = check_credit_note_hsn(
+                    [doc for doc in raw_credit_notes
+                     if str(doc.get("location_id") or "") == str(location["location_id"] or "")],
+                    hsn_credits, hsn_invoices, location_to_registration,
+                    evidence_complete=hsn_complete, enabled=self.config.validate_credit_note_hsn,
+                    financial_credit_note_ids=self.config.financial_credit_note_ids)
+                location["checks"]["credit_note_hsn"] = location_hsn
+                location["passed"] = location["passed"] and location_hsn["passed"]
             registration_reports[registration_key] = {
                 **metadata,
                 "financial_summary": summarize_amounts(raw_invoices, raw_credit_notes),
@@ -178,6 +224,7 @@ class GSTR1Verifier:
                     draft_check["passed"]
                     and sequence_check["passed"]
                     and einvoice_check["passed"]
+                    and hsn_check["passed"]
                 ),
                 "invoices": {"count": len(invoice_docs), "documents": invoice_docs},
                 "credit_notes": {
@@ -188,6 +235,7 @@ class GSTR1Verifier:
                     "draft_documents": draft_check,
                     "number_sequence": sequence_check,
                     "einvoice_push": einvoice_check,
+                    "credit_note_hsn": hsn_check,
                 },
                 "void_documents": voids,
                 "location_reports": location_reports,
@@ -220,14 +268,30 @@ class GSTR1Verifier:
         einvoice_check = self._merge_einvoice_results(
             *(report["checks"]["einvoice_push"] for report in registration_reports.values())
         )
+        hsn_checks = [report["checks"]["credit_note_hsn"] for report in registration_reports.values()]
+        hsn_check = {
+            "source": "analytics", "skipped": not self.config.validate_credit_note_hsn,
+            "complete": all(check["complete"] for check in hsn_checks),
+            "passed": all(check["passed"] for check in hsn_checks),
+            "checked_lines": sum(check["checked_lines"] for check in hsn_checks),
+            "matched": [item for check in hsn_checks for item in check["matched"]],
+            "financial_credit_notes": [item for check in hsn_checks for item in check["financial_credit_notes"]],
+            "violations": [item for check in hsn_checks for item in check["violations"]],
+            "unverifiable": [item for check in hsn_checks for item in check["unverifiable"]],
+        }
+        if hsn_check["unverifiable"]:
+            fetch_errors.append({"source": "analytics_credit_note_hsn",
+                                 "error": "Credit-note HSN evidence is incomplete; see unverifiable records."})
         complete = not fetch_errors
         overall_passed = (
             complete
             and draft_check["passed"]
             and sequence_check["passed"]
             and einvoice_check["passed"]
+            and hsn_check["passed"]
         )
         return {
+            "data_source": "books" if force_refresh else "analytics",
             "period": {
                 "month": start.strftime("%Y-%m"),
                 "start_date": start.isoformat(),
@@ -244,6 +308,7 @@ class GSTR1Verifier:
                 "draft_documents": draft_check,
                 "number_sequence": sequence_check,
                 "einvoice_push": einvoice_check,
+                "credit_note_hsn": hsn_check,
             },
             "gst_registrations": registration_reports,
             "void_documents": voids,
@@ -618,6 +683,9 @@ class GSTR1Verifier:
                 doc = _document_info(raw_doc, document_type)
                 if doc["status"].strip().casefold() in {"draft", "void"}:
                     continue
+                if document_type == "credit_note" and doc["id"] in self.config.financial_credit_note_ids:
+                    not_applicable.append({**doc, "reason": "Confirmed financial credit note; GST not applicable."})
+                    continue
                 details = raw_doc.get("einvoice_details")
                 if not isinstance(details, Mapping) or not details:
                     not_applicable.append(doc)
@@ -672,10 +740,16 @@ class GSTR1Verifier:
 
 
 def verify_gstr1(
-    books_client: Any,
+    books_client: Any = None,
     month: Optional[str] = None,
     as_of: Optional[date] = None,
     config: Optional[GSTR1VerificationConfig] = None,
+    *,
+    analytics_client: Any = None,
+    analytics_workspace_id: str = "264324000000002043",
+    force_refresh: bool = False,
 ) -> Dict[str, Any]:
     """Convenience wrapper for :class:`GSTR1Verifier`."""
-    return GSTR1Verifier(books_client, config=config).run(month=month, as_of=as_of)
+    return GSTR1Verifier(books_client, config=config, analytics_client=analytics_client,
+                         analytics_workspace_id=analytics_workspace_id).run(
+                             month=month, as_of=as_of, force_refresh=force_refresh)

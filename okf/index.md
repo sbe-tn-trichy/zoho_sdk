@@ -27,13 +27,15 @@ okf_version: "0.2"
 * [Zoho Inventory Client](zoho-inventory.md) - Item and inventory API routing, purchase-account scoping, and migration requirements.
 * [Zoho Books Client](zoho-books.md) - Books resource access, pagination, and customer-only contact retrieval.
 * [Books Financial Statement Sheet](books-statement-sheet.md) - Reviewed Books report mappings into the linked FY 2025–26 Google Sheets template.
+* [Statement Schedules](statement-schedules.md) - Two-year Schedule III notes, Google statement links, and fixed-asset depreciation verification.
+* [Financial Statement Comparison](financial-statement-comparison.md) - Exact Google Sheet cells versus OAuth Books P&L and balance-sheet schedules.
 * [Filed IT Balance Sheet Comparison](it-balance-sheet-comparison.md) - Read-only FY 2024–25 filed balance-sheet comparison with Books.
 * [Audited Financials Comparison](audited-financials-comparison.md) - Audited XLSX P&L, balance sheet and stock comparison with live or saved Books reports and editable YAML mapping.
 * [Duplicate Customer Payment Check](duplicate-payment-check.md) - Read-only detection of customer payments sharing the same customer, date, and amount.
 * [Customer Payment Date Mismatch](customer-payment-date-mismatch.md) - Read-only detection of customer payments where payment date differs from invoice application dates.
 * [Polycab RSO Import](polycab-rso-import.md) - Parse Polycab return-sales-order PDFs, create location-scoped Books sales orders, and attach the source PDF.
 * [Polycab Vendor-credit Review](polycab-credit-review.md) - Poppler PDF audits, labeled references and reviewed RMA credit/journal/payment corrections.
-* [Analytics Metadata Snapshots](analytics-metadata.md) - Complete workspace metadata collection, rate-limit handling, snapshot files, and relationship maps.
+* [Analytics Metadata Snapshots](analytics-metadata.md) - Cached SQLite analysis, manual sync, freshness timestamps, saved query SQL, and workflow impact.
 * [Bank–Vendor Ledger Matching](bank-vendor-ledger-matching.md) - Books bank-withdrawal matching and ICICI UPI reference normalization.
 * [Bank Statement Categorization](collection-reconciliation.md) - Creator payment matching, Analytics customer suggestions for other bank lines, TA expense review, and audit safety.
 * [GSTR-1 Verification](gstr1-verification.md) - Previous-month invoice and credit-note checks for drafts, number continuity, chronology, and e-invoice registration.

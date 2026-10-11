@@ -284,6 +284,13 @@ class Metadata:
             )
         )
 
+    def get_query_table(self, workspace_id: str, view_id: str) -> Dict[str, Any]:
+        """Read the complete saved SQL definition of a query table."""
+        definition = _data(self._request(f"workspaces/{workspace_id}/querytables/{view_id}"))
+        if not isinstance(definition, dict) or not isinstance(definition.get("sqlQuery"), str) or not definition["sqlQuery"].strip():
+            raise ZohoAnalyticsError(f"Query table {view_id} has no SQL definition.")
+        return definition
+
     def download_workspace(
         self,
         workspace_id: str,
@@ -442,6 +449,32 @@ class Metadata:
                 if view.get("viewId")
             )
 
+            query_views = [view for view in table_views
+                           if str(view.get("viewType", "")).strip().lower() != "table"]
+            query_ids = {str(view["viewId"]) for view in query_views}
+            with store.connection:
+                for row in store.connection.execute("SELECT view_id FROM query_tables").fetchall():
+                    if row[0] not in query_ids:
+                        store.connection.execute("DELETE FROM query_tables WHERE view_id = ?", (row[0],))
+            for view in query_views:
+                view_id = str(view["viewId"])
+                modified = _as_text(view.get("lastModifiedTime"))
+                if resume and store.query_table_is_current(view_id, modified):
+                    continue
+                try:
+                    definition = self.get_query_table(workspace_id, view_id)
+                    if store.put_query_table(view_id, definition, modified):
+                        sync_counts["metadataWrites"] += 1
+                    save_state()
+                except ZohoAnalyticsError as exc:
+                    if self._is_rate_limit(exc):
+                        save_state()
+                        raise
+                    errors.append({"operation": "query_definition", "viewId": view_id,
+                                   "error": str(exc)})
+                    # A failed changed definition must remain distinguishable from current SQL.
+                    save_state()
+
             if include_column_dependents:
                 columns = [
                     (view_id, column)
@@ -479,6 +512,15 @@ class Metadata:
                             "error": str(exc),
                         })
 
+            for view in query_views:
+                view_id = str(view["viewId"])
+                query = store.get_query_table(view_id)
+                if query:
+                    # Query-table endpoint also carries authoritative involved views.
+                    details = view_details.setdefault(view_id, {})
+                    details = dict(details)
+                    details["involvedViews"] = query["definition"].get("involvedViews", [])
+                    view_details[view_id] = details
             relationships = self._build_relationships(
                 workspace_id,
                 folders,
@@ -494,6 +536,8 @@ class Metadata:
             manifest["sync"] = sync_counts
             manifest["complete"] = not errors
             save_state()
+            if manifest["complete"]:
+                store.set_info("last_successful_sync_at", manifest["updatedAt"])
             store.write_summary(root / "summary.md")
             store.optimize()
             controller.display(

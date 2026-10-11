@@ -9,6 +9,12 @@ description: Public resource access patterns for the Zoho Books client.
 Resources inherit standard CRUD operations and the paginated `list_all()` helper
 from `BaseResource`.
 
+`fixed_assets` exposes Books fixed assets through `BaseResource`, with
+`history(fixed_asset_id)` returning all valuation-history pages and rejecting
+duplicate or missing valuation IDs. This requires `ZohoBooks.fixedasset.READ`.
+See [statement schedules](statement-schedules.md) for historical WDV and
+independent annual depreciation verification.
+
 `bank_transactions.categorize(transaction_id, data)` wraps the native
 uncategorized-line categorization endpoint. Cash transfers use
 `transaction_type="transfer_fund"`, `from_account_id`, and `to_account_id`.
@@ -108,11 +114,18 @@ availability still needs live verification; automated tests mock network access.
 requests the schedule-format P&L figures for an explicit ISO date range. The
 `zoho.helpers.fetch_profit_and_loss_schedule_format(api, from_date=...,
 to_date=..., excluded_location_id=...)` wrapper constructs the Books branch
-`not_in` rule and requests accrual basis. The web report's
-`profitandloss-scheduleformat` route returned code 5 from the public API;
-the SDK therefore uses `reports/profitandloss`, which accepts the same filters
-and returns the account totals, though not the web schedule layout.
-The request includes `is_expand=true` to ask Books for expanded report rows.
+`not_in` rule and requests accrual basis. The SDK calls the data endpoint
+`reports/scheduleprofitandloss` with `is_expand=true` and `response_option=1`.
+This differs from both the ordinary `reports/profitandloss` endpoint and the
+browser view route `profitandloss-scheduleformat`. Explicit custom dates avoid
+the changing meaning of `PreviousYear`. Authentication uses SDK OAuth and
+organization scope. Both schedule endpoints were verified with OAuth. The P&L
+response uses `schedule_profit_and_loss`; balance sheet uses
+`schedule_balance_sheet` and echoes an as-of date rather than a from-date.
+`reports.balance_sheet_schedule_format` shares date, accrual and rule checks.
+Schedule account lists include separate `section=true` closing rows and
+`total_sub_account` parent subtotals: skip closing rows and use own `total`
+when summing parent and child accounts to avoid double counting.
 
 `registers.list_transactions(account_id, *, from_date, to_date, page=1,
 per_page=200, cash_based=False)` reads one raw page from the documented Books

@@ -32,13 +32,29 @@ the complete snapshot into memory.
 
 # Incremental Synchronization
 
+Schema version 5 adds `query_tables` with exact saved SQL, definition hashes,
+source modification markers, synchronization times and compressed raw responses.
+Versions 3 and 4 migrate in place; existing version 3 stores need a workspace ID.
+Older stores are marked incomplete until refreshed. Full and incremental sync
+fetch missing or changed query definitions through the query-table details endpoint.
+Failed definitions remain retryable and prevent successful synchronization.
+
+`workflow_view_usage` records explicit workflow/view/operation/source mappings.
+Remote synchronization preserves these records, including deleted view IDs so
+missing consumers remain visible. `views_with_workflows.used_by_workflows` exposes
+an aggregated column. `workflow_impact()` follows incoming `view_uses_view` edges
+transitively, with cycle protection, to find indirect consumers.
+
 `sync_workspace()` fetches the lightweight view inventory in pages of 200 and
-compares each view's `lastModifiedTime` with its successfully synchronized
+compares each view's general `lastModifiedTime` with its successfully synchronized
 marker in SQLite. It fetches details and table metadata only for new or changed
 views, removes deleted views, and reconstructs relationships from the local
 snapshot. Separate discovered and synchronized markers ensure a failed request
 is retried on the next run. SHA-256 content hashes prevent unnecessary row and
 column rewrites when the remote timestamp changes without a metadata change.
+Data updates can advance this general timestamp even when design is unchanged;
+it is not a dedicated design-change marker. Synchronization is an explicit manual
+operation rather than a prerequisite for every analysis.
 
 # Authentication
 
@@ -59,6 +75,36 @@ If retries are exhausted, it reports that the download is paused and the next
 run can resume.
 
 # Snapshot Files
+
+`workflows.analytics_catalog.AnalyticsCatalog` is the supported entry point for
+design planning and metadata analysis. Its `analyze()` and `cached_store()` use
+existing SQLite metadata without remote requests. A missing catalog or one without
+a successful sync requires explicit initialization; there is no automatic refresh.
+Analysis exposes `last_successful_sync_at`, the cached source, and snapshot completeness.
+After a failed manual refresh, the catalog may contain partially refreshed records;
+the last successful timestamp remains unchanged and completeness is false.
+Include the last successful sync timestamp in metadata Markdown outputs and responses.
+Its `verify_query_update()` performs targeted query-definition read-back and compares
+the exact saved SQL, updating only the verified query in SQLite without advancing
+the full catalog sync timestamp. Newly created views receive a targeted details read.
+The managed inter-location workflow uses cached metadata for planning and verifies
+SQL after changes. Generic low-level SDK calls remain available; callers
+must use this service for project design operations.
+
+Run `.venv/Scripts/python.exe apps/analytics_metadata.py` on Windows (or the workspace
+virtualenv equivalent). Default output is `output/analytics_metadata/<workspace_id>/`
+with SQLite, summary and analysis JSON/Markdown exports. The default command reads
+the cache without constructing an authenticated client. Add `--sync` to explicitly
+refresh remote metadata and workflow mappings. `--view-id` includes workflow
+impact and saved SQL for the selected view; `--output` selects another directory.
+
+The explicit registry is `src/workflows/analytics_catalog/registry.py`. Exact names
+resolve to IDs within the synchronized workspace; missing/ambiguous references are
+reported separately from remote sync errors. Pass `WorkflowViewReference` records
+for deployment-specific IDs; no static scan can resolve arbitrary runtime SQL.
+The catalog service replaces its registry projection on each sync. Maintain durable
+custom registrations in the supplied registry rather than editing SQLite manually.
+Metadata sync refreshes definitions, not the source data feeding Zoho Analytics.
 
 - `metadata.sqlite` is the canonical, versioned snapshot and resume state.
 - `summary.md` lists counts, view/relationship types, and table column counts.
@@ -91,5 +137,21 @@ expense GSTIN-derived PAN, with vendor/document identifiers as fallback.
 A left vendor join retains GST expenses without a vendor ID. Retain a backup
 of the existing SQL and compare a dynamic SQL preview with a fresh saved-table
 export when changing the definition.
+
+## Undeposited Funds Deposit Report
+
+Workspace `264324000000002043` contains **Undeposited Funds - Deposit Report**
+(`264324000008503041`), backed by **Undeposited Funds - Deposits and Payment Candidates**
+(`264324000008503027`) for account `1094368000000000456`. It groups deposit credit
+lines by deposit entity ID and date, with total value and ambiguous/unmatched line
+counts. Candidate payments match customer, location, full amount and a payment
+date on or before deposit date. These are inferred candidates, may recur across
+deposits, and do not establish confirmed associations or handle partial/combined
+payments. Aggregate each accrual line before aggregating deposits to prevent
+candidate joins from inflating totals. Both views are registered consumers.
+
+Zoho reformats saved SQL. Compare SQL tokens while preserving quoted identifiers
+and literals, then pass the exact read-back definition to `verify_query_update()`.
+The Create Report endpoint supports summary views over a query table.
 
 See [Package Architecture](architecture.md), [Configuration Reference](configuration.md), and [Development Runbook](development-runbook.md).

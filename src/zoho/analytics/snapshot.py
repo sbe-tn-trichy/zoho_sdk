@@ -4,10 +4,18 @@ import sqlite3
 import zlib
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Literal, NotRequired, Optional, TypedDict
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+
+
+class WorkflowViewUsage(TypedDict):
+    workflow_key: str
+    view_id: str
+    usage_type: Literal["read", "create", "update"]
+    source_file: str
+    notes: NotRequired[str]
 
 
 def _compact_json(value: Any) -> str:
@@ -54,6 +62,14 @@ class WorkspaceMetadataStore:
                 raise ValueError("File is not a Zoho Analytics metadata database.")
             if version == "3" and workspace_id:
                 self._upgrade_v3_to_v4()
+                version = "4"
+            if version == "4":
+                self._create_design_schema()
+                if self.get_info("complete") == "True":
+                    self.set_info("last_successful_sync_at", self.get_info("updated_at", ""))
+                # Older snapshots never fetched saved SQL; require a fresh sync.
+                self.set_info("complete", False)
+                self.set_info("schema_version", SCHEMA_VERSION)
                 version = str(SCHEMA_VERSION)
             if version != str(SCHEMA_VERSION):
                 self.close()
@@ -126,7 +142,7 @@ class WorkspaceMetadataStore:
                 )
             self.connection.execute(
                 "UPDATE snapshot_info SET value = ? WHERE key = 'schema_version'",
-                (str(SCHEMA_VERSION),),
+                ("4",),
             )
 
     def __enter__(self) -> "WorkspaceMetadataStore":
@@ -137,6 +153,96 @@ class WorkspaceMetadataStore:
 
     def close(self) -> None:
         self.connection.close()
+
+    def _create_design_schema(self) -> None:
+        self.connection.executescript("""
+            CREATE TABLE IF NOT EXISTS query_tables (
+                view_id TEXT PRIMARY KEY REFERENCES views(view_id) ON DELETE CASCADE,
+                sql_query TEXT NOT NULL,
+                definition_hash TEXT NOT NULL,
+                source_modified_time TEXT NOT NULL,
+                synced_at TEXT NOT NULL,
+                raw_json BLOB NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS workflow_view_usage (
+                workflow_key TEXT NOT NULL,
+                view_id TEXT NOT NULL,
+                usage_type TEXT NOT NULL CHECK(usage_type IN ('read', 'create', 'update')),
+                source_file TEXT NOT NULL,
+                notes TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY(workflow_key, view_id, usage_type, source_file)
+            );
+            CREATE INDEX IF NOT EXISTS idx_workflow_usage_view ON workflow_view_usage(view_id);
+            CREATE VIEW IF NOT EXISTS views_with_workflows AS
+                SELECT v.*, COALESCE((SELECT group_concat(workflow_key, ', ')
+                    FROM (SELECT DISTINCT u.workflow_key FROM workflow_view_usage u
+                          WHERE u.view_id = v.view_id ORDER BY u.workflow_key)), '')
+                    AS used_by_workflows FROM views v;
+        """)
+
+    def put_query_table(self, view_id: str, definition: Dict[str, Any],
+                        source_modified_time: str = "") -> bool:
+        sql = definition.get("sqlQuery")
+        if not isinstance(sql, str) or not sql.strip():
+            raise ValueError("Query table definition must contain a non-empty sqlQuery.")
+        digest = _json_hash(definition)
+        previous = self.get_query_table(view_id)
+        with self.connection:
+            self.connection.execute("""
+                INSERT INTO query_tables VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(view_id) DO UPDATE SET
+                    sql_query=CASE WHEN definition_hash != excluded.definition_hash
+                                   THEN excluded.sql_query ELSE sql_query END,
+                    definition_hash=excluded.definition_hash,
+                    source_modified_time=excluded.source_modified_time,
+                    synced_at=excluded.synced_at,
+                    raw_json=CASE WHEN definition_hash != excluded.definition_hash
+                                  THEN excluded.raw_json ELSE raw_json END
+            """, (view_id, sql, digest, source_modified_time, _utc_now(), _pack_json(definition)))
+        return not previous or previous["definition_hash"] != digest
+
+    def get_query_table(self, view_id: str) -> Dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT * FROM query_tables WHERE view_id = ?", (view_id,)
+        ).fetchone()
+        if not row:
+            return {}
+        result = dict(row)
+        result["definition"] = _unpack_json(result.pop("raw_json"))
+        return result
+
+    def query_table_is_current(self, view_id: str, modified_time: str) -> bool:
+        row = self.connection.execute(
+            "SELECT source_modified_time FROM query_tables WHERE view_id = ?", (view_id,)
+        ).fetchone()
+        return bool(modified_time and row and row[0] == modified_time)
+
+    def replace_workflow_usage(self, records: Iterable[WorkflowViewUsage]) -> None:
+        rows = [(r["workflow_key"], r["view_id"], r["usage_type"],
+                 r["source_file"], r.get("notes", "")) for r in records]
+        with self.connection:
+            self.connection.execute("DELETE FROM workflow_view_usage")
+            self.connection.executemany(
+                "INSERT INTO workflow_view_usage VALUES (?, ?, ?, ?, ?)", rows
+            )
+
+    def workflow_impact(self, view_id: str) -> List[Dict[str, Any]]:
+        """Find direct consumers and consumers of transitively dependent views."""
+        affected = {view_id}
+        pending = [view_id]
+        while pending:
+            for edge in self.get_relationships("view:" + pending.pop()):
+                source, target = edge["source_id"], edge["target_id"]
+                dependent = None
+                if edge["relationship_type"] == "view_uses_view" and target[5:] in affected:
+                    dependent = source
+                if dependent and dependent.startswith("view:") and dependent[5:] not in affected:
+                    affected.add(dependent[5:])
+                    pending.append(dependent[5:])
+        return [dict(row, indirect=row["view_id"] != view_id)
+                for row in self.connection.execute(
+                    "SELECT * FROM workflow_view_usage ORDER BY workflow_key, view_id")
+                if row["view_id"] in affected]
 
     def _create_schema(self) -> None:
         self.connection.executescript(
@@ -241,6 +347,7 @@ class WorkspaceMetadataStore:
             CREATE INDEX IF NOT EXISTS idx_relationship_type ON relationships(relationship_type);
             """
         )
+        self._create_design_schema()
         self.set_info("schema_version", str(SCHEMA_VERSION))
 
     def set_info(self, key: str, value: Any) -> None:
@@ -703,7 +810,7 @@ class WorkspaceMetadataStore:
 
     def counts(self) -> Dict[str, int]:
         result = {}
-        for name in ("folders", "datasources", "views", "columns", "relationships", "errors"):
+        for name in ("folders", "datasources", "views", "columns", "relationships", "errors", "query_tables", "workflow_view_usage"):
             result[name] = int(
                 self.connection.execute("SELECT COUNT(*) FROM %s" % name).fetchone()[0]
             )
@@ -740,12 +847,15 @@ class WorkspaceMetadataStore:
                 workspace["name"] if workspace and workspace["name"] else "Unnamed",
                 workspace["workspace_id"] if workspace else self.get_info("workspace_id", ""),
             ),
+            "- Last successful metadata sync (UTC): %s" % self.get_info("last_successful_sync_at", "never"),
             "- Updated: %s" % self.get_info("updated_at", "unknown"),
             "- Views: %d" % counts["views"],
             "- Tables/query tables: %d" % counts["tables"],
             "- Columns: %d" % counts["columns"],
             "- Relationships: %d" % counts["relationships"],
             "- Errors: %d" % counts["errors"],
+            "- Query definitions: %d" % counts["query_tables"],
+            "- Workflow references: %d" % counts["workflow_view_usage"],
             "",
             "## View types",
             "",
@@ -771,4 +881,4 @@ class WorkspaceMetadataStore:
         self.connection.execute("VACUUM")
 
 
-__all__ = ["SCHEMA_VERSION", "WorkspaceMetadataStore"]
+__all__ = ["SCHEMA_VERSION", "WorkspaceMetadataStore", "WorkflowViewUsage"]

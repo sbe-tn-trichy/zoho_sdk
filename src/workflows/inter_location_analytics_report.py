@@ -162,6 +162,19 @@ def sync_inter_location_contra_query_table(
     description: str = "Live clearing-account contra pairs across locations, FY 2025-26 and FY 2026-27; blank references require pairing review.",
 ) -> Dict[str, Any]:
     """Single unified workflow function for previewing, creating, or updating the Analytics Query Table."""
+    from workflows.analytics_catalog import AnalyticsCatalog, WorkflowViewReference
+
+    references = []
+    if view_id:
+        references.append(WorkflowViewReference("inter_location_analytics_report", name,
+                          "src/workflows/inter_location_analytics_report.py", "update", view_id))
+    catalog = AnalyticsCatalog(analytics, workspace_id)
+    catalog.references += tuple(references)
+    with catalog.cached_store() as store:
+        last_sync = store.get_info("last_successful_sync_at", "never")
+        existing = [view for view in store.find_views() if view["name"] == name]
+        if view_id and not any(view["view_id"] == view_id for view in store.find_views()):
+            raise ValueError(f"Unknown query table: {view_id}")
     sql = build_inter_location_document_query(account_id)
     # The bulk SQL preview is a GET request. Preview the three UNION branches
     # separately so the encoded URL stays below the server's URI limit.
@@ -172,6 +185,7 @@ def sync_inter_location_contra_query_table(
     expected_pairs = validate_document_rows(preview)
 
     result: Dict[str, Any] = {
+        "last_successful_sync_at": last_sync,
         "sql": sql,
         "preview_row_count": len(preview),
         "validated_pair_count": len(expected_pairs),
@@ -186,12 +200,8 @@ def sync_inter_location_contra_query_table(
         analytics.views.update_query_table(workspace_id, view_id, sql)
         target_view_id = view_id
     else:
-        existing = [
-            view for view in analytics.metadata.list_all_views(workspace_id)
-            if view.get("viewName") == name
-        ]
         if existing:
-            raise ValueError(f"Query Table name already exists: {existing[0]['viewId']}")
+            raise ValueError(f"Query Table name already exists: {existing[0]['view_id']}")
         target_view_id = analytics.views.create_query_table(
             workspace_id, name, sql, description
         )
@@ -201,6 +211,10 @@ def sync_inter_location_contra_query_table(
     if validate_document_rows(saved) != expected_pairs or len(saved) != len(preview):
         raise ValueError(f"Saved Query Table {target_view_id} differs from the validated preview")
 
+    catalog.references += (WorkflowViewReference("inter_location_analytics_report", name,
+                           "src/workflows/inter_location_analytics_report.py",
+                           "update" if view_id else "create", target_view_id),)
+    catalog.verify_query_update(target_view_id, sql)
     result["applied"] = True
     result["saved_row_count"] = len(saved)
     return result

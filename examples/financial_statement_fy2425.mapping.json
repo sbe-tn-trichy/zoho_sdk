@@ -1,0 +1,733 @@
+{
+  "spreadsheet_id": "1h4f1_4TUw6SHrVNIxs_adosMpUbI1N2OyHw7c_k_ZWc",
+  "source_url": "https://docs.google.com/spreadsheets/d/1h4f1_4TUw6SHrVNIxs_adosMpUbI1N2OyHw7c_k_ZWc/edit",
+  "from_date": "2024-04-01",
+  "to_date": "2025-03-31",
+  "excluded_location_id": "1094368000044509446",
+  "lines": [
+    {
+      "label": "Trading & P&L A/c: Opening Stock",
+      "cell": "'Trading & P&L A/c'!B4",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "period": "current",
+          "path": ["ASSETS", "2. Current Assets", "b. Inventories"]
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Sales",
+      "cell": "'Trading & P&L A/c'!D4",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "BL Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Fitting Charges"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Ledvance Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Neoseal Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "SBE Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Polycab Fan Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Polycab LTG Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Polycab SG Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "QFlx Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Zeiss Sales"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Zeiss Support"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Purchases",
+      "cell": "'Trading & P&L A/c'!B5",
+      "terms": []
+    },
+    {
+      "label": "Trading & P&L A/c: Closing Stock",
+      "cell": "'Trading & P&L A/c'!D5",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "BL Stock"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Inventory Asset"
+        },
+        {
+          "report": "balancesheet",
+          "name": "SBE Stock"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Zeiss Stock"
+        }
+      ],
+      "note": "Balance-sheet closing stock; stock roll-forward not verified"
+    },
+    {
+      "label": "Trading & P&L A/c: Freight Inwards",
+      "cell": "'Trading & P&L A/c'!B6",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Freight Inward"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Other Income",
+      "cell": "'Trading & P&L A/c'!D6",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Discount"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Other Charges"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Polycab Operated Scheme"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Polycab SS Margin"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Shipping Charge"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Cheque Return Charges"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Interest - Other Income"
+        },
+        {
+          "report": "profitandloss",
+          "name": "MISC INCOME"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Zeiss Misc Income"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Advertising and Marketing",
+      "cell": "'Trading & P&L A/c'!B7",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Advertising And Marketing"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Advertising And Marketing (GST)"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Electricity",
+      "cell": "'Trading & P&L A/c'!B8",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Electricity"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Fuel/Mileage Expenses",
+      "cell": "'Trading & P&L A/c'!B9",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Fuel/Mileage Expenses"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Interest Expense",
+      "cell": "'Trading & P&L A/c'!B10",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Interest Expense"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Bonus 24-25",
+      "cell": "'Trading & P&L A/c'!B11",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Bonus Expense"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Salaries and Employee Wages",
+      "cell": "'Trading & P&L A/c'!B12",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Salaries and Employee Wage"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Zeiss Support Expense"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Employee Travel Expense"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Rent Expense",
+      "cell": "'Trading & P&L A/c'!B13",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Rent Expense"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Repairs and Maintenance",
+      "cell": "'Trading & P&L A/c'!B14",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Repairs and Maintenance"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Maintenance (GST)"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Telephone Expenses",
+      "cell": "'Trading & P&L A/c'!B15",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Telephone Expense"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Telephone Expense (GST)"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Freight Outwards",
+      "cell": "'Trading & P&L A/c'!B16",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Freight Outward"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Freight Outward (GST)"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Travel Expenses",
+      "cell": "'Trading & P&L A/c'!B17",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "name": "Travel Expense"
+        },
+        {
+          "report": "profitandloss",
+          "name": "Travel Expense (GST)"
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Other Expenses",
+      "cell": "'Trading & P&L A/c'!B18",
+      "remaining_expense_path": ["IV. Expenses", "7. Other Expenses"],
+      "note": "Remaining schedule expense accounts, excluding accounts assigned to other statement lines; own totals avoid parent subtotal duplication."
+    },
+    {
+      "label": "Trading & P&L A/c: Depreciation",
+      "cell": "'Trading & P&L A/c'!B19",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "path": [
+            "IV. Expenses",
+            "6. Depreciation And Amortization Expense"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Profit before tax (audited Net Profit)",
+      "cell": "'Trading & P&L A/c'!B20",
+      "note": "The audited Net Profit line is before income tax; tax is disclosed separately.",
+      "terms": [
+        {
+          "report": "profitandloss",
+          "path": [
+            "IX. Profit before tax (VII - VIII)"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Trading & P&L A/c: Total",
+      "cell": "'Trading & P&L A/c'!B21",
+      "terms": []
+    },
+    {
+      "label": "Trading & P&L A/c: Total",
+      "cell": "'Trading & P&L A/c'!D21",
+      "terms": []
+    },
+    {
+      "label": "Balance Sheet: Gods Account",
+      "cell": "'Balance Sheet'!B4",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "GOD'S ACCOUNT"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Fixed Assets",
+      "cell": "'Balance Sheet'!D4",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "Accumulated Depreciation - AC"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Accumulated Depreciation - Machinery"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Air Conditioners & Cooling Systems"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Computer & Printers"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Elevator"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Furniture and Equipment"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Machinery"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Motor Vehicles"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Software & Licenses"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Partners' Capital Account",
+      "cell": "'Balance Sheet'!B5",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "R. Vijayakumar IND"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Raj Kumar V.M"
+        },
+        {
+          "report": "balancesheet",
+          "name": "V Arun Kumar"
+        },
+        {
+          "report": "balancesheet",
+          "name": "V.Ramani"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Closing Stock",
+      "cell": "'Balance Sheet'!D5",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "BL Stock"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Inventory Asset"
+        },
+        {
+          "report": "balancesheet",
+          "name": "SBE Stock"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Zeiss Stock"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Loan Creditors (Unsecured)",
+      "cell": "'Balance Sheet'!B6",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "R.Vijayakumar HUF"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Trade Debtors",
+      "cell": "'Balance Sheet'!D6",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "Accounts Receivable"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Sundry Creditors",
+      "cell": "'Balance Sheet'!B7",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "Accounts Payable"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Zeiss TOD"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Polycab Kitty"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Zeiss Scheme"
+        },
+        {
+          "report": "balancesheet",
+          "name": "B+L  Scheme"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Opening Balance Adjustments"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Sundry Debtors",
+      "cell": "'Balance Sheet'!D7",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "T.KALEESWARAN B+L"
+        },
+        {
+          "report": "balancesheet",
+          "name": "M.PUSHPANATHAN"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Expenses Payable",
+      "cell": "'Balance Sheet'!B8",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "Expense Payable"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Pcl & Zeiss Advance",
+      "cell": "'Balance Sheet'!D8",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "Prepaid Expenses"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: GST Payable",
+      "cell": "'Balance Sheet'!B9",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "Output CGST"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Output IGST"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Output SGST"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Reliance net deposit",
+      "cell": "'Balance Sheet'!D9",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "Telephone Advance"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Unearned Revenue",
+      "cell": "'Balance Sheet'!B10",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "Unearned Revenue"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Advances Tax",
+      "cell": "'Balance Sheet'!D10",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "Advance Tax"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: TDS",
+      "cell": "'Balance Sheet'!D11",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "TDS Receivable"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: TCS",
+      "cell": "'Balance Sheet'!D12",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "TCS Receivable"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: GST",
+      "cell": "'Balance Sheet'!D13",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "GST"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Cash at Bank",
+      "cell": "'Balance Sheet'!D14",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "BD IDFC"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Bharath-Agencies-HDFC"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Bharath-Distributors-BOI"
+        },
+        {
+          "report": "balancesheet",
+          "name": "HDFC-SBE"
+        },
+        {
+          "report": "balancesheet",
+          "name": "ICICI SBE"
+        },
+        {
+          "report": "balancesheet",
+          "name": "IDFC-SBE"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Cash in Hand",
+      "cell": "'Balance Sheet'!D15",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "name": "CASH-BA"
+        },
+        {
+          "report": "balancesheet",
+          "name": "CASH-BD"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Cash-SBE"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Petty Cash"
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Total",
+      "cell": "'Balance Sheet'!B16",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "path": [
+            "EQUITY AND LIABILITIES"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Balance Sheet: Total",
+      "cell": "'Balance Sheet'!D16",
+      "terms": [
+        {
+          "report": "balancesheet",
+          "path": [
+            "ASSETS"
+          ]
+        }
+      ]
+    }
+  ],
+  "total_checks": [
+    {
+      "statement": "Trading & P&L A/c",
+      "total_cell": "'Trading & P&L A/c'!B21",
+      "cells": [
+        "'Trading & P&L A/c'!B4",
+        "'Trading & P&L A/c'!B5",
+        "'Trading & P&L A/c'!B6",
+        "'Trading & P&L A/c'!B7",
+        "'Trading & P&L A/c'!B8",
+        "'Trading & P&L A/c'!B9",
+        "'Trading & P&L A/c'!B10",
+        "'Trading & P&L A/c'!B11",
+        "'Trading & P&L A/c'!B12",
+        "'Trading & P&L A/c'!B13",
+        "'Trading & P&L A/c'!B14",
+        "'Trading & P&L A/c'!B15",
+        "'Trading & P&L A/c'!B16",
+        "'Trading & P&L A/c'!B17",
+        "'Trading & P&L A/c'!B18",
+        "'Trading & P&L A/c'!B19",
+        "'Trading & P&L A/c'!B20"
+      ]
+    },
+    {
+      "statement": "Trading & P&L A/c",
+      "total_cell": "'Trading & P&L A/c'!D21",
+      "cells": [
+        "'Trading & P&L A/c'!D4",
+        "'Trading & P&L A/c'!D5",
+        "'Trading & P&L A/c'!D6"
+      ]
+    },
+    {
+      "statement": "Balance Sheet",
+      "total_cell": "'Balance Sheet'!B16",
+      "cells": [
+        "'Balance Sheet'!B4",
+        "'Balance Sheet'!B5",
+        "'Balance Sheet'!B6",
+        "'Balance Sheet'!B7",
+        "'Balance Sheet'!B8",
+        "'Balance Sheet'!B9",
+        "'Balance Sheet'!B10"
+      ]
+    },
+    {
+      "statement": "Balance Sheet",
+      "total_cell": "'Balance Sheet'!D16",
+      "cells": [
+        "'Balance Sheet'!D4",
+        "'Balance Sheet'!D5",
+        "'Balance Sheet'!D6",
+        "'Balance Sheet'!D7",
+        "'Balance Sheet'!D8",
+        "'Balance Sheet'!D9",
+        "'Balance Sheet'!D10",
+        "'Balance Sheet'!D11",
+        "'Balance Sheet'!D12",
+        "'Balance Sheet'!D13",
+        "'Balance Sheet'!D14",
+        "'Balance Sheet'!D15"
+      ]
+    }
+  ]
+}

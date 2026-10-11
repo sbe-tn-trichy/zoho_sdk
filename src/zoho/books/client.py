@@ -11,6 +11,7 @@ from .resources.gst import GST
 from .resources.settings import CustomFields, Locations
 from .resources.ledger import Registers
 from .resources.reports import Reports
+from .resources.fixed_assets import FixedAssets
 
 class ZohoBooksAPI(BaseZohoClient):
     """
@@ -63,6 +64,7 @@ class ZohoBooksAPI(BaseZohoClient):
         self.chart_of_accounts = ChartOfAccounts(self)
         self.registers = Registers(self)
         self.reports = Reports(self)
+        self.fixed_assets = FixedAssets(self)
         self.projects = Projects(self)
         self.tasks = Tasks(self)
         self.time_entries = TimeEntries(self)
