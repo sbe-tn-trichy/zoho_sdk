@@ -131,6 +131,23 @@ def test_plan_links_two_year_notes_and_does_not_write_statement_subtotals():
     assert "'Profit and Loss'!C19" not in plan.values
 
 
+@pytest.mark.parametrize("grouped", [False, True])
+def test_single_line_note_omits_total_and_links_to_detail(grouped):
+    config, sources = config_and_sources()
+    if grouped:
+        next(n for n in config['notes'] if n['number'] == 6)['groups'] = [
+            {'name': 'Fixed assets', 'account_ids': ['id6']}]
+    plan = build_schedule_plan(sources, config)
+    rows = next(v for a, v in plan.values.items() if a.startswith("'Notes to Accounts'!"))
+    balance = plan.note_total_rows[6]
+    assert rows[balance - 1] == ['Fixed assets' if grouped else 'Account6', 100.0, 100.0]
+    assert rows[balance] == []
+    assert plan.values["'Balance Sheet'!C23"] == [[f"='Notes to Accounts'!B{balance}"]]
+    assert plan.values["'Balance Sheet'!D23"] == [[f"='Notes to Accounts'!C{balance}"]]
+    empty = plan.note_total_rows[9]
+    assert rows[empty - 1] == ['Total', '=0', '=0']
+
+
 @pytest.mark.parametrize("reverse_periods", [False, True])
 def test_note_groups_sum_signed_accounts_for_both_years(reverse_periods):
     config, sources = config_and_sources()
@@ -255,6 +272,49 @@ def test_opening_inventory_uses_account_overrides_outside_inventory_section():
     assert plan.checks["fy2024-25"]["opening_stock"] == "25.00"
     assert plan.checks["fy2024-25"]["net_purchases"] == "-25.00"
     assert plan.checks["fy2024-25"]["changes_in_inventories"] == "25.00"
+
+
+def test_opening_stock_override_updates_bridge_and_keeps_cogs_and_profit():
+    config, sources = config_and_sources()
+    before = build_schedule_plan(sources, config)
+    config['inventory_rollforward']['opening_stock_overrides'] = {'fy2024-25': 12.34}
+    plan = build_schedule_plan(sources, config)
+    assert plan.checks['fy2024-25']['opening_stock'] == '12.34'
+    assert plan.checks['fy2024-25']['profit_before_tax'] == before.checks['fy2024-25']['profit_before_tax']
+    assert Decimal(plan.checks['fy2024-25']['net_purchases']) + Decimal(plan.checks['fy2024-25']['changes_in_inventories']) == Decimal(plan.checks['fy2024-25']['cogs'])
+    assert plan.checks['fy2025-26'] == before.checks['fy2025-26']
+
+
+def test_cogs_reduction_changes_profit_separately_from_opening_override():
+    config, sources = config_and_sources()
+    before = build_schedule_plan(sources, config)
+    config['inventory_rollforward']['cogs_reductions'] = {'fy2024-25': {'account_id': 'id13', 'amount': 1}}
+    # Give the purchases account a positive balance and matching source PBT.
+    for node, path in nodes(sources['reports']['fy2024-25']['profitandloss'][KEYS['profitandloss']]):
+        if node.get('account_id') == 'id13':
+            node['total'] = 10
+        elif path == tuple(config['checks']['profit_before_tax_path']):
+            node['total'] = -10
+    plan = build_schedule_plan(sources, config)
+    assert plan.checks['fy2024-25']['profit_before_tax'] == '-9.00'
+    assert plan.checks['fy2024-25']['cogs'] == '9.00'
+    assert plan.checks['fy2025-26'] == before.checks['fy2025-26']
+
+
+@pytest.mark.parametrize('account, decrease', [('missing', 1), ('id13', -1), ('id13', 999)])
+def test_cogs_reduction_rejects_missing_or_invalid_amount(account, decrease):
+    config, sources = config_and_sources()
+    config['inventory_rollforward']['cogs_reductions'] = {'fy2024-25': {'account_id': account, 'amount': decrease}}
+    with pytest.raises(ValueError):
+        build_schedule_plan(sources, config)
+
+
+@pytest.mark.parametrize('overrides', [{'unknown': 1}, {'fy2024-25': -1}, {'fy2024-25': 'bad'}])
+def test_opening_stock_override_rejects_invalid_values(overrides):
+    config, sources = config_and_sources()
+    config['inventory_rollforward']['opening_stock_overrides'] = overrides
+    with pytest.raises(ValueError):
+        build_schedule_plan(sources, config)
 
 
 @pytest.mark.parametrize("bad", ["missing", "date", "scope", "duplicate", "source_changes"])
@@ -429,6 +489,35 @@ class SheetsSession:
                     data = cell.get("userEnteredValue", {})
                     self.cells[(ids[grid["sheetId"]], grid["startRowIndex"] + i, grid["startColumnIndex"] + j)] = next(iter(data.values()), "")
         return self.response({"replies": []})
+
+
+def test_apply_refreshes_checkbox_and_preserves_source_inputs(tmp_path):
+    import json
+    config, sources = config_and_sources()
+    config['sheets']['checkbox'] = 'checkbox'
+    config['sheet_ids']['checkbox'] = 99
+    config['backup_path'] = str(tmp_path / 'backup.json')
+    year = config['periods'][0]['start'][:4] + '–' + config['periods'][0]['end'][2:4]
+    rows = [[] for _ in range(6)] + [['Year', 'Evidence', 'Section', 'Line item'],
+        [year, 'AIS', 'Profit and Loss', 'Sales', 123, 0, '', '', '', 'Evidence']]
+
+    class CheckboxSession(SheetsSession):
+        def get(self, url, *, params, **kwargs):
+            if params.get('ranges') == ["'checkbox'!A1:K1000"]:
+                return self.response({'valueRanges': [{'values': rows}]})
+            return super().get(url, params=params, **kwargs)
+
+    session = CheckboxSession(config)
+    session.cells[('checkbox', 7, 4)] = 123
+    session.cells[('checkbox', 7, 5)] = 0
+    session.cells[('checkbox', 7, 9)] = 'Evidence'
+    apply_plan('spreadsheet', build_schedule_plan(sources, config).values,
+               access_token='mock', config=config, session=session)
+    assert session.cells[('checkbox', 7, 4)] == 123
+    assert session.cells[('checkbox', 7, 5)] == 0
+    assert session.cells[('checkbox', 7, 9)] == 'Evidence'
+    assert 'E8=""' in session.cells[('checkbox', 7, 6)]
+    assert json.loads(Path(config['backup_path']).read_text())['checkbox_before']['valueRanges'][0]['values'] == rows
 
 
 def test_apply_backs_up_atomically_writes_only_values_and_clears_old_rows(tmp_path):

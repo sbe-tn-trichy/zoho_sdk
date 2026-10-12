@@ -13,7 +13,7 @@ import requests
 import yaml
 
 from workflows.core.auth import get_books_client
-from workflows.statement_schedules import build_schedule_plan, fetch_schedule_sources
+from workflows.statement_schedules import build_schedule_plan, fetch_schedule_sources, checkbox_formula_updates
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = ROOT / "config/statement-schedules.yaml"
@@ -109,6 +109,25 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
             raise ValueError("Plan exceeds managed row limit or existing grid")
         width = 3 if key == "notes" else 15
         values["'" + title.replace("'", "''") + f"'!A1:{'C' if width == 3 else 'O'}{height}"] = rows + [[""] * width for _ in range(height - len(rows))]
+    checkbox_before = None
+    if 'checkbox' in config['sheets']:
+        title = config['sheets']['checkbox']
+        limit = min(sheets[title]['gridProperties']['rowCount'], config.get('checkbox_row_limit', 1000))
+        address = "'" + title.replace("'", "''") + f"'!A1:K{limit}"
+        response = session.get(base + '/values:batchGet', headers=headers,
+            params={'ranges': [address], 'valueRenderOption': 'FORMULA'}, timeout=30)
+        response.raise_for_status()
+        entries = response.json().get('valueRanges', [])
+        if len(entries) != 1:
+            raise ValueError('Could not inspect checkbox inputs')
+        checkbox_before = response.json()
+        rows = entries[0].get('values', [])
+        if len(rows) >= limit:
+            raise ValueError('Checkbox reaches scan limit; increase checkbox_row_limit')
+        if len(rows) < 7 or rows[6][:4] != ['Year', 'Evidence', 'Section', 'Line item']:
+            raise ValueError('Checkbox A7:D7 headers changed; review layout before apply')
+        values.update(checkbox_formula_updates(rows, sheet=title, periods=config['periods'],
+            sheets=config['sheets'], mappings=config.get('checkbox_mappings', [])))
     requests_body = update_requests(values, config)
     for request in requests_body:
         target = request["updateCells"]["range"]
@@ -157,7 +176,8 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
                 raise ValueError(f"Unexpected existing formula in {address}")
     # The runner supplies an output path checked before any network call.
     snapshot = Path(config["backup_path"])
-    snapshot.write_text(json.dumps({**read.json(), "native_cells": native.json()}, indent=2), encoding="utf-8")
+    snapshot.write_text(json.dumps({**read.json(), "native_cells": native.json(),
+        "checkbox_before": checkbox_before}, indent=2), encoding="utf-8")
     if requests_body:
         write = session.post(base + ":batchUpdate", headers=headers,
                              json={"requests": requests_body}, timeout=30)

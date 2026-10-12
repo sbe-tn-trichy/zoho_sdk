@@ -5,6 +5,31 @@ description: Two-year Schedule III sheet updates and current-year fixed-asset de
 
 # NCE document Preparation
 
+The workbook's manually maintained `checkbox` tab compares entered FY 2025–26
+AIS/supporting figures and FY 2024–25 audited financials with statement and note
+lines. Column E holds source amounts; F holds documented adjustments; G:I show
+expected, live workbook amount and difference; K shows Pending, Match, Review,
+or Missing / duplicate. Exact label lookups survive note row movement and reject
+missing or duplicate labels. Differences round to two decimal places. AIS credits
+must be reconciled to closing receivable balances before expecting equality.
+When `sheets.checkbox` and `sheet_ids.checkbox` identify this existing tab,
+`--apply` refreshes G/H/I/K formulas using each check's current row and year.
+Source amounts E, adjustments F, and evidence J remain untouched, as do custom
+combined-line H lookups. This repairs comparisons after rows are moved and
+verifies formula read-back and errors in the same atomic statement update.
+The backup includes the prior check rows. Header changes and a reached scan limit
+fail before writing; `checkbox_row_limit` defaults to 1000.
+Preview runs remain read-only and do not read or modify checkbox inputs.
+`checkbox_mappings` configures combined note comparisons by exact `year`,
+`section`, and `line_item`, with a nonempty unique `note_lines` list. Apply rebuilds
+only the matching checkbox H formula, choosing the year's note amount column
+and rejecting missing or duplicate labels in the sheet. These mappings do not
+change note classifications, statement totals, or Books records. Other custom
+lookups remain preserved.
+Adjacent formula cells are read as column ranges to keep large check lists
+within Google request URL limits.
+Newly added or renamed statement/note lines require updating its check list.
+
 [apps/update_statement_schedules.py](../apps/update_statement_schedules.py) prepares
 the four-tab financial statement workbook using the public
 [workflows.statement_schedules](../src/workflows/statement_schedules/) API.
@@ -47,6 +72,18 @@ to prevent double counting. Both calculated expense lines still reconcile to
 COGS and the source profit. Offline snapshots need `balancesheet-opening` in the
 earlier period's report bundle.
 
+`inventory_rollforward.opening_stock_overrides` maps financial-year labels to
+reviewed nonnegative opening amounts. Source reports are still validated; preview
+observations show the override and Books amount. Purchases and inventory movement
+use the reviewed opening amount while their combined COGS and profit stay unchanged.
+
+`inventory_rollforward.cogs_reductions` maps a year to `account_id` and `amount`
+for an explicit reduction of one purchases-note account. It changes COGS and
+increases expected profit by the reviewed amount; opening overrides still affect
+the purchases/inventory split separately. Missing accounts and negative or
+excessive reductions fail. Preview observations disclose the change and that
+Books and balance-sheet earnings are unchanged; these require separate review.
+
 Generated notes manage columns A:C, with current/prior year input values and
 subtotal formulas. A note can define ordered `groups` with a `name` and explicit
 `account_ids` to aggregate its detail rows. NCE Note 9 uses Cash (CASH-BA, CASH-BD,
@@ -56,9 +93,15 @@ must be unique, and any ungrouped nonzero account stops preparation for review.
 Zero groups remain visible; statement reconciliation still uses the account totals.
 NCE Note 7 combines Finished Goods, Inventory Asset, Ledvance Stock and SBE Stock
 under Inventory Asset; other stock accounts retain their separate rows.
-NCE Note 5 classifies Zeiss Adjustment as Other Current Liabilities and combines
-it with Zeiss TOD; the other liability accounts retain their individual rows.
-Statement detail rows link to the dynamic note totals and
+NCE Note 5 classifies Zeiss Adjustment as Other Current Liabilities.
+NCE Note 14 combines Salaries and Employee Wage, Employee Travel Expense and
+Zeiss Support Expense under Salaries and Employee Wage for both years. The
+salaries checkbox compares that combined note row without adding its members again.
+Notes with exactly one displayed detail row omit the redundant Total row;
+statement links use that detail row directly. Empty notes retain a zero Total,
+and multi-line notes retain SUM totals. The purchases inventory bridge retains
+its named COGS subtotal and Net purchases result.
+Statement detail rows link to the note balance rows and
 note-number hyperlinks target their new headings. Existing statement subtotal
 and profit formulas are preserved. Assets A:O contain only the current-year
 tables (the period with the latest end date). Table 1 lists asset names, ledger

@@ -1,6 +1,28 @@
 # Knowledge Change Log
 
+## 2026-10-13
+
+- Combined the two employee support/travel expenses into the salaries note group;
+  the checkbox uses the resulting combined row to avoid double counting.
+
+- Added config-owned combined note mappings used only by NCE checkbox comparisons.
+
+- Added explicit per-year COGS account reductions alongside opening inventory
+  overrides, with validation and disclosed profit/balance-sheet earnings effects.
+
+- Added reviewed per-year opening inventory overrides to the NCE bridge, with
+  source validation, visible observations, and unchanged combined COGS.
+
+- NCE apply now refreshes configured checkbox comparison formulas from current
+  rows and years, preserving source inputs and custom combined-line lookups.
+
 ## 2026-10-12
+
+- Documented the NCE checkbox tab for manual current-year AIS/supporting inputs,
+  prior-year audited figures, adjustments, and live statement/note comparisons.
+
+- NCE single-line notes now link directly to their detail balances without a
+  redundant Total; empty notes and the purchases inventory bridge retain totals.
 
 - Created and verified the Analytics detailed general ledger query table for
   FY 2025–26 with account name and account type filters; registered its view ID.

@@ -10,16 +10,23 @@ periods:
   start: '2024-04-01'
   end: '2025-03-31'
 sheets:
+  checkbox: checkbox
   balancesheet: Balance Sheet
   profitandloss: Profit and Loss
   notes: Notes to Accounts
   assets: Assets & Depreciation
 sheet_ids:
+  checkbox: 912601
   balancesheet: 0
   profitandloss: 1177861729
   notes: 41480615
   assets: 1447215420
 account_notes:
+  '1094368000029132050': 14
+  '1094368000032069241': 14
+  '1094368000000000504': 12
+  '1094368000000000619': 12
+  '1094368000006655193': 12
   '1094368000024808299': 5
   '1094368000008678342': 9
   '1094368000000468208': 9
@@ -200,6 +207,12 @@ notes:
   statement_row: 8
 - number: 14
   title: Employee Benefits Expense
+  groups:
+  - name: Salaries and Employee Wage
+    account_ids:
+    - '1094368000000000543'
+    - '1094368000029132050'
+    - '1094368000032069241'
   report: profitandloss
   paths:
   - - IV. Expenses
@@ -302,5 +315,23 @@ checks:
   - IV. Expenses
   - 6. Depreciation And Amortization Expense
 inventory_rollforward:
+  opening_stock_overrides:
+    fy2024-25: 12240062.93
   purchases_note: 13
   inventory_note: 7
+checkbox_mappings:
+- year: '2024–25'
+  section: Audited combined lines
+  line_item: Sundry Creditors
+  note_lines:
+  - Accounts Payable
+  - B+L  Scheme
+  - Polycab Kitty
+  - Zeiss Adjustment
+  - Zeiss Scheme
+  - Zeiss TOD
+- year: '2024–25'
+  section: 'Note 14: Employee Benefits Expense'
+  line_item: Salaries and Employee Wage
+  note_lines:
+  - Salaries and Employee Wage

@@ -259,7 +259,7 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
     periods = config["periods"]
     validate_sources(sources, periods=periods, excluded_location_id=config["excluded_location_id"])
     labels = [p["label"] for p in periods]
-    if len(set(labels)) != 2 or len(set(config["sheets"].values())) != 4:
+    if len(set(labels)) != 2 or len(set(config["sheets"].values())) != len(config["sheets"]):
         raise ValueError("Periods and managed sheet titles must be distinct")
     for period in periods:
         start, end = date.fromisoformat(period["start"]), date.fromisoformat(period["end"])
@@ -304,12 +304,32 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
                 if len(candidates) != 1:
                     raise ValueError(f"Ambiguous note classification: {node['name']}")
                 number = candidates[0]["number"]
+                reduction = config.get('inventory_rollforward', {}).get('cogs_reductions', {}).get(label)
+                if reduction and account == str(reduction['account_id']):
+                    if kind != 'profitandloss' or number != config['inventory_rollforward']['purchases_note']:
+                        raise ValueError('COGS reduction must target a purchases-note account')
+                    decrease = amount(reduction['amount'])
+                    if decrease < 0 or decrease > value:
+                        raise ValueError('COGS reduction must be nonnegative and not exceed its account balance')
+                    value -= decrease
+                    warnings.append(f'{label}: {node["name"]} reduced by {money(decrease)}; '
+                                    'profit increases by that amount. Books and balance-sheet earnings are unchanged.')
                 item = classified[number].setdefault(identity, {"name": node["name"], "amounts": {}})
                 item["amounts"][label] = value
                 totals[label][number] += value
     rollforward = config.get("inventory_rollforward")
     inventory_checks = {}
     if rollforward:
+        reductions = rollforward.get('cogs_reductions', {})
+        if not isinstance(reductions, Mapping) or set(reductions) - set(labels):
+            raise ValueError('COGS reductions must use configured financial-year labels')
+        for label, reduction in reductions.items():
+            item = classified[rollforward['purchases_note']].get(str(reduction['account_id']))
+            if not item or label not in item['amounts']:
+                raise ValueError(f'{label} COGS reduction account was not found')
+        opening_overrides = rollforward.get('opening_stock_overrides', {})
+        if not isinstance(opening_overrides, Mapping) or set(opening_overrides) - set(labels):
+            raise ValueError('Opening stock overrides must use configured financial-year labels')
         purchases_note = rollforward["purchases_note"]
         inventory_note = rollforward["inventory_note"]
         purchase_config = next((n for n in notes if n["number"] == purchases_note), None)
@@ -326,6 +346,13 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
             if section(sources["reports"][label]["profitandloss"], "profitandloss", changes[0]["path"]):
                 raise ValueError("Source inventory changes must be zero when purchases source represents COGS")
             opening = _opening_inventory(sources, config, period, inventory_note)
+            if label in opening_overrides:
+                source_opening = opening
+                opening = amount(opening_overrides[label])
+                if opening < 0:
+                    raise ValueError(f'{label} opening stock override must be nonnegative')
+                warnings.append(f'{label}: opening inventory override {money(opening)} '
+                                f'(Books {money(source_opening)}); purchases and inventory movement use the override.')
             closing = totals[label][inventory_note]
             cogs = totals[label][purchases_note]
             purchases = cogs - opening + closing
@@ -367,10 +394,16 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
                 continue
             rows.append([item["name"], *[float(money(v)) for v in amounts]])
         last_row = len(rows)
-        total_rows[number] = len(rows) + 1
-        rows.append(["Total", *[(f"=SUM({col}{first_row})" if first_row == last_row
-                                 else f"=SUM({col}{first_row}:{col}{last_row})") if last_row >= first_row else "=0"
-                                for col in ("B", "C")]])
+        is_purchases = bool(rollforward and number == rollforward["purchases_note"])
+        # A single detail row already supplies the note balance. Purchases retain
+        # their COGS subtotal because the inventory bridge references that row.
+        if first_row == last_row and not is_purchases:
+            total_rows[number] = last_row
+        else:
+            total_rows[number] = len(rows) + 1
+            rows.append(["Total", *[(f"=SUM({col}{first_row})" if first_row == last_row
+                                     else f"=SUM({col}{first_row}:{col}{last_row})") if last_row >= first_row else "=0"
+                                    for col in ("B", "C")]])
         if rollforward and number == rollforward["purchases_note"]:
             cogs_row = len(rows)
             rows[-1][0] = "Cost of goods sold (Books)"
@@ -414,6 +447,9 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
         expected_assets = section(report["balancesheet"], "balancesheet", ["ASSETS"])
         expected_liabilities = section(report["balancesheet"], "balancesheet", ["EQUITY AND LIABILITIES"])
         expected_pbt = section(report["profitandloss"], "profitandloss", config["checks"]["profit_before_tax_path"])
+        reduction = (rollforward or {}).get('cogs_reductions', {}).get(label)
+        if reduction:
+            expected_pbt += amount(reduction['amount'])
         pbt = revenue - expense - sum((section(report["profitandloss"], "profitandloss", d["path"])
                                       for d in config["direct_inputs"] if d.get("exceptional")), Decimal(0))
         for actual, expected, description in ((assets, expected_assets, "assets"),

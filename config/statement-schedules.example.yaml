@@ -8,10 +8,13 @@ periods:
   - {label: fy2024-25, start: '2024-04-01', end: '2025-03-31'}
 sheets: {balancesheet: Balance Sheet, profitandloss: Profit and Loss, notes: Notes to Accounts, assets: Assets & Depreciation}
 sheet_ids: {balancesheet: 0, profitandloss: 1177861729, notes: 41480615, assets: 1447215420}
+# For an existing A:K comparison tab, add checkbox to sheets and sheet_ids.
+# --apply refreshes G/H/I/K formulas while preserving E/F/J source inputs.
 # Own account totals are used. Parent subtotal and repeated closing rows are excluded.
 # account_notes maps stable Books account IDs to note numbers and overrides paths.
 account_notes: {}
 inventory_rollforward: {purchases_note: 13, inventory_note: 7}
+# Optional opening_stock_overrides: {fy2024-25: 12211953.86} inside inventory_rollforward.
 standalone_paths:
   - [EQUITY AND LIABILITIES, 1. Shareholders' funds, b. Reserves and Surplus, Current Year Earnings]
 notes:
