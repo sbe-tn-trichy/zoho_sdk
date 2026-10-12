@@ -1,0 +1,306 @@
+spreadsheet_id: 1L-mJgZo_-RT6G7voiVgCykfeFnQWbN747AXa0vKvLpM
+organization_id: '60018185359'
+company: Bharath Distributors
+excluded_location_id: '1094368000044509446'
+periods:
+- label: fy2025-26
+  start: '2025-04-01'
+  end: '2026-03-31'
+- label: fy2024-25
+  start: '2024-04-01'
+  end: '2025-03-31'
+sheets:
+  balancesheet: Balance Sheet
+  profitandloss: Profit and Loss
+  notes: Notes to Accounts
+  assets: Assets & Depreciation
+sheet_ids:
+  balancesheet: 0
+  profitandloss: 1177861729
+  notes: 41480615
+  assets: 1447215420
+account_notes:
+  '1094368000024808299': 5
+  '1094368000008678342': 9
+  '1094368000000468208': 9
+  '1094368000000466754': 9
+  '1094368000007249843': 7
+  '1094368000005702053': 9
+  '1094368000005702057': 9
+  '1094368000005226023': 9
+  '1094368000000081927': 9
+  '1094368000056644467': 9
+  '1094368000045308003': 9
+  '1094368000045336631': 7
+  '1094368000034919849': 7
+  '1094368000000000459': 9
+  '1094368000035130337': 7
+  '1094368000035080789': 7
+  '1094368000051535662': 7
+  '1094368000026090342': 7
+  '1094368000006459909': 7
+  '1094368000000000456': 9
+  '1094368000000960273': 7
+standalone_paths:
+- - EQUITY AND LIABILITIES
+  - 1. Shareholders' funds
+  - b. Reserves and Surplus
+  - Current Year Earnings
+notes:
+- number: 1
+  title: Partners' Capital Accounts
+  report: balancesheet
+  paths:
+  - - EQUITY AND LIABILITIES
+    - 1. Shareholders' funds
+    - a. Share Capital
+  statement: balancesheet
+  statement_row: 6
+- number: 2
+  title: Reserves and Surplus
+  report: balancesheet
+  paths:
+  - - EQUITY AND LIABILITIES
+    - 1. Shareholders' funds
+    - b. Reserves and Surplus
+  statement: balancesheet
+  statement_row: 7
+- number: 3
+  title: Other Long-Term Liabilities
+  report: balancesheet
+  paths:
+  - - EQUITY AND LIABILITIES
+    - 3. Non-current liabilities
+    - c. Other long term liabilities
+  statement: balancesheet
+  statement_row: 11
+- number: 4
+  title: Trade Payables
+  report: balancesheet
+  paths:
+  - - EQUITY AND LIABILITIES
+    - 4. Current Liabilities
+    - b. Trade Payables
+  statement: balancesheet
+  statement_row: 16
+- number: 5
+  title: Other Current Liabilities
+  report: balancesheet
+  paths:
+  - - EQUITY AND LIABILITIES
+    - 4. Current Liabilities
+    - c. Other Current Liabilities
+  statement: balancesheet
+  statement_row: 17
+- number: 6
+  title: Property, Plant and Equipment
+  report: balancesheet
+  paths:
+  - - ASSETS
+    - 1. Non-current assets
+    - a. Fixed Assets
+  statement: balancesheet
+  statement_row: 23
+- number: 7
+  title: Inventories
+  report: balancesheet
+  paths:
+  - - ASSETS
+    - 2. Current Assets
+    - b. Inventories
+  statement: balancesheet
+  statement_row: 26
+  groups:
+  - name: Inventory Asset
+    account_ids:
+    - '1094368000022534289'
+    - '1094368000000000626'
+    - '1094368000045336631'
+    - '1094368000006459909'
+  - name: BL Stock
+    account_ids:
+    - '1094368000007249843'
+  - name: Neoseal Stock
+    account_ids:
+    - '1094368000034919849'
+  - name: Polycab Fan Stock
+    account_ids:
+    - '1094368000035130337'
+  - name: Polycab LTG Stock
+    account_ids:
+    - '1094368000035080789'
+  - name: Polycab SG Stock
+    account_ids:
+    - '1094368000051535662'
+  - name: Zeiss Stock
+    account_ids:
+    - '1094368000000960273'
+- number: 8
+  title: Trade Receivables
+  report: balancesheet
+  paths:
+  - - ASSETS
+    - 2. Current Assets
+    - c. Trade Receivables
+  statement: balancesheet
+  statement_row: 27
+- number: 9
+  title: Cash and Bank Balances
+  report: balancesheet
+  paths:
+  - - ASSETS
+    - 2. Current Assets
+    - d. Cash and cash equivalents
+  statement: balancesheet
+  statement_row: 28
+  groups:
+  - name: Cash
+    account_ids:
+    - '1094368000005702053'
+    - '1094368000005702057'
+    - '1094368000005226023'
+    - '1094368000000000459'
+    - '1094368000000000456'
+  - name: Bank
+    account_ids:
+    - '1094368000008678342'
+    - '1094368000000468208'
+    - '1094368000000466754'
+    - '1094368000000081927'
+- number: 10
+  title: Other Current Assets
+  report: balancesheet
+  paths:
+  - - ASSETS
+    - 2. Current Assets
+    - f. Other current assets
+  statement: balancesheet
+  statement_row: 29
+- number: 11
+  title: Revenue from Operations
+  report: profitandloss
+  paths:
+  - - I. Revenue from operations
+  statement: profitandloss
+  statement_row: 4
+- number: 12
+  title: Other Income
+  report: profitandloss
+  paths:
+  - - II. Other Income
+  statement: profitandloss
+  statement_row: 5
+- number: 13
+  title: Purchases of Stock-in-Trade
+  report: profitandloss
+  paths:
+  - - IV. Expenses
+    - 2. Purchases of stock in trade
+  statement: profitandloss
+  statement_row: 8
+- number: 14
+  title: Employee Benefits Expense
+  report: profitandloss
+  paths:
+  - - IV. Expenses
+    - 4. Employee benefits expense
+  statement: profitandloss
+  statement_row: 10
+- number: 15
+  title: Other Expenses
+  report: profitandloss
+  paths:
+  - - IV. Expenses
+    - 7. Other Expenses
+  statement: profitandloss
+  statement_row: 13
+direct_inputs:
+- statement: balancesheet
+  row: 10
+  report: balancesheet
+  path:
+  - EQUITY AND LIABILITIES
+  - 3. Non-current liabilities
+  - a. Long Term Borrowings
+- statement: balancesheet
+  row: 12
+  report: balancesheet
+  path:
+  - EQUITY AND LIABILITIES
+  - 3. Non-current liabilities
+  - d. Long Term Provisions
+- statement: balancesheet
+  row: 15
+  report: balancesheet
+  path:
+  - EQUITY AND LIABILITIES
+  - 4. Current Liabilities
+  - a. Short-term borrowings
+- statement: balancesheet
+  row: 18
+  report: balancesheet
+  path:
+  - EQUITY AND LIABILITIES
+  - 4. Current Liabilities
+  - d. Short Term Provisions
+- statement: profitandloss
+  row: 9
+  report: profitandloss
+  path:
+  - IV. Expenses
+  - 3. Changes in Inventories of finished goods work-in-progress and Stock-in-trade
+  expense: true
+  inventory_changes: true
+- statement: profitandloss
+  row: 11
+  report: profitandloss
+  path:
+  - IV. Expenses
+  - 5. Finance Costs
+  expense: true
+- statement: profitandloss
+  row: 12
+  report: profitandloss
+  path:
+  - IV. Expenses
+  - 6. Depreciation And Amortization Expense
+  expense: true
+- statement: profitandloss
+  row: 16
+  report: profitandloss
+  path:
+  - VI. Exceptional Items
+  exceptional: true
+- statement: profitandloss
+  row: 18
+  report: profitandloss
+  path:
+  - X. Tax Expense
+checks:
+  asset_notes:
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  liability_notes:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  revenue_notes:
+  - 11
+  - 12
+  expense_notes:
+  - 13
+  - 14
+  - 15
+  profit_before_tax_path:
+  - IX. Profit before tax (VII - VIII)
+  depreciation_path:
+  - IV. Expenses
+  - 6. Depreciation And Amortization Expense
+inventory_rollforward:
+  purchases_note: 13
+  inventory_note: 7
