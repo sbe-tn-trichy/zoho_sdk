@@ -24,10 +24,11 @@ okf_version: "0.2"
 * [Customer Invoice and Payment Review](customer-invoice-payment-review.md) - Invoice discount percentages and payment allocation reports for one customer.
 
 * [Configuration Reference](configuration.md) - OAuth credentials, organization settings, environment variables, and CLI dry-run flags.
+* [Google Sheets SDK](google-sheets-sdk.md) - Client, authentication helpers, and range operations for Google Sheets API v4.
 * [Zoho Inventory Client](zoho-inventory.md) - Item and inventory API routing, purchase-account scoping, and migration requirements.
 * [Zoho Books Client](zoho-books.md) - Books resource access, pagination, and customer-only contact retrieval.
 * [Books Financial Statement Sheet](books-statement-sheet.md) - Reviewed Books report mappings into the linked FY 2025–26 Google Sheets template.
-* [Statement Schedules](statement-schedules.md) - Two-year Schedule III notes, Google statement links, and fixed-asset depreciation verification.
+* [NCE document Preparation](statement-schedules.md) - Two-year Schedule III notes, Google statement links, and current-year fixed-asset depreciation verification.
 * [Financial Statement Comparison](financial-statement-comparison.md) - Exact Google Sheet cells versus OAuth Books P&L and balance-sheet schedules.
 * [Filed IT Balance Sheet Comparison](it-balance-sheet-comparison.md) - Read-only FY 2024–25 filed balance-sheet comparison with Books.
 * [Audited Financials Comparison](audited-financials-comparison.md) - Audited XLSX P&L, balance sheet and stock comparison with live or saved Books reports and editable YAML mapping.

@@ -15,6 +15,9 @@ inventory_rollforward: {purchases_note: 13, inventory_note: 7}
 standalone_paths:
   - [EQUITY AND LIABILITIES, 1. Shareholders' funds, b. Reserves and Surplus, Current Year Earnings]
 notes:
+  # Optional note groups aggregate explicit accounts into ordered detail lines:
+  # groups: [{name: Cash, account_ids: ['BOOKS_CASH_ACCOUNT_ID']},
+  #          {name: Bank, account_ids: ['BOOKS_BANK_ACCOUNT_ID']}]
   - number: 1
     title: Partners' Capital Accounts
     report: balancesheet

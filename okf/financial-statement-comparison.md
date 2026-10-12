@@ -65,3 +65,7 @@ profit allocation and tax presentation. The report's branch-rule echo is
 scope evidence, not proof of transaction-level exclusion: SBE-named balances
 can remain in returned account figures. This workflow does not silently
 net GST or reclassify audited amounts to force agreement.
+
+The Sundry Creditors comparison includes Zeiss Adjustment alongside Zeiss TOD,
+presented together under Other Current Liabilities. This is a reviewed mapping
+aggregation only; it does not merge accounts or change Books classifications.

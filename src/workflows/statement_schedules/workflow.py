@@ -1,7 +1,7 @@
 """Prepare configured note schedules and Sheets formulas without mutating Books."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
@@ -255,7 +255,7 @@ def verify_asset(asset: Mapping[str, Any], history: Sequence[Mapping[str, Any]],
 
 
 def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -> SchedulePlan:
-    """Build managed note blocks, statement links and two annual asset tables."""
+    """Build two-year notes and statement links, with current-year assets only."""
     periods = config["periods"]
     validate_sources(sources, periods=periods, excluded_location_id=config["excluded_location_id"])
     labels = [p["label"] for p in periods]
@@ -344,6 +344,23 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
         rows.append([f"Note {number}: {note['title']}"])
         first_row = len(rows) + 1
         items = sorted(classified[number].items(), key=lambda pair: (pair[1]["name"].casefold(), pair[0]))
+        if "groups" in note:
+            groups = note["groups"]
+            names = [group["name"] for group in groups]
+            members = [str(account) for group in groups for account in group["account_ids"]]
+            if not groups or any(not name for name in names) or len(set(names)) != len(names):
+                raise ValueError(f"Invalid group names in Note {number}")
+            if any(not group["account_ids"] for group in groups) or len(set(members)) != len(members):
+                raise ValueError(f"Empty or duplicate group membership in Note {number}")
+            ungrouped = [item["name"] for identity, item in items if identity not in members
+                         and any(item["amounts"].values())]
+            if ungrouped:
+                raise ValueError(f"Ungrouped nonzero accounts in Note {number}: {', '.join(ungrouped)}")
+            for group in groups:
+                amounts = [sum((classified[number].get(str(account), {}).get("amounts", {}).get(label, Decimal(0))
+                                for account in group["account_ids"]), Decimal(0)) for label in labels]
+                rows.append([group["name"], *[float(money(value)) for value in amounts]])
+            items = []
         for identity, item in items:
             amounts = [item["amounts"].get(label, Decimal(0)) for label in labels]
             if not any(amounts):
@@ -410,14 +427,12 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
         warnings.append(f"{label}: Books branch-rule echo verifies requested scope; SBE-named accounts can retain balances.")
     asset_checks = {}
     asset_rows: list[list[Any]] = []
-    for period in periods:
+    # Select by date so configuration ordering cannot switch depreciation years.
+    for period in [max(periods, key=lambda p: date.fromisoformat(p["end"]))]:
         asset_rows.append([f"Assets & Depreciation — {period['label']}"])
-        asset_rows.append(["PARTICULARS", "Opening WDV", "Additions through 30 Sep", "Additions after 30 Sep",
-                           "Date of purchase", "TOTAL", "RATE", "Calculated depreciation", "Calculated closing WDV",
-                           "Books posted depreciation", "Depreciation difference", "Books closing WDV", "WDV difference",
-                           "Computation", "Location"])
         results = []
-        first_row = len(asset_rows) + 1
+        accounts: dict[str, tuple[str, Decimal]] = {}
+        asset_accounts: dict[str, str] = {}
         for item in sources["assets"]:
             asset = item["asset"]
             if asset.get("status") in {"draft", "cancel"}:
@@ -426,24 +441,149 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
             if asset["asset_purchase_date"] > period["end"]:
                 continue
             result = verify_asset(asset, item["history"], start=period["start"], end=period["end"])
+            reclass = None if config.get("asset_opening_source") == "ledger" else config.get("asset_opening_reclassifications", {}).get(result.asset_id)
+            if reclass is not None:
+                opening = amount(reclass)
+                if result.opening or opening < 0 or opening > result.before_cutoff or result.purchase_date != period["start"]:
+                    raise ValueError(f"Invalid opening reclassification: {result.name}")
+                result = replace(result, opening=opening, before_cutoff=result.before_cutoff - opening)
             results.append(result)
-            r = len(asset_rows) + 1
-            # Integer day ratios survive Sheets' decimal-literal normalization.
-            days = (date.fromisoformat(period["end"]) - date.fromisoformat(period["start"])).days + 1
-            active_days = int((result.fraction * days).to_integral_value())
-            factor = "1" if active_days == days else f"{active_days}/{days}"
-            asset_rows.append([result.name, float(result.opening), float(result.before_cutoff), float(result.after_cutoff),
-                               result.purchase_date, f"=SUM(B{r}:D{r})", float(result.rate),
-                               f"=ROUND(F{r}*G{r}*{factor},2)", f"=F{r}-H{r}", float(result.posted),
-                               f"=H{r}-J{r}", float(result.closing), f"=I{r}-L{r}", result.method, result.location])
+            ledger_override = config.get("asset_ledger_overrides", {}).get(result.asset_id)
+            ledger = ledger_override if ledger_override is not None else {"account_id": asset.get("asset_account_id"), "account_name": asset.get("asset_account_name")}
+            account_id = str(ledger.get("account_id") or "")
+            account_name = str(ledger.get("account_name") or "")
+            if not account_id or not account_name:
+                raise ValueError(f"Missing ledger account for asset: {result.name}")
+            prior_name, opening = accounts.get(account_id, (account_name, Decimal(0)))
+            if prior_name != account_name:
+                raise ValueError(f"Inconsistent ledger account name: {account_id}")
+            accounts[account_id] = (account_name, opening + result.opening)
+            asset_accounts[result.asset_id] = account_id
             if abs(result.difference) > Decimal("0.01"):
                 warnings.append(f"{period['label']} {result.name}: calculated minus posted depreciation {result.difference}")
+        ledger_only = {}
+        prior_period = next((p for p in periods if p["end"] == (date.fromisoformat(period["start"]) - timedelta(days=1)).isoformat()), None)
+        ledger_entries = list(config.get("ledger_only_assets", []))
+        if config.get("asset_opening_source") == "ledger":
+            if prior_period is None:
+                raise ValueError("Ledger asset opening requires the preceding year-end report")
+            prior_report = sources["reports"][prior_period["label"]]["balancesheet"]
+            ledger_accounts = {str(n["account_id"]): n for n, path in nodes(prior_report[KEYS["balancesheet"]])
+                               if n.get("account_id") and "a. Fixed Assets" in path}
+            dep_map = config.get("asset_accumulated_depreciation_accounts", {})
+            depreciation_ids = [str(a) for ids in dep_map.values() for a in ids]
+            if len(depreciation_ids) != len(set(depreciation_ids)):
+                raise ValueError("Opening accumulated depreciation cannot be assigned twice")
+            adjusted = []
+            for account_id, (name, _) in list(accounts.items()):
+                if account_id not in ledger_accounts:
+                    raise ValueError(f"Missing opening fixed-asset ledger: {name}")
+                opening = amount(ledger_accounts[account_id]["total"])
+                for dep_id in dep_map.get(account_id, []):
+                    if str(dep_id) not in ledger_accounts:
+                        raise ValueError(f"Missing opening accumulated depreciation: {dep_id}")
+                    opening += amount(ledger_accounts[str(dep_id)]["total"])
+                members = [r for r in results if asset_accounts[r.asset_id] == account_id]
+                eligible = [r for r in members if r.purchase_date <= period["start"]]
+                if opening < 0 or (len(eligible) != 1 and sum((r.opening for r in members), Decimal(0)) != opening):
+                    raise ValueError(f"Opening ledger balance needs reviewed asset allocation: {name}")
+                for result in members:
+                    target = opening if len(eligible) == 1 and result == eligible[0] else result.opening
+                    delta = target - result.opening
+                    if delta:
+                        if result.purchase_date != period["start"] or delta > result.before_cutoff:
+                            raise ValueError(f"Opening ledger/register basis differs: {result.name}")
+                        result = replace(result, opening=target, before_cutoff=result.before_cutoff - delta)
+                    adjusted.append(result)
+                accounts[account_id] = (name, opening)
+            results = adjusted
+            for account_id, node in ledger_accounts.items():
+                if account_id in accounts or account_id in depreciation_ids:
+                    continue
+                if node["name"].startswith("Accumulated Depreciation"):
+                    if amount(node["total"]):
+                        raise ValueError(f"Unassigned opening accumulated depreciation: {node['name']}")
+                    continue
+                if amount(node["total"]) and not any(str(e["account_id"]) == account_id for e in ledger_entries):
+                    ledger_entries.append({"name": node["name"], "account_id": account_id, "account_name": node["name"]})
+        for entry in ledger_entries:
+            account_id = str(entry["account_id"])
+            if account_id in accounts or account_id in ledger_only or prior_period is None:
+                raise ValueError("Ledger-only asset overlaps the register or lacks prior year")
+            balances = []
+            for label in (prior_period["label"], period["label"]):
+                matches = [n for n, path in nodes(sources["reports"][label]["balancesheet"][KEYS["balancesheet"]])
+                           if str(n.get("account_id")) == account_id and "a. Fixed Assets" in path]
+                if len(matches) != 1:
+                    raise ValueError(f"Missing ledger-only fixed asset: {entry['name']}")
+                balances.append(amount(matches[0]["total"]))
+            ledger_only[account_id] = (entry["name"], balances[0], balances[1])
+            accounts[account_id] = (entry["account_name"], balances[0])
+            warnings.append(f"{period['label']} {entry['name']}: ledger-only asset; depreciation rate/history absent from register, no depreciation inferred.")
+        asset_rows.extend([[f"Table 1: Asset opening balances — {period['start']}"],
+                           ["Asset name", "Ledger account", "Opening WDV"]])
+        ledger_subtotals = {}
+        detail_rows = {}
+        ordered_accounts = sorted(accounts.items(), key=lambda pair: (pair[1][0].casefold(), pair[0]))
+        for account_id, (name, _) in ordered_accounts:
+            first = len(asset_rows) + 1
+            members = sorted((r for r in results if asset_accounts[r.asset_id] == account_id),
+                             key=lambda r: (r.name.casefold(), r.asset_id))
+            for result in members:
+                detail_rows[result.asset_id] = len(asset_rows) + 1
+                asset_rows.append([result.name, name, float(result.opening)])
+            if account_id in ledger_only:
+                asset_name, opening, _ = ledger_only[account_id]
+                asset_rows.append([asset_name, name, float(opening)])
+            last = len(asset_rows)
+            ledger_subtotals[account_id] = len(asset_rows) + 1
+            asset_rows.append(["Subtotal", name, f"=SUM(C{first}:C{last})" if last > first else f"=SUM(C{first})"])
+        subtotal_refs = [f"C{row}" for row in ledger_subtotals.values()]
+        asset_rows.extend([["Total", "", "=SUM(" + ",".join(subtotal_refs) + ")" if subtotal_refs else "=0"], [],
+                           [f"Table 2: Depreciation and closing balances — {period['label']}"],
+                           ["Ledger account", "Opening WDV", "Additions through 30 Sep", "Additions after 30 Sep",
+                            "Total WDV before depreciation", "Depreciation expense", "Closing WDV",
+                            "Calculated depreciation", "Expense minus calculated", "Books closing WDV", "WDV difference", "Rate"]])
+        first_row = len(asset_rows) + 1
+        days = (date.fromisoformat(period["end"]) - date.fromisoformat(period["start"])).days + 1
+        for account_id, (name, _) in ordered_accounts:
+            members = [result for result in results if asset_accounts[result.asset_id] == account_id]
+            r = len(asset_rows) + 1
+            if account_id in ledger_only:
+                _, _, ledger_closing = ledger_only[account_id]
+                asset_rows.append([name, f"=C{ledger_subtotals[account_id]}", "", "", f"=B{r}", "", float(ledger_closing),
+                                   "", "", float(ledger_closing), f"=G{r}-J{r}", "Not in register"])
+                continue
+            terms = []
+            for result in members:
+                # Round per asset before summing; a ledger can have mixed dates/rates.
+                active_days = int((result.fraction * days).to_integral_value())
+                factor = "1" if active_days == days else f"{active_days}/{days}"
+                additions = result.before_cutoff + result.after_cutoff
+                additions_literal = str(int(additions)) if additions == additions.to_integral_value() else str(additions)
+                terms.append(f"ROUND((C{detail_rows[result.asset_id]}+{additions_literal})*{result.rate}*{factor},2)")
+            rates = {result.rate for result in members}
+            asset_rows.append([name, f"=C{ledger_subtotals[account_id]}",
+                               float(sum((m.before_cutoff for m in members), Decimal(0))),
+                               float(sum((m.after_cutoff for m in members), Decimal(0))), f"=SUM(B{r}:D{r})",
+                               float(sum((m.posted for m in members), Decimal(0))), f"=E{r}-F{r}",
+                               "=SUM(" + ",".join(terms) + ")", f"=F{r}-H{r}",
+                               float(sum((m.closing for m in members), Decimal(0))), f"=G{r}-J{r}",
+                               float(next(iter(rates))) if len(rates) == 1 else "Mixed rates"])
         asset_checks[period["label"]] = tuple(results)
         last_row = len(asset_rows)
-        total = ["Total"] + [""] * 14
-        for col in ("B", "C", "D", "F", "H", "I", "J", "K", "L", "M"):
+        total = ["Total"] + [""] * 11
+        for col in "BCDEFGHIJK":
             total[ord(col) - ord("A")] = f"=SUM({col}{first_row}:{col}{last_row})" if last_row >= first_row else "=0"
-        asset_rows.extend([total, []])
+        total_row = len(asset_rows) + 1
+        dep_inputs = [d for d in config["direct_inputs"] if d["report"] == "profitandloss" and
+                      d["path"] == config["checks"]["depreciation_path"]]
+        if len(dep_inputs) != 1:
+            raise ValueError("A unique P&L depreciation destination is required")
+        pnl_column = "C" if period["label"] == labels[0] else "D"
+        pnl_link = "=" + qualified(config["sheets"][dep_inputs[0]["statement"]], f"{pnl_column}{dep_inputs[0]['row']}")
+        asset_rows.extend([total, ["P&L depreciation expense", "", "", "", "", pnl_link],
+                           ["Difference vs P&L", "", "", "", "", f"=ROUND(F{total_row}-F{total_row + 1},2)"], []])
         posted = sum((r.posted for r in results), Decimal(0))
         pnl_depreciation = section(sources["reports"][period["label"]]["profitandloss"], "profitandloss",
                                    config["checks"]["depreciation_path"])

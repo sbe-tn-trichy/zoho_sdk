@@ -2,6 +2,65 @@
 
 ## 2026-10-12
 
+- Created and verified the Analytics detailed general ledger query table for
+  FY 2025–26 with account name and account type filters; registered its view ID.
+
+- NCE Table 1 now sources opening WDV from prior-year Books fixed-asset ledgers,
+  subtracting assigned accumulated depreciation without double counting and
+  retaining ledger-only balances. Ambiguous asset allocations fail for review.
+
+- NCE opening presentation supports reviewed first-day acquisition reclassification
+  and ledger-only assets missing from the register; ledger-only depreciation stays
+  blank with a warning until rate/history is available.
+
+- NCE presentation supports explicit asset ledger overrides; Elevator is grouped
+  under Machinery while preserving Books source data and register totals.
+
+- NCE asset expense and closing WDV use posted depreciation, preserving the
+  independent calculation and its rounding differences. A P&L link and explicit
+  difference row reconcile the displayed expense total.
+
+- NCE asset opening detail now includes asset/ledger/value and ledger subtotals;
+  depreciation and closing are condensed to one row per ledger, linking opening
+  subtotals and summing per-asset prorated, rounded depreciation formulas.
+
+- NCE assets now use separate ledger-grouped opening balances and individual
+  depreciation/closing tables for the current year, preserving prorating and
+  register reconciliation and rejecting missing account metadata.
+
+- NCE presentation moves Zeiss Adjustment into Other Current Liabilities and
+  aggregates it under Zeiss TOD using stable account IDs for both periods.
+
+- Grouped Zeiss Adjustment with Zeiss TOD in the statement comparison mapping, without changing Books accounts.
+
+- Added `google_sheets` SDK with `GoogleSheetsClient` and authentication helpers
+  supporting both OAuth 2.0 access tokens and Service Account credentials, backed
+  by `google-api-python-client` and `google-auth`. Added `get_google_sheets_client`
+  factory to `workflows.core.auth`, configuration keys to `Config` and `zoho_config.example.json`,
+  and unit test coverage.
+
+- NCE preparation now keeps only note headers bold in Notes A:C, writing changed
+  bold flags only and verifying native formatting after apply. Backups include
+  native cell formatting; other styles remain intact.
+
+- NCE Note 7 groups Finished Goods, Inventory Asset, Ledvance Stock and SBE Stock
+  under Inventory Asset for both periods, preserving the inventory totals.
+  Generated inventory-movement links may relocate with note rows; unrelated
+  statement formulas remain protected.
+
+- NCE sheet updates now compare native entered values and write only changed
+  cells, preserving formula/text distinctions and stale-row clearing. Identical
+  reruns send no write request; backups and read-back verification remain.
+
+- NCE Note 9 aggregates its configured accounts into Cash and Bank, preserving
+  both years and totals; duplicate membership and ungrouped nonzero accounts fail.
+
+- NCE document Preparation now generates and verifies assets/depreciation only
+  for the latest configured year; financial statements and notes retain both years.
+
+- Renamed the statement-schedules workflow to [NCE document Preparation](statement-schedules.md)
+  in the workflow catalog and documentation; its module and command remain unchanged.
+
 - Statement schedules now derive net purchases from Books COGS and configured
   opening/closing inventory, with the corresponding inventory movement preserving
   source profit. Prior closing stock is reused and the earliest opening report

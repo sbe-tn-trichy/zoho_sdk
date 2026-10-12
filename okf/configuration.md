@@ -109,6 +109,8 @@ Supported configuration keys:
   The CLI also accepts explicit overrides and validates these before API access.
 - `NEOSEAL_PURCHASE_ACCOUNT_ID`: Purchase-account ID used to scope NeoSeal item-catalog workflows.
 - `NEOSEAL_PRICE_LIST_GOOGLE_SHEET_ID`: Google Sheet ID for the NeoSeal price list.
+- `GOOGLE_SHEETS_ACCESS_TOKEN`: OAuth 2.0 access token for Google Sheets API operations.
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path to Google service account credentials JSON file.
 - `NEOSEAL_STOCK_COUNT_SHEET_ID`: Zoho Sheet workbook ID for the active NeoSeal stock-count worksheet.
 - `NEOSEAL_STOCK_COUNT_WORKSHEET`: Target worksheet name for the formatted Neoseal stock count; defaults to `StockCount`.
 - `NEOSEAL_STOCK_COUNT_FLAT_WORKSHEET`: Target worksheet name for the flat tabular Neoseal stock count; defaults to `Flat`.

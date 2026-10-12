@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable, Dict, Optional
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Sequence, Union
 
+from google_sheets import GoogleSheetsClient
 from zoho import HttpTokenProvider
 from zoho.analytics import ZohoAnalyticsAPI
 from zoho.books import ZohoBooksAPI
@@ -172,3 +174,26 @@ def get_workdrive_client(
         domain=domain,
         token_refresh_callback=refresh_cb,
     )
+
+
+def get_google_sheets_client(
+    token: Optional[str] = None,
+    service_account_file: Optional[Union[str, Path]] = None,
+    service_account_info: Optional[Dict[str, Any]] = None,
+    scopes: Optional[Sequence[str]] = None,
+) -> GoogleSheetsClient:
+    """Create an authenticated Google Sheets client.
+
+    Uses the explicitly supplied token or service account, falling back to
+    configured ``Config.GOOGLE_SHEETS_ACCESS_TOKEN`` or
+    ``Config.GOOGLE_APPLICATION_CREDENTIALS``.
+    """
+    token = token or Config.GOOGLE_SHEETS_ACCESS_TOKEN or None
+    sa_file = service_account_file or Config.GOOGLE_APPLICATION_CREDENTIALS or None
+    return GoogleSheetsClient(
+        access_token=token,
+        service_account_file=sa_file,
+        service_account_info=service_account_info,
+        scopes=scopes,
+    )
+

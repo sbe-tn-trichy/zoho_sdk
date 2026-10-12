@@ -21,7 +21,7 @@ Implemented domain workflows, grouped by purpose. Code and tests are authoritati
 | Google statement versus Books schedules | [financial_statement_comparison](src/workflows/financial_statement_comparison/) |
 | Filed IT balance-sheet comparison | [it_balance_sheet_comparison](src/workflows/it_balance_sheet_comparison.py) |
 | Books financial-statement sheet updates | [books_statement_sheet](src/workflows/books_statement_sheet.py) |
-| Two-year Schedule III notes and asset depreciation | [statement_schedules](src/workflows/statement_schedules/) |
+| NCE document Preparation | [statement_schedules](src/workflows/statement_schedules/) |
 | Books P&L note preparation | [books_pnl_notes](src/workflows/books_pnl_notes.py) |
 | Books account-catalog synchronization | [books_account_catalog](src/workflows/books_account_catalog.py) |
 

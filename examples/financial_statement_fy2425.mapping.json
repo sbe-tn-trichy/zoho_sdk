@@ -448,6 +448,7 @@
     },
     {
       "label": "Balance Sheet: Sundry Creditors",
+      "note": "Zeiss Adjustment is grouped with Zeiss TOD under Other Current Liabilities for comparison presentation only; Books account classification is unchanged.",
       "cell": "'Balance Sheet'!B7",
       "terms": [
         {
@@ -457,6 +458,10 @@
         {
           "report": "balancesheet",
           "name": "Zeiss TOD"
+        },
+        {
+          "report": "balancesheet",
+          "name": "Zeiss Adjustment"
         },
         {
           "report": "balancesheet",

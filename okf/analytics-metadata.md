@@ -119,6 +119,16 @@ remain.
 
 # Related Knowledge
 
+## Detailed General Ledger
+
+Workspace `264324000000002043` contains **detailed general ledger**
+(`264324000008493010`). The query left-joins Accrual Transactions (Zoho Books)
+to Accounts (Zoho Books) on Account ID, exposing Account Name and Account Type
+alongside posting details, debit, credit, and location ID. Its fixed date range
+is FY 2025–26: 1 April 2025 inclusive through 1 April 2026 exclusive.
+Account Name and Account Type can be filtered in the resulting table.
+It does not calculate opening, closing, or running balances.
+
 ## Purchase Query Table
 
 The saved `Purchases by Vendor - All Years` query table includes GST-bearing

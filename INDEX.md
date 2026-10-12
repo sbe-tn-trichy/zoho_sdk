@@ -80,6 +80,11 @@ zoho_sdk/
 │           ├── picklists.py         # Picklists
 │           ├── bins.py              # Bins
 │           └── batches.py           # Batches
+├── src/google_sheets/               # Google Sheets API v4 SDK
+│   ├── __init__.py                  # Public exports: GoogleSheetsClient, create_credentials
+│   ├── client.py                    # GoogleSheetsClient — typed v4 spreadsheet operations
+│   ├── auth.py                      # create_credentials (OAuth token & Service Account)
+│   └── exceptions.py                # GoogleSheetsError, GoogleSheetsAuthError, SpreadsheetNotFoundError
 ├── src/workflows/                   # Multi-service domain workflows
 │   ├── bank_vendor_ledger_matching/
 │   ├── collection_reconciliation/

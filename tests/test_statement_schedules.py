@@ -8,12 +8,12 @@ import yaml
 
 from workflows.statement_schedules import build_schedule_plan, fetch_schedule_sources, validate_sources, verify_asset
 from zoho.books.resources.fixed_assets import FixedAssets
-from apps.update_statement_schedules import apply_plan, grid_address, main, update_requests
+from apps.update_statement_schedules import apply_plan, changed_update_requests, grid_address, main, note_bold_requests, update_requests
 from workflows.statement_schedules.workflow import KEYS, nodes
 
 
 def asset():
-    return {"fixed_asset_id": "asset", "asset_name": "Machine", "location_id": "branch", "location_name": "Branch",
+    return {"asset_account_id": "ledger", "asset_account_name": "Machinery", "fixed_asset_id": "asset", "asset_name": "Machine", "location_id": "branch", "location_name": "Branch",
             "asset_purchase_date": "2025-10-01", "depreciation_start_date": "2025-10-01",
             "depreciation_percentage": 15, "depreciation_method": "declining_method",
             "depreciation_frequency": "yearly", "computation_type": "prorata_basis", "salvage_value": 0}
@@ -129,6 +129,88 @@ def test_plan_links_two_year_notes_and_does_not_write_statement_subtotals():
     assert plan.values["'Balance Sheet'!D6"][0][0].startswith("='Notes to Accounts'!C")
     assert "'Balance Sheet'!C31" not in plan.values
     assert "'Profit and Loss'!C19" not in plan.values
+
+
+@pytest.mark.parametrize("reverse_periods", [False, True])
+def test_note_groups_sum_signed_accounts_for_both_years(reverse_periods):
+    config, sources = config_and_sources()
+    note = next(n for n in config["notes"] if n["number"] == 9)
+    note["groups"] = [{"name": "Cash", "account_ids": ["id9", "cash2"]},
+                      {"name": "Bank", "account_ids": ["bank"]}]
+    config["account_notes"].update({"cash2": 9, "bank": 9})
+    for label, cash, bank in (("fy2025-26", -5, 30), ("fy2024-25", -2, 40)):
+        report = sources["reports"][label]["balancesheet"][KEYS["balancesheet"]]
+        for node, _ in nodes(report):
+            if node.get("account_id") == "id9":
+                node["total"] = cash
+            elif node.get("account_id") == "id6":
+                node["total"] = 100 - (cash + 10 + bank)
+        report.extend([{"name": "Second cash", "account_id": "cash2", "total": 10},
+                       {"name": "Bank account", "account_id": "bank", "total": bank}])
+    if reverse_periods:
+        config["periods"].reverse()
+    plan = build_schedule_plan(sources, config)
+    rows = next(rows for address, rows in plan.values.items() if address.startswith("'Notes to Accounts'!"))
+    total_row = plan.note_total_rows[9]
+    expected = [["Cash", 5.0, 8.0], ["Bank", 30.0, 40.0]]
+    if reverse_periods:
+        expected = [[name, prior, current] for name, current, prior in expected]
+    assert rows[total_row - 3:total_row - 1] == expected
+    assert rows[total_row - 1][1] == f"=SUM(B{total_row - 2}:B{total_row - 1})"
+    assert plan.checks["fy2025-26"]["assets"] == "100.00"
+
+
+def test_zero_note_groups_remain_visible():
+    config, sources = config_and_sources()
+    next(n for n in config["notes"] if n["number"] == 9)["groups"] = [
+        {"name": "Cash", "account_ids": ["id9"]}, {"name": "Bank", "account_ids": ["absent"]}]
+    plan = build_schedule_plan(sources, config)
+    rows = next(rows for address, rows in plan.values.items() if address.startswith("'Notes to Accounts'!"))
+    assert rows[plan.note_total_rows[9] - 3:plan.note_total_rows[9] - 1] == [["Cash", 0.0, 0.0], ["Bank", 0.0, 0.0]]
+
+
+@pytest.mark.parametrize("bad", ["duplicate", "ungrouped", "empty", "name"])
+def test_invalid_note_groups_fail_without_losing_nonzero_accounts(bad):
+    config, sources = config_and_sources()
+    note = next(n for n in config["notes"] if n["number"] == 6)
+    note["groups"] = [{"name": "Assets", "account_ids": ["id6"]}]
+    if bad == "duplicate":
+        note["groups"].append({"name": "Duplicate", "account_ids": ["id6"]})
+    elif bad == "ungrouped":
+        note["groups"][0]["account_ids"] = ["other"]
+    elif bad == "empty":
+        note["groups"] = []
+    else:
+        note["groups"][0]["name"] = ""
+    with pytest.raises(ValueError, match="Note 6"):
+        build_schedule_plan(sources, config)
+
+
+@pytest.mark.parametrize("reverse_periods", [False, True])
+def test_assets_cover_only_latest_year_with_historical_opening(reverse_periods):
+    config, sources = config_and_sources()
+    record = asset() | {"asset_purchase_date": "2024-10-01", "depreciation_start_date": "2024-10-01"}
+    rows = history()
+    rows[0]["valuation_date"] = "2024-10-01"
+    rows[1]["valuation_date"] = "2025-03-31"
+    sources["assets"] = [{"asset": record, "history": rows}]
+    if reverse_periods:
+        config["periods"].reverse()
+    plan = build_schedule_plan(sources, config)
+    assert set(plan.asset_checks) == {"fy2025-26"}
+    assert plan.asset_checks["fy2025-26"][0].opening == Decimal("925.21")
+    asset_rows = next(rows for address, rows in plan.values.items() if address.startswith("'Assets & Depreciation'!"))
+    assert asset_rows[0] == ["Assets & Depreciation — fy2025-26"]
+    assert sum(row[0].startswith("Assets & Depreciation —") for row in asset_rows if row) == 1
+    assert set(plan.checks) == {"fy2025-26", "fy2024-25"}
+    assert "registered_asset_depreciation" not in plan.checks["fy2024-25"]
+
+
+def test_current_year_asset_errors_still_stop_plan():
+    config, sources = config_and_sources()
+    sources["assets"] = [{"asset": asset() | {"depreciation_method": "straight_line"}, "history": history()}]
+    with pytest.raises(ValueError):
+        build_schedule_plan(sources, config)
 
 
 @pytest.mark.parametrize("stocks", [(10, 20, 30), (30, 20, 10), (0, 0, 0), (20, 20, 20)])
@@ -286,6 +368,10 @@ class SheetsSession:
         self.read_count = 0
         self.posted = []
         self.cells = {}
+        self.bold = {}
+        for key, height in (("notes", 200), ("assets", 50)):
+            for row in range(height):
+                self.cells[(config["sheets"][key], row, 0)] = "old"
 
     def response(self, data):
         return Mock(json=lambda: data, raise_for_status=Mock())
@@ -293,9 +379,24 @@ class SheetsSession:
     def get(self, url, *, params, **kwargs):
         if "values:batchGet" not in url:
             if params.get("includeGridData"):
-                return self.response({"sheets": [{"properties": {"title": title}, "data": [{"rowData": [
-                    {"values": [{"dataValidation": {"strict": True}}] if self.validation else []}]}]}
-                    for title in self.config["sheets"].values()]})
+                sheets = {title: {"properties": {"title": title}, "data": []}
+                          for title in self.config["sheets"].values()}
+                for address in params["ranges"]:
+                    title, first_row, first_col, end_row, end_col = grid_address(address)
+                    grid = {"startRow": first_row, "startColumn": first_col, "rowData": []}
+                    for r in range(first_row, end_row):
+                        row = []
+                        for c in range(first_col, end_col):
+                            value = self.cells.get((title, r, c), "")
+                            field = "numberValue" if isinstance(value, (int, float)) else "formulaValue" if value.startswith("=") else "stringValue"
+                            cell = {"userEnteredValue": {field: value}} if value != "" else {}
+                            cell["userEnteredFormat"] = {"textFormat": {"bold": self.bold.get((title, r, c), False)}}
+                            if self.validation:
+                                cell["dataValidation"] = {"strict": True}
+                            row.append(cell)
+                        grid["rowData"].append({"values": row})
+                    sheets[title]["data"].append(grid)
+                return self.response({"sheets": list(sheets.values())})
             return self.response({"sheets": [{"properties": {"title": title, "sheetId": self.config["sheet_ids"][key],
                     "gridProperties": {"rowCount": 1000, "columnCount": 26}}}
                     for key, title in self.config["sheets"].items()]})
@@ -322,6 +423,9 @@ class SheetsSession:
             grid = update["range"]
             for i, row in enumerate(update["rows"]):
                 for j, cell in enumerate(row["values"]):
+                    if update["fields"] == "userEnteredFormat.textFormat.bold":
+                        self.bold[(ids[grid["sheetId"]], grid["startRowIndex"] + i, grid["startColumnIndex"] + j)] = cell["userEnteredFormat"]["textFormat"]["bold"]
+                        continue
                     data = cell.get("userEnteredValue", {})
                     self.cells[(ids[grid["sheetId"]], grid["startRowIndex"] + i, grid["startColumnIndex"] + j)] = next(iter(data.values()), "")
         return self.response({"replies": []})
@@ -336,7 +440,7 @@ def test_apply_backs_up_atomically_writes_only_values_and_clears_old_rows(tmp_pa
     assert Path(config["backup_path"]).is_file()
     assert len(session.posted) == 1
     requests = session.posted[0]["requests"]
-    assert all(r["updateCells"]["fields"] == "userEnteredValue" for r in requests)
+    assert {r["updateCells"]["fields"] for r in requests} == {"userEnteredValue", "userEnteredFormat.textFormat.bold"}
     assert session.cells[(config["sheets"]["notes"], 199, 0)] == ""
     assert (config["sheets"]["balancesheet"], 30, 2) not in session.cells
 
@@ -371,8 +475,217 @@ def test_apply_accepts_previous_generated_note_link_after_note_rows_move(tmp_pat
     assert len(session.posted) == 1
 
 
+@pytest.mark.parametrize("existing,accepted", [("='Notes to Accounts'!B999-C8", True),
+    ("='Notes to Accounts'!B999-C7", False), ("=SUM(A1)", False)])
+def test_apply_moving_inventory_movement_formula(tmp_path, existing, accepted):
+    config, sources = config_and_sources()
+    config["backup_path"] = str(tmp_path / "backup.json")
+    plan = build_schedule_plan(sources, config)
+    class MovementSession(SheetsSession):
+        def get(self, url, *, params, **kwargs):
+            response = super().get(url, params=params, **kwargs)
+            if "values:batchGet" in url and self.read_count == 2:
+                for entry in response.json()["valueRanges"]:
+                    if entry["range"] == "'Profit and Loss'!C9":
+                        entry["values"] = [[existing]]
+            return response
+    session = MovementSession(config)
+    if accepted:
+        apply_plan("spreadsheet", plan.values, access_token="mock-token", config=config, session=session)
+        assert len(session.posted) == 1
+    else:
+        with pytest.raises(ValueError, match="Unexpected existing formula"):
+            apply_plan("spreadsheet", plan.values, access_token="mock-token", config=config, session=session)
+        assert session.posted == []
+
+
+def test_apply_identical_plan_performs_no_write(tmp_path):
+    config, sources = config_and_sources()
+    config["backup_path"] = str(tmp_path / "backup.json")
+    plan = build_schedule_plan(sources, config)
+    session = SheetsSession(config)
+    apply_plan("spreadsheet", plan.values, access_token="mock-token", config=config, session=session)
+    session.posted.clear()
+    session.read_count = 0
+    apply_plan("spreadsheet", plan.values, access_token="mock-token", config=config, session=session)
+    assert session.posted == []
+
+
+def test_apply_second_run_writes_only_changed_cell(tmp_path):
+    config, sources = config_and_sources()
+    config["backup_path"] = str(tmp_path / "backup.json")
+    plan = build_schedule_plan(sources, config)
+    session = SheetsSession(config)
+    apply_plan("spreadsheet", plan.values, access_token="mock-token", config=config, session=session)
+    session.cells[(config["sheets"]["notes"], 0, 0)] = "Different company"
+    session.posted.clear()
+    session.read_count = 0
+    apply_plan("spreadsheet", plan.values, access_token="mock-token", config=config, session=session)
+    writes = session.posted[0]["requests"]
+    assert len(writes) == 1
+    assert writes[0]["updateCells"]["range"] == {
+        "sheetId": config["sheet_ids"]["notes"], "startRowIndex": 0, "endRowIndex": 1,
+        "startColumnIndex": 0, "endColumnIndex": 1}
+
+
+def test_changed_cells_preserve_entered_types_and_split_at_unchanged_cells():
+    config, _ = config_and_sources()
+    requests = update_requests({"'Notes to Accounts'!A3:C3": [["=literal", 0, "=1+1"]]}, config)
+    native = {"sheets": [{"properties": {"title": config["sheets"]["notes"]}, "data": [
+        {"startRow": 2, "rowData": [{"values": [
+            {"userEnteredValue": {"formulaValue": "=literal"}},
+            {"userEnteredValue": {"numberValue": 0.0}},
+            {"userEnteredValue": {"stringValue": "=1+1"}}]}]}]}]}
+    writes = changed_update_requests(requests, native, config)
+    assert len(writes) == 2
+    assert [w["updateCells"]["range"]["startColumnIndex"] for w in writes] == [0, 2]
+    assert writes[0]["updateCells"]["rows"][0]["values"][0] == {"userEnteredValue": {"stringValue": "=literal"}}
+
+
 def test_fixed_assets_list_failure_is_not_silently_empty():
     books = Mock()
     books.request.return_value = {"code": 57}
     with pytest.raises(ValueError):
         list(FixedAssets(books).list_iter())
+
+
+def test_note_bold_tracks_moved_headers_and_clears_totals_and_stale_rows():
+    config, _ = config_and_sources()
+    values = {"'Notes to Accounts'!A1:C4": [["Note 7: Inventory", "", ""], ["Inventory Asset", 1, 2], ["Total", 1, 2], ["", "", ""]]}
+    native = {"sheets": [{"properties": {"title": config["sheets"]["notes"]}, "data": [{"rowData": [
+        {"values": [{"effectiveFormat": {"textFormat": {"bold": True}}}]},
+        {"values": [{"userEnteredFormat": {"textFormat": {"bold": True}}}]},
+        {"values": [{"effectiveFormat": {"textFormat": {"bold": True}}}]},
+        {"values": [{"userEnteredFormat": {"textFormat": {"bold": True}}}]}]}]}]}
+    writes = note_bold_requests(values, native, config)
+    assert [(w["updateCells"]["range"]["startRowIndex"], w["updateCells"]["range"]["startColumnIndex"]) for w in writes] == [(0, 1), (0, 2), (1, 0), (2, 0), (3, 0)]
+    assert all(w["updateCells"]["fields"] == "userEnteredFormat.textFormat.bold" for w in writes)
+
+
+def test_apply_refuses_success_when_bold_readback_differs(tmp_path):
+    config, sources = config_and_sources()
+    config["backup_path"] = str(tmp_path / "backup.json")
+    class BadBoldSession(SheetsSession):
+        def post(self, *args, **kwargs):
+            response = super().post(*args, **kwargs)
+            self.bold.clear()
+            return response
+    with pytest.raises(ValueError, match="bold formatting read-back differs"):
+        apply_plan("spreadsheet", build_schedule_plan(sources, config).values, access_token="mock", config=config, session=BadBoldSession(config))
+
+
+def test_asset_tables_group_opening_by_ledger_and_keep_individual_calculations():
+    config, sources = config_and_sources()
+    record = asset() | {"asset_purchase_date": "2024-10-01", "depreciation_start_date": "2024-10-01"}
+    rows = history()
+    rows[0]["valuation_date"] = "2024-10-01"
+    rows[1]["valuation_date"] = "2025-03-31"
+    sources["assets"] = [{"asset": record, "history": rows},
+                         {"asset": record | {"fixed_asset_id": "second", "asset_name": "Second"}, "history": rows}]
+    plan = build_schedule_plan(sources, config)
+    table = next(rows for address, rows in plan.values.items() if address.startswith("'Assets & Depreciation'!"))
+    assert table[3] == ["Machine", "Machinery", 925.21]
+    assert table[4] == ["Second", "Machinery", 925.21]
+    assert table[5] == ["Subtotal", "Machinery", "=SUM(C4:C5)"]
+    assert table[6] == ["Total", "", "=SUM(C6)"]
+    assert len([row for row in table if row and str(row[0]).startswith("Table ")]) == 2
+    r, summary = next((i + 1, row) for i, row in enumerate(table) if row and row[0] == "Machinery")
+    assert summary[1] == "=C6"
+    assert summary[4] == f"=SUM(B{r}:D{r})"
+    assert "C4" in summary[7] and "C5" in summary[7] and summary[7].count("ROUND(") == 2
+    assert summary[6] == f"=E{r}-F{r}"
+    assert summary[11] == 0.15
+
+
+@pytest.mark.parametrize("field", ["asset_account_id", "asset_account_name"])
+def test_asset_grouping_refuses_missing_ledger_account(field):
+    config, sources = config_and_sources()
+    record = asset()
+    record.pop(field)
+    sources["assets"] = [{"asset": record, "history": history()}]
+    with pytest.raises(ValueError, match="Missing ledger account"):
+        build_schedule_plan(sources, config)
+
+
+def test_asset_expense_uses_posted_values_and_reconciles_to_pnl():
+    config, sources = config_and_sources()
+    sources["assets"] = [{"asset": asset(), "history": history()}]
+    plan = build_schedule_plan(sources, config)
+    rows = next(v for a, v in plan.values.items() if a.startswith("'Assets & Depreciation'!"))
+    r, detail = next((i + 1, row) for i, row in enumerate(rows) if row and row[0] == "Machinery")
+    assert detail[5] == float(plan.asset_checks["fy2025-26"][0].posted)
+    assert detail[6] == f"=E{r}-F{r}"
+    assert detail[7].startswith("=SUM(ROUND(")
+    assert next(row for row in rows if row and row[0] == "P&L depreciation expense")[5] == "='Profit and Loss'!C12"
+
+
+def test_asset_ledger_override_moves_subtotal_without_changing_register():
+    config, sources = config_and_sources()
+    sources["assets"] = [{"asset": asset() | {"asset_account_name": "Wrong ledger"}, "history": history()}]
+    before = build_schedule_plan(sources, config)
+    config["asset_ledger_overrides"] = {"asset": {"account_id": "correct", "account_name": "Machinery"}}
+    after = build_schedule_plan(sources, config)
+    assert after.checks == before.checks
+    assert after.asset_checks == before.asset_checks
+    rows = next(v for a, v in after.values.items() if a.startswith("'Assets & Depreciation'!"))
+    assert ["Machine", "Machinery", 0.0] in rows
+    assert not any("Wrong ledger" in r for r in rows)
+
+
+def test_opening_reclassification_preserves_total_basis_and_depreciation():
+    config, sources = config_and_sources()
+    record = asset() | {"asset_purchase_date": "2025-04-01", "depreciation_start_date": "2025-04-01"}
+    rows = history()
+    rows[0]["valuation_date"] = "2025-04-01"
+    sources["assets"] = [{"asset": record, "history": rows}]
+    before = build_schedule_plan(sources, config)
+    config["asset_opening_reclassifications"] = {"asset": 1000}
+    after = build_schedule_plan(sources, config)
+    original = before.asset_checks["fy2025-26"][0]
+    corrected = after.asset_checks["fy2025-26"][0]
+    assert corrected.opening == 1000 and corrected.before_cutoff == 0
+    assert corrected.calculated == original.calculated
+    assert corrected.posted == original.posted
+    assert corrected.closing == original.closing
+    assert after.checks == before.checks
+
+
+def test_ledger_only_asset_is_visible_without_invented_depreciation():
+    config, sources = config_and_sources()
+    config["ledger_only_assets"] = [{"name": "Bike", "account_id": "id6", "account_name": "Vehicles"}]
+    plan = build_schedule_plan(sources, config)
+    rows = next(v for a, v in plan.values.items() if a.startswith("'Assets & Depreciation'!"))
+    assert ["Bike", "Vehicles", 100.0] in rows
+    summary = next(r for r in rows if r and r[0] == "Vehicles")
+    assert summary[5] == summary[7] == ""
+    assert summary[6] == summary[9] == 100.0
+    assert any("ledger-only asset" in w for w in plan.warnings)
+    config["ledger_only_assets"][0]["account_id"] = "missing"
+    with pytest.raises(ValueError, match="Missing ledger-only"):
+        build_schedule_plan(sources, config)
+
+
+def test_ledger_opening_uses_prior_year_balances_and_preserves_basis():
+    config, sources = config_and_sources()
+    record = asset() | {"asset_account_id": "id6", "asset_account_name": "Account6",
+                        "asset_purchase_date": "2025-04-01", "depreciation_start_date": "2025-04-01"}
+    rows = history()
+    rows[0]["valuation_date"] = "2025-04-01"
+    sources["assets"] = [{"asset": record, "history": rows}]
+    config["asset_opening_source"] = "ledger"
+    plan = build_schedule_plan(sources, config)
+    result = plan.asset_checks["fy2025-26"][0]
+    assert result.opening == 100 and result.before_cutoff == 900
+    table = next(v for a, v in plan.values.items() if a.startswith("'Assets & Depreciation'!"))
+    assert ["Machine", "Account6", 100.0] in table
+    sources["assets"].append({"asset": record | {"fixed_asset_id": "second"}, "history": rows})
+    with pytest.raises(ValueError, match="reviewed asset allocation"):
+        build_schedule_plan(sources, config)
+
+
+def test_ledger_opening_refuses_duplicate_accumulated_depreciation_assignment():
+    config, sources = config_and_sources()
+    config["asset_opening_source"] = "ledger"
+    config["asset_accumulated_depreciation_accounts"] = {"id6": ["dep"], "other": ["dep"]}
+    with pytest.raises(ValueError, match="assigned twice"):
+        build_schedule_plan(sources, config)

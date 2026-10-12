@@ -43,6 +43,7 @@ def cell_data(value: Any, *, literal: bool) -> dict[str, Any]:
 
 def update_requests(values: dict[str, list[list[Any]]], config: dict[str, Any]) -> list[dict[str, Any]]:
     result = []
+    asset_summary = False
     for address, rows in values.items():
         title, first_row, first_col, end_row, end_col = grid_address(address)
         key = next(k for k, name in config["sheets"].items() if name == title)
@@ -52,10 +53,13 @@ def update_requests(values: dict[str, list[list[Any]]], config: dict[str, Any]) 
         for row in rows:
             if len(row) > end_col - first_col:
                 raise ValueError("Row is wider than target range")
+            if key == "assets" and row and str(row[0]).startswith("Table 2:"):
+                asset_summary = True
             padded = row + [""] * (end_col - first_col - len(row))
             grid_rows.append({"values": [cell_data(value, literal=(
                 (key == "notes" and c + first_col == 0) or
-                (key == "assets" and c + first_col in (0, 4, 13, 14))))
+                (key == "assets" and (c + first_col == 0 or (not asset_summary and c + first_col == 1) or
+                                       (asset_summary and c + first_col == 11 and isinstance(value, str))))))
                 for c, value in enumerate(padded)]})
         result.append({"updateCells": {"range": {
             "sheetId": config["sheet_ids"][key], "startRowIndex": first_row, "endRowIndex": end_row,
@@ -69,7 +73,7 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
     """Verify target layout, snapshot prior cells, batch write and read back formulas.
 
     Only configured note/asset rectangles and statement detail cells are managed.
-    Formatting, validation, and main statement subtotal formulas are preserved.
+    Only note headings are bold; other formatting and validation are preserved.
     """
     if not re.fullmatch(r"[A-Za-z0-9_-]+", spreadsheet_id) or not access_token:
         raise ValueError("A Google spreadsheet ID and edit token are required")
@@ -115,7 +119,7 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
     # Check native validation and formulas before writing, including destinations
     # whose displayed plain values can conceal validation constraints.
     native = session.get(base, headers=headers, params={"ranges": list(values), "includeGridData": "true",
-        "fields": "sheets(properties(title),data(startRow,startColumn,rowData(values(userEnteredValue,dataValidation))))"}, timeout=30)
+        "fields": "sheets(properties(title),data(startRow,startColumn,rowData(values(userEnteredValue,dataValidation,userEnteredFormat(textFormat),effectiveFormat(textFormat)))))"}, timeout=30)
     native.raise_for_status()
     if {s["properties"]["title"] for s in native.json().get("sheets", [])} != set(config["sheets"].values()):
         raise ValueError("Native cell metadata read is incomplete")
@@ -124,6 +128,8 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
             for row in grid.get("rowData", []):
                 if any(cell.get("dataValidation") for cell in row.get("values", [])):
                     raise ValueError("Managed target contains data validation; review it before apply")
+    requests_body = changed_update_requests(requests_body, native.json(), config)
+    requests_body += note_bold_requests(values, native.json(), config)
     read = session.get(base + "/values:batchGet", headers=headers,
                        params={"ranges": list(values), "valueRenderOption": "FORMULA"}, timeout=30)
     read.raise_for_status()
@@ -140,14 +146,22 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
             source_col = "B" if col == 2 else "C"
             managed_note_link = is_note_target and isinstance(existing, str) and re.fullmatch(
                 re.escape(note_prefix + source_col) + r"[1-9]\d*", existing)
-            if isinstance(existing, str) and existing.startswith("=") and existing != values[address][0][0] and not managed_note_link:
+            rollforward = config.get("inventory_rollforward")
+            purchases = next((n for n in config["notes"] if rollforward and n["number"] == rollforward["purchases_note"]), None)
+            is_movement_target = any(d.get("inventory_changes") and config["sheets"][d["statement"]] == title
+                                     and d["row"] == row + 1 for d in config["direct_inputs"])
+            statement_col = "C" if col == 2 else "D"
+            managed_movement_link = bool(purchases and is_movement_target and isinstance(existing, str) and re.fullmatch(
+                re.escape(note_prefix + source_col) + r"[1-9]\d*" + re.escape(f"-{statement_col}{purchases['statement_row']}"), existing))
+            if isinstance(existing, str) and existing.startswith("=") and existing != values[address][0][0] and not (managed_note_link or managed_movement_link):
                 raise ValueError(f"Unexpected existing formula in {address}")
     # The runner supplies an output path checked before any network call.
     snapshot = Path(config["backup_path"])
-    snapshot.write_text(json.dumps(read.json(), indent=2), encoding="utf-8")
-    write = session.post(base + ":batchUpdate", headers=headers,
-                         json={"requests": requests_body}, timeout=30)
-    write.raise_for_status()
+    snapshot.write_text(json.dumps({**read.json(), "native_cells": native.json()}, indent=2), encoding="utf-8")
+    if requests_body:
+        write = session.post(base + ":batchUpdate", headers=headers,
+                             json={"requests": requests_body}, timeout=30)
+        write.raise_for_status()
     verify = session.get(base + "/values:batchGet", headers=headers,
                          params={"ranges": list(values), "valueRenderOption": "FORMULA"}, timeout=30)
     verify.raise_for_status()
@@ -168,6 +182,82 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
         for row in entry.get("values", []):
             if any(isinstance(value, str) and value.startswith(("#REF!", "#VALUE!", "#ERROR!", "#DIV/0!", "#NAME?", "#N/A")) for value in row):
                 raise ValueError("Google Sheets contains a formula error after update")
+    formatting = session.get(base, headers=headers, params={"ranges": [a for a in values if grid_address(a)[0] == config["sheets"]["notes"]],
+        "includeGridData": "true", "fields": "sheets(properties(title),data(startRow,startColumn,rowData(values(userEnteredFormat(textFormat),effectiveFormat(textFormat)))))"}, timeout=30)
+    formatting.raise_for_status()
+    if not any(s["properties"]["title"] == config["sheets"]["notes"] for s in formatting.json().get("sheets", [])):
+        raise ValueError("Google Sheets note formatting read-back is incomplete")
+    if note_bold_requests(values, formatting.json(), config):
+        raise ValueError("Google Sheets note bold formatting read-back differs")
+
+
+def note_bold_requests(values: dict[str, list[list[Any]]], native: dict[str, Any],
+                       config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Change only bold in managed notes A:C, using the new heading positions."""
+    title = config["sheets"]["notes"]
+    existing = {}
+    for sheet in native.get("sheets", []):
+        if sheet["properties"]["title"] != title:
+            continue
+        for grid in sheet.get("data", []):
+            for r, row in enumerate(grid.get("rowData", []), grid.get("startRow", 0)):
+                for c, cell in enumerate(row.get("values", []), grid.get("startColumn", 0)):
+                    existing[r, c] = cell.get("effectiveFormat", {}).get("textFormat", {}).get("bold",
+                        cell.get("userEnteredFormat", {}).get("textFormat", {}).get("bold", False))
+    changes = []
+    for address, rows in values.items():
+        name, sr, sc, _, _ = grid_address(address)
+        if name != title:
+            continue
+        for offset, row in enumerate(rows):
+            bold = bool(row and isinstance(row[0], str) and re.match(r"^Note \d+:", row[0]))
+            for c in range(sc, sc + 3):
+                r = sr + offset
+                if existing.get((r, c), False) != bold:
+                    changes.append({"updateCells": {"range": {"sheetId": config["sheet_ids"]["notes"],
+                        "startRowIndex": r, "endRowIndex": r + 1, "startColumnIndex": c, "endColumnIndex": c + 1},
+                        "rows": [{"values": [{"userEnteredFormat": {"textFormat": {"bold": bold}}}]}],
+                        "fields": "userEnteredFormat.textFormat.bold"}})
+    return changes
+
+
+def changed_update_requests(requests_body: list[dict[str, Any]], native: dict[str, Any],
+                            config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Keep only changed entered values, batching adjacent changes within a row."""
+    existing = {}
+    for sheet in native["sheets"]:
+        title = sheet["properties"]["title"]
+        key = next(k for k, name in config["sheets"].items() if name == title)
+        sheet_id = config["sheet_ids"][key]
+        for grid in sheet.get("data", []):
+            for r, row in enumerate(grid.get("rowData", []), grid.get("startRow", 0)):
+                for c, cell in enumerate(row.get("values", []), grid.get("startColumn", 0)):
+                    existing[sheet_id, r, c] = cell.get("userEnteredValue", {})
+    changed = []
+    for request in requests_body:
+        update = request["updateCells"]
+        target = update["range"]
+        for offset, row in enumerate(update["rows"]):
+            r = target["startRowIndex"] + offset
+            run = []
+            start = target["startColumnIndex"]
+            def flush() -> None:
+                if run:
+                    changed.append({"updateCells": {"range": {
+                        "sheetId": target["sheetId"], "startRowIndex": r, "endRowIndex": r + 1,
+                        "startColumnIndex": start, "endColumnIndex": start + len(run)},
+                        "rows": [{"values": list(run)}], "fields": "userEnteredValue"}})
+                    run.clear()
+            for col_offset, cell in enumerate(row["values"]):
+                c = target["startColumnIndex"] + col_offset
+                if cell.get("userEnteredValue", {}) == existing.get((target["sheetId"], r, c), {}):
+                    flush()
+                else:
+                    if not run:
+                        start = c
+                    run.append(cell)
+            flush()
+    return changed
 
 
 def main(argv: list[str] | None = None) -> int:

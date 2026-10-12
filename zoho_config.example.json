@@ -105,6 +105,10 @@
         "bank_account_icici": "<bank-account-id>",
         "bank_account_idfc": "<bank-account-id>",
         "gstin_to_vendor_id": {}
+      },
+      "google": {
+        "google_sheets_access_token": "<google-sheets-oauth-access-token>",
+        "google_application_credentials": "<path-to-service-account-json>"
       }
     },
     "sandbox": {
