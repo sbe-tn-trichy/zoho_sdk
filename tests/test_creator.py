@@ -166,6 +166,16 @@ class TestCreatorCustomSDKFunctions(unittest.TestCase):
         self.client.get_records.assert_any_call("app_link", "report_link", params={"max_records": 1000})
         self.client.get_records.assert_any_call("app_link", "report_link", headers={"record_cursor": "cursor_token_abc"})
 
+    def test_get_all_records_preserves_all_fields_on_cursor_pages(self):
+        self.client.get_records.side_effect = [
+            {"data": [{"ID": "1", "Payment_ID": {"ID": "payment1"}}], "record_cursor": "cursor"},
+            {"data": [{"ID": "2", "Payment_ID": {"ID": "payment2"}}]},
+        ]
+        records = ZohoCreatorAPI.get_all_records(self.client, "app", "report", field_config="all")
+        self.assertEqual(records[1]["Payment_ID"]["ID"], "payment2")
+        self.client.get_records.assert_any_call("app", "report", params={"max_records": 1000, "field_config": "all"})
+        self.client.get_records.assert_any_call("app", "report", headers={"record_cursor": "cursor"}, params={"field_config": "all"})
+
     def test_add_records_bulk(self):
         records = [{"Name": f"User {i}"} for i in range(500)]
         self.client.add_records.return_value = {"code": 3000, "message": "success"}

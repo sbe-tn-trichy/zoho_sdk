@@ -165,14 +165,34 @@ In the production bank feed and Finder view, `debit` means deposit and
 `credit` means withdrawal. The `/TA` expense proposal applies only to credit
 lines.
 
-The review dropdown includes **Expenses**, which shows only TA expense proposals
-and hides the Creator payment table and bulk payment controls. Search still
-applies to the expense rows. Other dropdown choices restore the payment table
-and the full other-bank-lines list; **Ready for review** remains payment-only.
-Expense rows have individual checkboxes, a select-all-visible control, and
-**Categorize selected expenses**. One confirmation posts selected TA withdrawals
-sequentially through the existing live validation endpoint. Successful rows are
-deselected; failures remain selected for retry and are reported individually.
+The review interface uses three independent dropdowns: **Bank / Creator**,
+**Expenses / Vendor Payments / Customer Payments / Cash Transfers**, and
+**Ready for review / Ambiguous / No Match**. Defaults are Bank, Customer
+Payments, and Ready for review. Creator supplies customer payments only;
+other Creator categories show an explicit empty state. **Bank** uses the full
+Books `Status.Uncategorized` statement snapshot, with one row per bank line.
+Each customer line lists the pending Creator records matching its bank date,
+amount, and reference rules, including date-and-amount reference mismatches.
+Independent comparisons retain competing Creator records even if the posting
+queue has reserved that line for one proposal. A single fully reviewable Creator
+proposal is Ready for review; competing, reference-mismatched, or blocked
+proposals are Ambiguous; no Creator match is No Match. Analytics customer hints
+remain supplementary and do not turn a missing Creator match into a ready one.
+Expense, vendor advance, and cash-transfer proposals are ready for category
+review through their existing confirmed actions. **Creator** uses pending
+payments whose `Books_Transaction_Id` is blank and compares each with bank
+candidates. Missing candidates appear under No Match. Older saved queues lacking
+the complete `bank_records` snapshot require a live refresh before Bank can show
+its source; the UI explains this instead of reconstructing an incomplete feed.
+Completed entries are excluded from these pending review queues.
+Rows sort oldest-first by bank statement date for Bank and displayed Creator
+payment/cheque date for Creator, across all matching states. Missing or invalid
+dates appear last; equal dates retain source order.
+Search and select-all apply to the visible source, category, and match status.
+Changing a dropdown clears bulk selections. Expenses, vendor advances, and cash transfers provide row checkboxes,
+select-all-visible, and sequential confirmed bulk categorization. The confirmation
+lists each amount, bank, date, and proposed expense/vendor/transfer action; failed rows remain selected for retry. Individual confirmation and
+fresh posting validation remain required.
 
 `apps/payment_review.py` serves a loopback-only review queue for the
 production Creator `Online_Payments` report. It maps `Payment_Amount`,
@@ -201,13 +221,8 @@ A targeted lookup is also re-executed immediately before a push so a stale previ
 cannot authorize a payment.
 The review app uses the separate Analytics organization ID from
 `ANALYTICS_ORG_ID`; its default corresponds to the configured Finder view.
-The browser UI has a default Bank statement tab with bank columns first and
-only payments with bank candidates, plus the other bank categorization queue.
-The Creator records tab puts Creator columns first and includes payments without
-bank candidates. Both payment views group unique proposed bank matches separately
-from unmatched records, including ambiguous and reference-mismatch candidates.
-A proposed match is not a completed posting; existing status and confirmation
-controls still govern acceptance. Search and status filters apply within each tab.
+The Bank source puts bank columns first; Creator puts Creator columns first.
+Both retain proposed bank and Creator values side by side.
 The browser UI presents Creator and bank values side by side. Rejection changes
 only the atomic local state file. `Accept & Push` revalidates that the bank line
 is still uncategorized and refreshes the customer's open Books invoices. The
@@ -235,7 +250,7 @@ available, plus date, amount, and reference. Suggestions are informational and
 do not select a bank line automatically.
 
 When date and amount agree but the reference predicate fails, the queue retains
-the bank lines under a separate `Possible matches` filter. This exposes likely
+the bank lines under the `Ambiguous` match status. This exposes likely
 reference-data problems for human review. A reviewer can explicitly select one
 candidate and confirm the reference override. Immediately before posting, the
 workflow verifies that the selected line remains uncategorized in the same bank
@@ -267,19 +282,29 @@ Only source records whose configured Books transaction ID field (normally
 `Books_Transaction_Id`) is missing, null or blank are proposed. The default
 **Pending Creator payments** view retains every pending record, including records
 without a bank candidate, displayed as **Not available**. Multiple matches and
-reference-mismatch candidates remain visible for review. Completed local
-checkpoints remain available through the pushed filter rather than the default
-pending view.
+reference-mismatch candidates remain visible for review. Completed local checkpoints remain in the saved queue and are excluded from
+the three pending match-status views.
 The two source reports, cheque-detail report, customer lookup report, and
 canonical checkpoint report are selected through the
 grouped `PAYMENT_CREATOR_REPORTS` runtime configuration, whose defaults retain
 these production link names.
 Online rows use `Payment_Date` and Books mode `banktransfer`; cheque rows use
-`All_Cheque_Details.Presented_Date` and Books mode `check`. The detail row is
-joined to `Cheques` by normalized cheque number plus customer; the join must be
-unique and the presented date must be populated. This prevents a cheque that
-has not yet been presented from matching merely because its issue date is up
-to 90 days old. Each entry retains its source report so the final
+`All_Cheque_Details.Presented_Date` when available and Books mode `check`.
+Presentation is optional: a missing detail or blank presented date falls back
+to `Cheque_Date`, labelled in the UI. Multiple matching detail rows still block
+matching, and a missing or invalid date remains non-reviewable. The existing
+seven-day clearing window applies; when using the cheque date, bank dates before
+that date are excluded in both preview and pre-post validation. For cheques, the selected bank date is the Books payment date and the
+Presented_Date checkpoint; the original cheque date remains the matching anchor
+when presentation is absent. After bank matching, the approved push reuses or
+creates a Cheque_Details record linked by Payment_ID, saves the bank date, and
+reads it back before completing the All_Payments checkpoint. Cheque-detail
+checkpoint reads request `field_config="all"`, including cursor pages, because
+the default report omits the Payment_ID lookup needed for identity verification. Retries reuse the
+existing detail and Books payment; duplicate details and cheque-number conflicts
+block the checkpoint. Preview refresh never writes a presentation record.
+
+Each entry retains its source report so the final
 `Books_Transaction_Id` checkpoint is written through the correct Creator
 record via the canonical `All_Payments` report. The workflow validates the
 Creator response and reads the record back with all fields before marking the
@@ -289,7 +314,7 @@ Creator `PaymentNo` (`Payment#`) field. A failed Creator checkpoint retains the 
 `bank_matched` stage, so retry reuses the existing Books payment and only
 retries the Creator write. The UI shows the payment type separately from the bank name. Online
 matching remains same-day by default. Cheque matching allows a seven-day bank
-clearing window from the presented date while requiring an exact amount and a
+clearing window from the presented date or fallback cheque date while requiring an exact amount and a
 match on the final four digits of the cheque number. The final-four comparison
 examines each numeric run in the bank reference and narration, so clearing-date
 digits cannot hide the cheque number.

@@ -1,6 +1,52 @@
 # Knowledge Change Log
 
+## 2026-10-14
+
+- Added bulk bank-line selection for vendor advances and cash transfers using per-row validated categorization, detailed confirmation, and retry retention for failures.
+
+
+- Requested full Creator cheque-detail fields during checkpoint verification and cursor pagination so saved Payment_ID lookups can be verified and reused on retry.
+
+
+- Sorted Bank and Creator review rows by source date ascending, with missing dates last and stable ordering for ties.
+
+
+- Used the bank clearing date for cheque Books payments and added verified, retryable Creator Cheque_Details presentation checkpoints after approved bank matching.
+
+
+- Made cheque presentation optional for bank matching, falling back to Cheque_Date within the clearing window and retaining ambiguity and posting validation guards.
+
+
+- Made Bank review use every uncategorized Books source line with independent Creator comparisons; retained competing Creator claims and separated Analytics hints from Creator match status.
+
+
+- Replaced bank categorization tabs and mixed filters with source, category, and match-status dropdowns; selection controls follow the visible queue.
+
 ## 2026-10-13
+
+- Documented Analytics business-function folder ownership, single-view move
+  requests, live placement verification and cache freshness after folder moves.
+
+- NCE presents Interest Expense under Finance Costs through Note 16, preserving
+  both years' total expenses and existing interest checkbox label lookups.
+
+- Other Expenses notes sort GST-suffixed accounts first, alphabetically within
+  each group, without changing amounts or note totals.
+
+- Mapped audited Other Expenses to unlisted Note 15 expense accounts, excluding
+  accounts covered by other audited comparisons and preserving source amounts.
+
+- Reviewed asset opening rows can pin their ledger account ID, with scope-aware
+  verification and visible preview mapping evidence.
+
+- NCE reviewed assets now append FY acquisitions with posted depreciation and
+  purchase dates, using explicit opening asset IDs to prevent duplicate imports.
+
+- NCE preview now shows the reviewed depreciation statement in sheet column
+  order with calculated totals and closing values.
+
+- Adapted NCE assets to the reviewed A:I depreciation statement with year-bound
+  inputs, formula totals, bounded writes and independent accounting comparisons.
 
 - Combined the two employee support/travel expenses into the salaries note group;
   the checkbox uses the resulting combined row to avoid double counting.

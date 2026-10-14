@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
+from decimal import Decimal
 import json
 import os
 from pathlib import Path
@@ -43,7 +44,7 @@ def cell_data(value: Any, *, literal: bool) -> dict[str, Any]:
 
 def update_requests(values: dict[str, list[list[Any]]], config: dict[str, Any]) -> list[dict[str, Any]]:
     result = []
-    asset_summary = False
+    asset_summary = config.get("asset_layout") == "reviewed_statement"
     for address, rows in values.items():
         title, first_row, first_col, end_row, end_col = grid_address(address)
         key = next(k for k, name in config["sheets"].items() if name == title)
@@ -88,7 +89,7 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
     values = {key: [list(row) for row in rows] for key, rows in values.items()}
     # Read the configured managed blocks to remove stale generated rows on rerun.
     managed = {}
-    for key, last_column in (("notes", "C"), ("assets", "O")):
+    for key, last_column in (("notes", "C"), ("assets", "I" if config.get("asset_layout") == "reviewed_statement" else "O")):
         title = config["sheets"][key]
         row_limit = min(sheets[title]["gridProperties"]["rowCount"], config.get("managed_row_limit", 500))
         managed[key] = "'" + title.replace("'", "''") + f"'!A1:{last_column}{row_limit}"
@@ -107,8 +108,8 @@ def apply_plan(spreadsheet_id: str, values: dict[str, list[list[Any]]], *,
         height = max(len(rows), len(entry.get("values", [])))
         if height > grid_address(managed[key])[3]:
             raise ValueError("Plan exceeds managed row limit or existing grid")
-        width = 3 if key == "notes" else 15
-        values["'" + title.replace("'", "''") + f"'!A1:{'C' if width == 3 else 'O'}{height}"] = rows + [[""] * width for _ in range(height - len(rows))]
+        width = grid_address(managed[key])[4]
+        values["'" + title.replace("'", "''") + f"'!A1:{chr(ord('A') + width - 1)}{height}"] = rows + [[""] * width for _ in range(height - len(rows))]
     checkbox_before = None
     if 'checkbox' in config['sheets']:
         title = config['sheets']['checkbox']
@@ -280,6 +281,38 @@ def changed_update_requests(requests_body: list[dict[str, Any]], native: dict[st
     return changed
 
 
+
+def asset_statement_preview(values: dict[str, list[list[Any]]], config: dict[str, Any]) -> list[str]:
+    """Show reviewed A:I output with calculated totals, without a Sheets write."""
+    if config.get("asset_layout") != "reviewed_statement":
+        return []
+    rows = next(rows for address, rows in values.items()
+                if grid_address(address)[0] == config["sheets"]["assets"])
+    headers = list(rows[1])
+    headers[2:4] = ["ADDITIONS Before 30/9", "ADDITIONS After 30/9"]
+    lines = ["", "## Assets & Depreciation — sheet output", "", rows[0][0], ""]
+    def cell(value: Any) -> str:
+        if isinstance(value, Decimal):
+            return f"{value:,.2f}"
+        return str(value).replace("|", "\\|").replace("\n", " ")
+    lines.extend(["| " + " | ".join(headers) + " |",
+                  "| " + " | ".join(["---"] + ["---:"] * 3 + ["---"] + ["---:"] * 4) + " |"])
+    totals = [Decimal(0)] * 9
+    for row in rows[3:-2]:
+        rendered = list(row)
+        for c in (1, 2, 3, 7):
+            rendered[c] = Decimal(str(row[c])) if row[c] != "" else Decimal(0)
+        rendered[5] = sum((rendered[c] for c in (1, 2, 3)), Decimal(0))
+        rendered[8] = rendered[5] - rendered[7]
+        for c in (1, 2, 3, 5, 7, 8):
+            totals[c] += rendered[c]
+        rendered[2:4] = [rendered[c] if row[c] != "" else "" for c in (2, 3)]
+        lines.append("| " + " | ".join(cell(v) for v in rendered) + " |")
+    total = ["Total"] + [totals[c] if c in (1, 2, 3, 5, 7, 8) else "" for c in range(1, 9)]
+    lines.append("| " + " | ".join(cell(v) for v in total) + " |")
+    return lines
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
@@ -314,12 +347,13 @@ def main(argv: list[str] | None = None) -> int:
                       "| --- | ---: | ---: | ---: | ---: | ---: |"])
         for label, check in plan.checks.items():
             lines.append(f"| {label} | {check['cogs']} | {check['opening_stock']} | {check['closing_stock']} | {check['net_purchases']} | {check['changes_in_inventories']} |")
+    lines.extend(asset_statement_preview(plan.values, config))
     lines.extend(["", "## Depreciation verification", "", "| FY | Asset | Calculated | Posted | Difference |", "| --- | --- | ---: | ---: | ---: |"])
     for label, checks in plan.asset_checks.items():
         for check in checks:
             lines.append(f"| {label} | {check.name.replace('|', '/')} | {check.calculated} | {check.posted} | {check.difference} |")
     lines.extend(["", "## Review observations", "", *["- " + warning for warning in plan.warnings]])
-    lines.extend(["", "Notes A:C and Assets & Depreciation A:O are managed blocks. Statement detail values link to note totals; existing statement subtotal formulas remain."])
+    lines.extend(["", "Configured note and asset ranges are managed blocks. Statement detail values link to note totals; existing statement subtotal formulas remain."])
     (output / "preview.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     if args.apply:
         config["backup_path"] = str(output / "sheet-before.json")

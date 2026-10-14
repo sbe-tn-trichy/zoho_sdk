@@ -78,9 +78,7 @@
     .accept { color: white; background: var(--green); }
     .reject { color: var(--red); background: #feeceb; }
     [hidden] { display: none !important; }
-    .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
-    .tabs button { background: #eaf1ff; color: var(--blue); }
-    .tabs button[aria-selected="true"] { background: var(--blue); color: white; }
+    .toolbar label { display: flex; align-items: center; gap: 6px; }
     .group td { background: #edf2f8; font-weight: 700; }
     .table-wrap {
       overflow: auto;
@@ -149,26 +147,21 @@
 </header>
 <main>
   <section class="summary" id="summary"></section>
-  <div class="tabs" role="tablist" aria-label="Primary records">
-    <button id="bankTab" role="tab" aria-selected="true" aria-controls="reviewPanel" onclick="setPrimaryView('bank')">1 · Bank statement</button>
-    <button id="creatorTab" role="tab" aria-selected="false" aria-controls="reviewPanel" onclick="setPrimaryView('creator')">2 · Creator records</button>
-  </div>
-  <section id="reviewPanel" role="tabpanel" aria-labelledby="bankTab">
+  <section id="reviewPanel" aria-label="Review records">
   <div class="toolbar">
-    <input id="search" placeholder="Search customer, reference, amount, or narration">
-    <select id="filter">
-      <option value="all">Pending records</option>
-      <option value="reviewable">Ready for review</option>
+    <label>Source <select id="source"><option value="bank">Bank</option><option value="creator">Creator</option></select></label>
+    <label>Category <select id="category">
       <option value="expenses">Expenses</option>
-      <option value="transfers">Cash transfers</option>
+      <option value="vendors">Vendor Payments</option>
+      <option value="customers" selected>Customer Payments</option>
+      <option value="transfers">Cash Transfers</option>
+    </select></label>
+    <label>Match status <select id="filter">
+      <option value="reviewable">Ready for review</option>
       <option value="ambiguous">Ambiguous</option>
-      <option value="possible">Possible matches</option>
-      <option value="unmatched">Unmatched</option>
-      <option value="pending">Pending</option>
-      <option value="pushed">Pushed</option>
-      <option value="rejected">Rejected</option>
-      <option value="failed">Failed</option>
-    </select>
+      <option value="unmatched">No Match</option>
+    </select></label>
+    <input id="search" placeholder="Search customer, reference, amount, or narration">
     <button class="select" id="selectReady">Select all ready</button>
     <button class="accept" id="acceptSelected" disabled>Accept selected &amp; Push</button>
     <span class="muted" id="selectedCount">0 selected</span>
@@ -196,17 +189,19 @@
       <tbody id="rows"></tbody>
     </table>
   </div>
+  <p id="sourceWarning" class="warning" hidden>Refresh live data to load the complete uncategorized bank statement source.</p>
+  <p id="emptyCategory" class="muted" hidden>No Creator records are available for this category.</p>
   <section id="otherBankLines">
   <h2 id="bankLinesTitle">Other uncategorized bank lines</h2>
   <p class="muted">Review TA and Salary withdrawals as expenses. CASH DEPOSIT is a transfer from Cash-SBE to the originating bank. Every categorization requires approval.</p>
   <div class="toolbar">
-    <button class="select" id="selectExpenses">Select all visible expenses</button>
-    <button class="accept" id="categorizeSelectedExpenses" disabled>Categorize selected expenses</button>
-    <span class="muted" id="expenseSelectedCount">0 expenses selected</span>
+    <button class="select" id="selectBankLines">Select all visible records</button>
+    <button class="accept" id="categorizeSelectedBankLines" disabled>Categorize selected records</button>
+    <span class="muted" id="bankSelectedCount">0 selected</span>
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th><input type="checkbox" id="selectVisibleExpenses" title="Select all visible expenses"></th><th>Bank</th><th>Date</th><th>Amount</th><th>Description</th><th>Suggestion</th><th>Action</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="selectVisibleBankLines" title="Select all visible records"></th><th>Bank</th><th>Date</th><th>Amount</th><th>Description</th><th>Creator comparison / proposal</th><th>Action</th></tr></thead>
       <tbody id="bankRows"></tbody>
     </table>
   </div>
@@ -218,21 +213,16 @@
 <script>
   const token = document.querySelector('meta[name="review-token"]').content;
   let batch = { entries: [] }, selected = new Set(), candidateSelections = new Map();
-  const selectedExpenses = new Set();
-  let expensesBusy = false;
-  let primaryView = 'bank';
+  const selectedBankLines = new Set();
+  let bankLinesBusy = false;
   const creatorHeaders = ['Status', 'Type', 'Payment / presented date', 'Customer', 'Bank', 'Amount', 'Reference', 'Proposed bank line', 'Invoice allocation', 'Match result', 'Actions'];
   const bankColumnOrder = [0, 5, 8, 1, 2, 3, 4, 6, 7, 9, 10, 11];
-  function setPrimaryView(view) {
-    primaryView = view;
-    render();
-  }
   function groupHeading(label, count, columns) {
     return `<tr class="group"><td colspan="${columns}">${esc(label)} · ${count}</td></tr>`;
   }
   const hasBankCandidate = e => Boolean(e.bank || (e.ambiguous_candidates || []).length || (e.possible_candidates || []).length);
 
-  const expenseEligible = row => ['travel_allowance', 'salary'].includes(row.kind) && row.categorization_status !== 'categorized';
+  const bankLineEligible = row => ['travel_allowance', 'salary', 'vendor_advance', 'cash_deposit'].includes(row.kind) && row.categorization_status !== 'categorized';
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = v => {
     const n = Number(String(v ?? '').replaceAll(',', ''));
@@ -277,7 +267,8 @@
     if (!rows.length) return `<span class="muted">${esc(e.allocation_error || 'No allocation recorded')}</span>`;
     const detail = rows.map(a => `<div><strong>${esc(a.invoice_number || a.invoice_id)}</strong> · ${money(a.amount_applied)}<div class="muted">Due ${esc(a.due_date || 'not set')} · balance ${money(a.balance)}</div></div>`).join('');
     const excess = Number(e.unallocated_amount || 0) > 0 ? `<div class="warning">${money(e.unallocated_amount)} will remain unused (invoice balances exhausted)</div>` : '';
-    return detail + excess;
+    const clearing = e.payment_type?.toLowerCase() === 'cheque' && e.bank ? `<div class="muted">Presented / Books payment date: ${esc(e.bank.date)}</div>` : '';
+    return clearing + detail + excess;
   }
 
   function notify(message, bad = false) {
@@ -307,35 +298,25 @@
       ['Rejected', counts.rejected]
     ].map(x => `<div class="card"><span>${x[0]}</span><strong>${x[1]}</strong></div>`).join('');
 
-    const q = document.getElementById('search').value.toLowerCase(), filter = document.getElementById('filter').value;
-    const bankPrimary = primaryView === 'bank';
-    for (const view of ['bank', 'creator']) {
-      document.getElementById(view + 'Tab').setAttribute('aria-selected', String(primaryView === view));
-    }
-    document.getElementById('reviewPanel').setAttribute('aria-labelledby', primaryView + 'Tab');
+    const bankPrimary = document.getElementById('source').value === 'bank';
+    const category = document.getElementById('category').value;
+    const customersOnly = category === 'customers';
     document.getElementById('otherBankLines').hidden = !bankPrimary;
     const headerCells = [`<th><input type="checkbox" id="selectVisible" title="Select all visible ready matches"></th>`, ...creatorHeaders.map(h => `<th>${esc(h)}</th>`)];
     document.getElementById('paymentHeaders').innerHTML = (bankPrimary ? bankColumnOrder.map(i => headerCells[i]) : headerCells).join('');
     document.getElementById('selectVisible').onchange = e => toggleVisible(e.target.checked);
-    const expensesOnly = filter === 'expenses';
-    const transfersOnly = filter === 'transfers';
-    document.getElementById('paymentTable').hidden = expensesOnly || transfersOnly;
+    document.getElementById('paymentTable').hidden = bankPrimary || !customersOnly;
     for (const id of ['selectReady', 'acceptSelected', 'selectedCount']) {
-      document.getElementById(id).hidden = expensesOnly || transfersOnly;
+      document.getElementById(id).hidden = bankPrimary || !customersOnly;
     }
-    document.getElementById('bankLinesTitle').textContent = expensesOnly ? 'Expenses' : transfersOnly ? 'Cash transfers' : 'Unmatched bank statement records';
-    const shown = entries.filter(e => {
-      if (bankPrimary && !hasBankCandidate(e)) return false;
-      const s = state(e), hay = JSON.stringify(e).toLowerCase();
-      return (!q || hay.includes(q)) && (
-        (filter === 'all' && s !== 'pushed' && !e.archived) ||
-        (filter === 'reviewable' && e.reviewable && s !== 'pushed') ||
-        (filter === 'ambiguous' && isAmbiguous(e)) ||
-        (filter === 'possible' && isPossible(e)) ||
-        (filter === 'unmatched' && !e.reviewable) ||
-        s === filter
-      );
-    });
+    for (const id of ['selectBankLines', 'categorizeSelectedBankLines', 'bankSelectedCount', 'selectVisibleBankLines']) {
+      document.getElementById(id).hidden = customersOnly;
+    }
+    document.getElementById('bankLinesTitle').textContent = document.getElementById('category').selectedOptions?.[0]?.textContent || category;
+    document.querySelector('#otherBankLines p').textContent = 'Review proposals before categorizing. Every posting requires confirmation.';
+    document.getElementById('emptyCategory').hidden = bankPrimary || customersOnly;
+    document.getElementById('sourceWarning').hidden = !bankPrimary || Boolean(batch.bank_records);
+    const shown = visiblePayments();
 
     for (const id of [...selected]) {
       const e = entries.find(x => x.id === id);
@@ -348,7 +329,7 @@
         <td><input type="checkbox" aria-label="Select payment" ${selected.has(e.id) ? 'checked' : ''} ${eligible(e) ? '' : 'disabled'} onchange="toggleEntry('${esc(e.id)}',this.checked)"></td>
         <td><span class="badge ${esc(s)}">${esc(s)}</span>${e.push_status && e.push_status !== 'not_started' && e.push_status !== s ? `<div class="muted">${esc(e.push_status)}</div>` : ''}${e.error ? `<div class="error">${esc(e.error)}</div>` : ''}</td>
         <td><span class="badge">${esc(e.payment_type || 'Online')}</span></td>
-        <td>${esc(c.date)}<div class="muted">${esc(c.payment_id)}</div></td>
+        <td>${esc(c.date)}${c.date_source === 'cheque_date' ? '<div class="muted">Cheque date (no presentation recorded)</div>' : ''}<div class="muted">${esc(c.payment_id)}</div></td>
         <td>${esc(c.customer_name) || '<span class="muted">Unknown</span>'}</td>
         <td><strong>${esc(e.bank_name) || '<span class="muted">—</span>'}</strong></td>
         <td class="money">${money(c.amount)}</td>
@@ -366,60 +347,58 @@
       const cells = markup.match(/<td[\s\S]*?<\/td>/g);
       return bankPrimary ? `<tr>${bankColumnOrder.map(i => cells[i]).join('')}</tr>` : markup;
     };
-    const matched = shown.filter(e => Boolean(e.bank));
-    const unmatched = shown.filter(e => !e.bank);
     document.getElementById('rows').innerHTML =
-      groupHeading('Matched records (proposed bank match)', matched.length, 12) + matched.map(paymentRow).join('') +
-      groupHeading('Unmatched records (includes ambiguous and possible matches)', unmatched.length, 12) + unmatched.map(paymentRow).join('');
+      groupHeading('Creator payment records', shown.length, 12) + shown.map(paymentRow).join('');
 
     const visibleEligible = shown.filter(eligible);
     document.getElementById('selectVisible').checked = visibleEligible.length > 0 && visibleEligible.every(e => selected.has(e.id));
     document.getElementById('selectedCount').textContent = `${selected.size} selected`;
     document.getElementById('acceptSelected').disabled = selected.size === 0;
-    const bankRows = (batch.bank_suggestions || []).filter(row =>
-      (!expensesOnly || ['travel_allowance', 'salary'].includes(row.kind)) && (!transfersOnly || row.kind === 'cash_deposit') &&
-      (!q || JSON.stringify(row).toLowerCase().includes(q))
-    );
-    const expenseIds = new Set((batch.bank_suggestions || []).filter(expenseEligible).map(row => String(row.transaction_id)));
-    for (const id of selectedExpenses) if (!expenseIds.has(id)) selectedExpenses.delete(id);
-    const visibleExpenses = bankRows.filter(expenseEligible);
-    document.getElementById('selectVisibleExpenses').checked = visibleExpenses.length > 0 && visibleExpenses.every(row => selectedExpenses.has(String(row.transaction_id)));
-    document.getElementById('selectVisibleExpenses').disabled = expensesBusy || !visibleExpenses.length;
-    document.getElementById('selectExpenses').disabled = expensesBusy || !visibleExpenses.length;
-    document.getElementById('categorizeSelectedExpenses').disabled = expensesBusy || !selectedExpenses.size;
-    document.getElementById('expenseSelectedCount').textContent = `${selectedExpenses.size} expenses selected`;
+    const bankRows = visibleBankRows();
+    const bankLineIds = new Set(bankSourceRows().filter(bankLineEligible).map(row => String(row.transaction_id)));
+    for (const id of selectedBankLines) if (!bankLineIds.has(id)) selectedBankLines.delete(id);
+    const visibleBankLines = bankRows.filter(bankLineEligible);
+    document.getElementById('selectVisibleBankLines').checked = visibleBankLines.length > 0 && visibleBankLines.every(row => selectedBankLines.has(String(row.transaction_id)));
+    document.getElementById('selectVisibleBankLines').disabled = bankLinesBusy || !visibleBankLines.length;
+    document.getElementById('selectBankLines').disabled = bankLinesBusy || !visibleBankLines.length;
+    document.getElementById('categorizeSelectedBankLines').disabled = bankLinesBusy || !selectedBankLines.size;
+    document.getElementById('bankSelectedCount').textContent = `${selectedBankLines.size} selected`;
     document.getElementById('bankRows').innerHTML = groupHeading('Unmatched bank records / other categorizations', bankRows.length, 7) + (bankRows.map(row => `<tr>
-      <td>${expenseEligible(row) ? `<input type="checkbox" aria-label="Select expense" data-transaction-id="${esc(row.transaction_id)}" ${selectedExpenses.has(String(row.transaction_id)) ? 'checked' : ''} ${expensesBusy ? 'disabled' : ''} onchange="toggleExpense(this.dataset.transactionId,this.checked)">` : ''}</td>
+      <td>${bankLineEligible(row) ? `<input type="checkbox" aria-label="Select bank line" data-transaction-id="${esc(row.transaction_id)}" ${selectedBankLines.has(String(row.transaction_id)) ? 'checked' : ''} ${bankLinesBusy ? 'disabled' : ''} onchange="toggleBankLine(this.dataset.transactionId,this.checked)">` : ''}</td>
       <td>${esc(row.bank_name)}</td><td>${esc(row.date)}</td><td class="money">${money(row.amount)}</td>
       <td>${esc(row.description)}</td>
-      <td>${['travel_allowance', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.kind === 'vendor_advance' ? `Vendor advance: ${esc(row.vendor_name)} · Branch: ${esc(row.location_name)}` : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
-      <td>${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'salary', 'cash_deposit', 'vendor_advance'].includes(row.kind) ? `<button class="accept" ${expensesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : row.kind === 'vendor_advance' ? 'Categorize vendor advance' : 'Categorize expense'}</button>` : '<span class="muted">Review in Books</span>'}</td>
-    </tr>`).join('') || `<tr><td colspan="7" class="muted">${expensesOnly ? 'No expense proposals.' : 'No other uncategorized bank lines.'}</td></tr>`);
+      <td>${bankComparisonHtml(row)}${['travel_allowance', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.kind === 'vendor_advance' ? `Vendor advance: ${esc(row.vendor_name)} · Branch: ${esc(row.location_name)}` : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
+      <td>${bankPaymentAction(row)}${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'salary', 'cash_deposit', 'vendor_advance'].includes(row.kind) ? `<button class="accept" ${bankLinesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : row.kind === 'vendor_advance' ? 'Categorize vendor advance' : 'Categorize expense'}</button>` : '<span class="muted">Review in Books</span>'}</td>
+    </tr>`).join('') || `<tr><td colspan="7" class="muted">No records match these selections.</td></tr>`);
   }
 
-  function toggleExpense(id, checked) {
-    if (checked) selectedExpenses.add(String(id));
-    else selectedExpenses.delete(String(id));
+  function toggleBankLine(id, checked) {
+    if (checked) selectedBankLines.add(String(id));
+    else selectedBankLines.delete(String(id));
     render();
   }
 
-  function toggleVisibleExpenses(checked) {
-    if (document.getElementById('filter').value === 'transfers') return;
-    const q = document.getElementById('search').value.toLowerCase();
-    for (const row of batch.bank_suggestions || []) {
-      if (expenseEligible(row) && (!q || JSON.stringify(row).toLowerCase().includes(q))) {
-        if (checked) selectedExpenses.add(String(row.transaction_id));
-        else selectedExpenses.delete(String(row.transaction_id));
+  function toggleVisibleBankLines(checked) {
+    for (const row of visibleBankRows()) {
+      if (bankLineEligible(row)) {
+        if (checked) selectedBankLines.add(String(row.transaction_id));
+        else selectedBankLines.delete(String(row.transaction_id));
       }
     }
     render();
   }
 
-  async function categorizeSelectedExpenses() {
-    if (expensesBusy || !selectedExpenses.size) return;
-    const ids = [...selectedExpenses];
-    if (!confirm(`Categorize ${ids.length} selected travel or salary withdrawals to their proposed expense accounts in Zoho Books?`)) return;
-    expensesBusy = true;
+  async function categorizeSelectedBankLines() {
+    if (bankLinesBusy || !selectedBankLines.size) return;
+    const ids = [...selectedBankLines];
+    const proposals = bankSourceRows().filter(row => ids.includes(String(row.transaction_id)) && bankLineEligible(row));
+    if (proposals.length !== ids.length) {
+      notify('Some selected records are no longer available. Reload the queue before retrying.', true);
+      return;
+    }
+    const details = proposals.map(row => `${row.bank_name || 'Bank'} · ${row.date || ''} · ${money(row.amount)}: ${row.kind === 'vendor_advance' ? `Vendor advance to ${row.vendor_name}, branch ${row.location_name}` : row.kind === 'cash_deposit' ? 'Transfer from Cash-SBE to the originating bank' : `Expense: ${row.expense_account_name}`}`).join('\n');
+    if (!confirm(`Categorize ${ids.length} selected records in Zoho Books?\n\n${details}`)) return;
+    bankLinesBusy = true;
     render();
     let succeeded = 0;
     const failures = [];
@@ -427,18 +406,18 @@
       for (const id of ids) {
         try {
           await api('/api/bank-lines/' + encodeURIComponent(id) + '/categorize', 'POST');
-          selectedExpenses.delete(id);
+          selectedBankLines.delete(id);
           succeeded++;
         } catch (error) {
           failures.push(`${id}: ${error.message}`);
         }
       }
       await load();
-      notify(`${succeeded} expenses categorized${failures.length ? `; ${failures.length} failed. ${failures.join('; ')}` : '.'}`, failures.length > 0);
+      notify(`${succeeded} records categorized${failures.length ? `; ${failures.length} failed. ${failures.join('; ')}` : '.'}`, failures.length > 0);
     } catch (error) {
-      notify(`${succeeded} expenses categorized. Could not reload: ${error.message}`, true);
+      notify(`${succeeded} records categorized. Could not reload: ${error.message}`, true);
     } finally {
-      expensesBusy = false;
+      bankLinesBusy = false;
       render();
     }
   }
@@ -492,20 +471,93 @@
     render();
   }
 
+  function matchesSelection(row, status) {
+    const q = document.getElementById('search').value.toLowerCase();
+    return status === document.getElementById('filter').value && (!q || JSON.stringify(row).toLowerCase().includes(q));
+  }
+
+  function paymentMatchStatus(e) {
+    if (!hasBankCandidate(e)) return 'unmatched';
+    return e.reviewable && !isAmbiguous(e) && !isPossible(e) ? 'reviewable' : 'ambiguous';
+  }
+
+  function dateSortKey(value) {
+    const text = String(value || '').trim();
+    let year, month, day;
+    let match = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(text);
+    if (match) [, year, month, day] = match;
+    else if ((match = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(text))) {
+      day = match[1];
+      month = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(match[2].toLowerCase()) + 1;
+      year = match[3];
+    } else if ((match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text))) {
+      [, day, month, year] = match;
+    } else return Infinity;
+    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    return date.getUTCFullYear() === Number(year) && date.getUTCMonth() + 1 === Number(month) && date.getUTCDate() === Number(day) ? date.getTime() : Infinity;
+  }
+
+  function compareDates(left, right) {
+    const a = dateSortKey(left), b = dateSortKey(right);
+    return a === b ? 0 : a < b ? -1 : 1;
+  }
+
+  function visiblePayments() {
+    if (document.getElementById('category').value !== 'customers') return [];
+    if (document.getElementById('source').value !== 'creator') return [];
+    return (batch.entries || []).filter(e => !e.archived && state(e) !== 'pushed' && matchesSelection(e, paymentMatchStatus(e))).sort((a, b) => compareDates(a.creator?.date, b.creator?.date));
+  }
+
+  function bankCategory(row) {
+    if (['travel_allowance', 'salary'].includes(row.kind)) return 'expenses';
+    if (row.kind === 'vendor_advance') return 'vendors';
+    if (row.kind === 'cash_deposit') return 'transfers';
+    return 'customers';
+  }
+
+  function bankSourceRows() {
+    return batch.bank_records || [];
+  }
+
+  function bankCreatorEntries(row) {
+    return (row.creator_entry_ids || []).map(id => (batch.entries || []).find(e => String(e.id) === String(id))).filter(e => e && !e.archived && state(e) !== 'pushed');
+  }
+
+  function bankReadyEntry(row) {
+    const entries = bankCreatorEntries(row);
+    if (entries.length !== 1) return null;
+    const e = entries[0];
+    return e.reviewable && eligible(e) && e.bank?.transaction_id === row.transaction_id && e.bank_account_id === row.bank_account_id ? e : null;
+  }
+
+  function bankMatchStatus(row) {
+    if (bankCategory(row) !== 'customers') return 'reviewable';
+    const entries = bankCreatorEntries(row);
+    return bankReadyEntry(row) ? 'reviewable' : entries.length ? 'ambiguous' : 'unmatched';
+  }
+
+  function bankComparisonHtml(row) {
+    if (bankCategory(row) !== 'customers') return '';
+    const entries = bankCreatorEntries(row);
+    if (!entries.length) return '<div class="muted">No Creator payment match</div>';
+    return entries.map(e => `<div><strong>${esc(e.creator?.customer_name)}</strong> · ${esc(e.payment_type)} · ${esc(e.creator?.date)} · ${money(e.creator?.amount)}<div class="ref">Creator ${esc(e.creator?.payment_id || e.id)} · Reference ${esc(e.creator?.reference)}</div><div class="muted">${esc(e.reason)}</div>${allocationHtml(e)}</div>`).join('');
+  }
+
+  function bankPaymentAction(row) {
+    const e = bankReadyEntry(row);
+    return e ? `<button class="accept" onclick="acceptEntry('${esc(e.id)}')">Accept &amp; Push</button> ` : '';
+  }
+
+  function visibleBankRows() {
+    if (document.getElementById('source').value !== 'bank') return [];
+    return bankSourceRows().filter(row => row.categorization_status !== 'categorized' &&
+      bankCategory(row) === document.getElementById('category').value &&
+      matchesSelection({...row, creator_matches: bankCreatorEntries(row)}, bankMatchStatus(row)) &&
+      !(row.creator_entry_ids?.length && !bankCreatorEntries(row).length)).sort((a, b) => compareDates(a.date, b.date));
+  }
+
   function visibleEligible() {
-    const q = document.getElementById('search').value.toLowerCase(), filter = document.getElementById('filter').value;
-    return (batch.entries || []).filter(e => {
-      const s = state(e), hay = JSON.stringify(e).toLowerCase(),
-        shown = (!q || hay.includes(q)) && (
-          (filter === 'all' && s !== 'pushed' && !e.archived) ||
-          (filter === 'reviewable' && e.reviewable && s !== 'pushed') ||
-          (filter === 'ambiguous' && isAmbiguous(e)) ||
-          (filter === 'possible' && isPossible(e)) ||
-          (filter === 'unmatched' && !e.reviewable) ||
-          s === filter
-        );
-      return shown && (primaryView !== 'bank' || hasBankCandidate(e)) && eligible(e);
-    });
+    return visiblePayments().filter(eligible);
   }
 
   function toggleVisible(checked) {
@@ -574,13 +626,19 @@
   }
 
   document.getElementById('search').addEventListener('input', render);
-  document.getElementById('selectExpenses').onclick = () => toggleVisibleExpenses(true);
-  document.getElementById('selectVisibleExpenses').onchange = e => toggleVisibleExpenses(e.target.checked);
-  document.getElementById('categorizeSelectedExpenses').onclick = categorizeSelectedExpenses;
-  document.getElementById('filter').addEventListener('change', render);
+  document.getElementById('selectBankLines').onclick = () => toggleVisibleBankLines(true);
+  document.getElementById('selectVisibleBankLines').onchange = e => toggleVisibleBankLines(e.target.checked);
+  document.getElementById('categorizeSelectedBankLines').onclick = categorizeSelectedBankLines;
+  for (const id of ['source', 'category', 'filter']) {
+    document.getElementById(id).addEventListener('change', () => {
+      selected.clear();
+      selectedBankLines.clear();
+      render();
+    });
+  }
   document.getElementById('selectVisible').onchange = e => toggleVisible(e.target.checked);
   document.getElementById('selectReady').onclick = () => {
-    for (const e of batch.entries || []) {
+    for (const e of visibleEligible()) {
       if (eligible(e)) {
         selected.add(e.id);
       }

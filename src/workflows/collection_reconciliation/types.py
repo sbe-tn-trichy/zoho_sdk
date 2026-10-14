@@ -62,3 +62,16 @@ class PaymentProposal(TypedDict, total=False):
     unallocated_amount: Decimal
     allocation_error: str
     error: str
+
+
+class BankStatementRecord(BankMatchCandidate, total=False):
+    """Uncategorized Books source line and IDs of competing Creator proposals."""
+
+    kind: str
+    customer_suggestions: List[str]
+    expense_account_name: str
+    transfer_account_name: str
+    vendor_name: str
+    location_name: str
+    categorization_status: str
+    creator_entry_ids: List[str]

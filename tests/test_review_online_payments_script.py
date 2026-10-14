@@ -31,59 +31,105 @@ const document = {
   }
 };
 vm.runInNewContext(require('node:fs').readFileSync(0, 'utf8') + String.raw`
-batch = {entries: [{id: 'p1', reviewable: true}], bank_suggestions: [
-  {transaction_id: 'ta1', kind: 'travel_allowance', description: 'Alice/TA'},
-  {transaction_id: 'd1', kind: 'deposit', description: 'Customer deposit'}
+assert.equal(dateSortKey('31-Feb-2026'), Infinity);
+assert.equal(dateSortKey('bad'), Infinity);
+assert.equal(compareDates('', ''), 0);
+assert.equal(compareDates('03-Oct-2026', '2026-10-03'), 0);
+assert.equal(compareDates('03/10/2026', '2026-10-03'), 0);
+const savedBatch = batch;
+batch = {entries: [
+  {id: 'later', creator: {date: '05-Oct-2026'}},
+  {id: 'missing', creator: {date: ''}},
+  {id: 'early', creator: {date: '2026-09-30'}},
+  {id: 'tie', creator: {date: '30-Sep-2026'}}
+], bank_records: [
+  {transaction_id: 'later', date: '2026-10-05', kind: 'salary'},
+  {transaction_id: 'missing', date: '', kind: 'salary'},
+  {transaction_id: 'early', date: '2026-09-30', kind: 'salary'}
 ]};
-document.getElementById('filter').value = 'all';
-batch.entries = [
+document.getElementById('source').value = 'creator';
+document.getElementById('category').value = 'customers';
+document.getElementById('filter').value = 'unmatched';
+assert.deepEqual(visiblePayments().map(e => e.id), ['early', 'tie', 'later', 'missing']);
+assert.equal(batch.entries[0].id, 'later');
+document.getElementById('source').value = 'bank';
+document.getElementById('category').value = 'expenses';
+document.getElementById('filter').value = 'reviewable';
+assert.deepEqual(visibleBankRows().map(e => e.transaction_id), ['early', 'later', 'missing']);
+assert.equal(batch.bank_records[0].transaction_id, 'later');
+batch = savedBatch;
+document.getElementById('source').value = 'bank';
+document.getElementById('category').value = 'customers';
+document.getElementById('filter').value = 'reviewable';
+batch = {entries: [
   {id: 'missing', creator: {customer_name: 'No bank customer'}},
-  {id: 'match', bank: {date: '2026-10-01', description: 'Matched narration'}, creator: {customer_name: 'Matched customer'}},
-  {id: 'possible', possible_candidates: [{transaction_id: 'candidate', description: 'Possible narration'}], creator: {customer_name: 'Possible customer'}}
-];
+  {id: 'match', reviewable: true, bank_account_id: 'bank', bank: {transaction_id: 'matched', description: 'Matched narration'}, creator: {customer_name: 'Matched customer'}},
+  {id: 'possible', possible_candidates: [{transaction_id: 'candidate'}]},
+  {id: 'conflict', bank: {}, customer_name_valid: false},
+  {id: 'done', reviewable: true, bank: {}, push_status: 'pushed'}
+], bank_suggestions: [
+  {transaction_id: 'ta1', kind: 'travel_allowance', description: 'Alice/TA'},
+  {transaction_id: 'salary', kind: 'salary'},
+  {transaction_id: 'vendor', kind: 'vendor_advance'},
+  {transaction_id: 'cash', kind: 'cash_deposit'},
+  {transaction_id: 'unknown', kind: 'deposit'},
+  {transaction_id: 'matched', bank_account_id: 'bank', kind: 'deposit', creator_entry_ids: ['match']},
+  {transaction_id: 'uncertain', kind: 'deposit', creator_entry_ids: ['possible', 'conflict']}
+]};
+batch.bank_records = batch.bank_suggestions;
 render();
-assert.equal(document.getElementById('bankTab')['aria-selected'], 'true');
-assert.doesNotMatch(document.getElementById('rows').innerHTML, /No bank customer/);
-assert.ok(document.getElementById('rows').innerHTML.indexOf('Matched narration') < document.getElementById('rows').innerHTML.indexOf('Matched customer'));
-assert.match(document.getElementById('rows').innerHTML, /Unmatched records/);
-setPrimaryView('creator');
-assert.equal(document.getElementById('otherBankLines').hidden, true);
-assert.match(document.getElementById('rows').innerHTML, /No bank customer/);
-assert.ok(document.getElementById('rows').innerHTML.indexOf('Matched customer') < document.getElementById('rows').innerHTML.indexOf('Matched narration'));
-assert.ok(document.getElementById('rows').innerHTML.indexOf('Matched customer') < document.getElementById('rows').innerHTML.indexOf('No bank customer'));
-setPrimaryView('bank');
-document.getElementById('search').value = 'absent'; render();
-assert.match(document.getElementById('rows').innerHTML, /Matched records .* · 0/);
-document.getElementById('search').value = '';
-document.getElementById('filter').value = 'expenses'; render();
+assert.equal(visiblePayments().length, 0);
+assert.deepEqual(visibleBankRows().map(e => e.transaction_id), ['matched']);
+assert.match(document.getElementById('bankRows').innerHTML, /Matched customer/);
+assert.match(document.getElementById('bankRows').innerHTML, /Accept &amp; Push/);
 assert.equal(document.getElementById('paymentTable').hidden, true);
-assert.equal(document.getElementById('acceptSelected').hidden, true);
-assert.match(document.getElementById('bankRows').innerHTML, /Alice\/TA/);
-assert.match(document.getElementById('bankRows').innerHTML, /Categorize expense/);
-assert.doesNotMatch(document.getElementById('bankRows').innerHTML, /Customer deposit/);
-toggleVisibleExpenses(true);
-assert.deepEqual([...selectedExpenses], ['ta1']);
-assert.equal(document.getElementById('categorizeSelectedExpenses').disabled, false);
-toggleVisibleExpenses(false);
-assert.equal(selectedExpenses.size, 0);
-document.getElementById('search').value = 'missing'; render();
-assert.match(document.getElementById('bankRows').innerHTML, /No expense proposals/);
-document.getElementById('search').value = 'alice'; render();
-assert.match(document.getElementById('bankRows').innerHTML, /Alice\/TA/);
-document.getElementById('search').value = '';
+document.getElementById('filter').value = 'ambiguous'; render();
+assert.equal(visiblePayments().length, 0);
+assert.deepEqual(visibleBankRows().map(e => e.transaction_id), ['uncertain']);
+document.getElementById('filter').value = 'unmatched'; render();
+assert.equal(visiblePayments().length, 0);
+assert.deepEqual(visibleBankRows().map(e => e.transaction_id), ['unknown']);
+document.getElementById('source').value = 'creator'; render();
+assert.deepEqual(visiblePayments().map(e => e.id), ['missing']);
+assert.equal(document.getElementById('otherBankLines').hidden, true);
+document.getElementById('category').value = 'expenses'; render();
+assert.equal(document.getElementById('emptyCategory').hidden, false);
+assert.equal(visibleBankRows().length, 0);
+document.getElementById('source').value = 'bank';
 document.getElementById('filter').value = 'reviewable'; render();
-assert.equal(document.getElementById('paymentTable').hidden, false);
-assert.equal(document.getElementById('acceptSelected').hidden, false);
-assert.match(document.getElementById('bankRows').innerHTML, /Customer deposit/);
-batch.bank_suggestions = []; document.getElementById('filter').value = 'expenses'; render();
-assert.match(document.getElementById('bankRows').innerHTML, /No expense proposals/);
+assert.equal(document.getElementById('paymentTable').hidden, true);
+assert.deepEqual(visibleBankRows().map(e => e.transaction_id), ['ta1', 'salary']);
+toggleVisibleBankLines(true);
+assert.deepEqual([...selectedBankLines], ['ta1', 'salary']);
+toggleVisibleBankLines(false);
+document.getElementById('search').value = 'alice'; render();
+assert.deepEqual(visibleBankRows().map(e => e.transaction_id), ['ta1']);
+document.getElementById('search').value = 'absent'; render();
+assert.match(document.getElementById('bankRows').innerHTML, /No records match/);
+document.getElementById('search').value = '';
+document.getElementById('category').value = 'vendors'; render();
+assert.deepEqual(visibleBankRows().map(e => e.transaction_id), ['vendor']);
+toggleVisibleBankLines(true); assert.deepEqual([...selectedBankLines], ['vendor']);
+toggleVisibleBankLines(false);
+assert.equal(document.getElementById('selectBankLines').hidden, false);
+assert.match(document.getElementById('bankRows').innerHTML, /Select bank line/);
+document.getElementById('category').value = 'transfers'; render();
+assert.deepEqual(visibleBankRows().map(e => e.transaction_id), ['cash']);
+toggleVisibleBankLines(true); assert.deepEqual([...selectedBankLines], ['cash']);
+toggleVisibleBankLines(false);
+assert.equal(document.getElementById('categorizeSelectedBankLines').hidden, false);
+document.getElementById('filter').value = 'ambiguous'; render();
+assert.equal(visibleBankRows().length, 0);
+document.getElementById('category').value = 'expenses';
+document.getElementById('filter').value = 'reviewable';
 batch.bank_suggestions = [
   {transaction_id: 'ok', kind: 'travel_allowance'},
   {transaction_id: 'bad', kind: 'travel_allowance'},
   {transaction_id: 'done', kind: 'travel_allowance', categorization_status: 'categorized'}
 ];
-toggleVisibleExpenses(true);
-assert.deepEqual([...selectedExpenses], ['ok', 'bad']);
+batch.bank_records = batch.bank_suggestions;
+toggleVisibleBankLines(true);
+assert.deepEqual([...selectedBankLines], ['ok', 'bad']);
 const calls = [];
 api = async path => {
   calls.push(path);
@@ -92,11 +138,21 @@ api = async path => {
   batch.bank_suggestions[0].categorization_status = 'categorized';
   return {};
 };
-categorizeSelectedExpenses().then(() => {
+categorizeSelectedBankLines().then(async () => {
   assert.deepEqual(calls, ['/api/bank-lines/ok/categorize', '/api/bank-lines/bad/categorize', '/api/batch']);
-  assert.deepEqual([...selectedExpenses], ['bad']);
-  assert.equal(expensesBusy, false);
-  assert.match(document.getElementById('notice').textContent, /1 expenses categorized; 1 failed/);
+  assert.deepEqual([...selectedBankLines], ['bad']);
+  assert.equal(bankLinesBusy, false);
+  assert.match(document.getElementById('notice').textContent, /1 records categorized; 1 failed/);
+  for (const [category, kind] of [['vendors', 'vendor_advance'], ['transfers', 'cash_deposit']]) {
+    selectedBankLines.clear(); calls.length = 0;
+    batch.bank_records = batch.bank_suggestions = [{transaction_id: 'ok', kind}, {transaction_id: 'bad', kind}];
+    document.getElementById('category').value = category;
+    toggleVisibleBankLines(true);
+    assert.deepEqual([...selectedBankLines], ['ok', 'bad']);
+    await categorizeSelectedBankLines();
+    assert.deepEqual(calls, ['/api/bank-lines/ok/categorize', '/api/bank-lines/bad/categorize', '/api/batch']);
+    assert.deepEqual([...selectedBankLines], ['bad']);
+  }
 }).catch(error => { console.error(error); process.exitCode = 1; });
 `, {document, assert, console, process, confirm() {return true;}, setTimeout() {}, fetch() {return new Promise(() => {});}});
 """
@@ -109,7 +165,7 @@ categorizeSelectedExpenses().then(() => {
         self.assertIn("matching bank lines", HTML)
 
     def test_html_offers_possible_match_review_with_candidate_details(self):
-        self.assertIn('<option value="possible">Possible matches</option>', HTML)
+        self.assertIn("isPossible(e) ? 'reviewable' : 'ambiguous'", HTML)
         self.assertIn("e.possible_candidates", HTML)
         self.assertIn("reference differs", HTML)
         self.assertIn("selectPossibleCandidate", HTML)

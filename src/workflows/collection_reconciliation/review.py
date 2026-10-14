@@ -21,6 +21,7 @@ from ..core.matching import (
 )
 from .identifiers import identifier as _identifier, identifiers as _identifiers
 from .payments import customer_payment_payload
+from .types import BankStatementRecord
 from .preview_cache import PreviewCache
 from .allocator import (
     CLOSED_INVOICE_STATUSES as _CLOSED_INVOICE_STATUSES,
@@ -63,6 +64,7 @@ class OnlinePaymentReviewConfig:
     payment_report_link_name: str = "Online_Payments"
     payment_reports: Tuple[Tuple[str, str], ...] = ()
     cheque_detail_report_link_name: str = "All_Cheque_Details"
+    cheque_detail_form_link_name: str = "Cheque_Details"
     customer_report_link_name: str = "All_Customers1"
     creator_checkpoint_report_link_name: str = "All_Payments"
     creator_books_id_field: str = "Books_Transaction_Id"
@@ -171,9 +173,14 @@ class OnlinePaymentReviewService:
 
             used_transaction_ids = set()
             raw_entries = []
+            bank_comparisons = []
+            customer_bank_transactions = [tx for tx in bank_transactions if bank_line_kind(tx) not in {"cash_deposit", "salary", "travel_allowance", "vendor_advance"}]
             for payment in payments:
+                # Bank-source comparisons must retain every competing Creator
+                # record, even when the posting queue has reserved this line.
+                bank_comparisons.append(self._proposal(payment, customer_ids, customer_bank_transactions, set()))
                 entry = self._proposal(payment, customer_ids,
-                    [tx for tx in bank_transactions if bank_line_kind(tx) not in {"cash_deposit", "salary", "travel_allowance", "vendor_advance"}], used_transaction_ids)
+                    customer_bank_transactions, used_transaction_ids)
                 raw_entries.append(entry)
 
             # Collect remitter tokens for targeted historical lookup
@@ -260,9 +267,10 @@ class OnlinePaymentReviewService:
                 for row in previous.get("bank_suggestions", [])
             }
             bank_suggestions = []
+            bank_records: List[BankStatementRecord] = []
             for transaction in bank_transactions:
                 transaction_id = _text(transaction.get("transaction_id") or transaction.get("id"))
-                if not transaction_id or transaction_id in used_transaction_ids:
+                if not transaction_id:
                     continue
                 displayed = self._display_bank(transaction)
                 displayed.update({
@@ -278,7 +286,14 @@ class OnlinePaymentReviewService:
                 })
                 if previous_bank.get(transaction_id, {}).get("categorization_status") == "categorized":
                     continue
-                bank_suggestions.append(displayed)
+                creator_candidates = []
+                for comparison in bank_comparisons:
+                    candidates = ([{**comparison["bank"], "bank_account_id": comparison["bank_account_id"]}] if comparison.get("bank") else []) + comparison["ambiguous_candidates"] + comparison["possible_candidates"]
+                    if any(candidate["transaction_id"] == transaction_id and candidate.get("bank_account_id") == displayed["bank_account_id"] for candidate in candidates):
+                        creator_candidates.append(comparison["id"])
+                bank_records.append({**displayed, "creator_entry_ids": creator_candidates})
+                if transaction_id not in used_transaction_ids:
+                    bank_suggestions.append(displayed)
 
             batch = {
                 "version": 2,
@@ -294,6 +309,7 @@ class OnlinePaymentReviewService:
                 "preview_cache_hits": dict(self._cache_hits),
                 "entries": entries,
                 "bank_suggestions": bank_suggestions,
+                "bank_records": bank_records,
             }
             self._save(batch)
             return batch
@@ -750,6 +766,8 @@ class OnlinePaymentReviewService:
         books_payment_number: str,
     ) -> None:
         """Write and verify the Books payment checkpoint in Creator."""
+        if _text(entry.get("payment_type")).casefold() == "cheque":
+            self._checkpoint_cheque_presentation(entry)
         record_id = _text(entry.get("id"))
         report_name = self.config.creator_checkpoint_report_link_name
         response = self.creator.update_records(
@@ -791,6 +809,35 @@ class OnlinePaymentReviewService:
                 "Creator checkpoint verification failed: Books_Transaction_Id and Payment# "
                 "were not both saved. The existing Books payment will be reused on retry."
             )
+
+    def _checkpoint_cheque_presentation(self, entry: Mapping[str, Any]) -> None:
+        """Save the bank clearing date after matching, reusing a detail on retry."""
+        record_id = _text(entry["id"])
+        bank_date = parse_date(entry["bank"].get("date"))
+        if not bank_date:
+            raise ReconciliationError("The cheque bank line has no valid clearing date.")
+
+        def matching_details() -> List[Mapping[str, Any]]:
+            rows = self.creator.get_all_records(self.config.creator_app_link_name, self.config.cheque_detail_report_link_name, field_config="all")
+            return [row for row in rows if isinstance(row, Mapping) and isinstance(row.get("Payment_ID"), Mapping) and _text(row["Payment_ID"].get("ID")) == record_id]
+
+        details = matching_details()
+        if len(details) > 1:
+            raise ReconciliationError("Multiple Creator cheque details refer to this payment; presentation checkpoint is blocked.")
+        payload = {"Payment_ID": record_id, "Cheque_Number": entry["creator"]["reference"], "Presented_Date": bank_date.strftime("%d-%b-%Y")}
+        if details:
+            detail = details[0]
+            if normalize_cheque_number(detail.get("Cheque_Number")) != normalize_cheque_number(entry["creator"]["reference"]):
+                raise ReconciliationError("Creator cheque detail number conflicts with this payment.")
+            if parse_date(detail.get("Presented_Date")) == bank_date:
+                return
+            response = self.creator.update_records(self.config.creator_app_link_name, self.config.cheque_detail_report_link_name, {"data": payload}, record_id=_text(detail.get("ID")))
+        else:
+            response = self.creator.add_records(self.config.creator_app_link_name, self.config.cheque_detail_form_link_name, {"data": payload})
+        self._require_creator_update_success(response)
+        verified = matching_details()
+        if len(verified) != 1 or parse_date(verified[0].get("Presented_Date")) != bank_date or normalize_cheque_number(verified[0].get("Cheque_Number")) != normalize_cheque_number(entry["creator"]["reference"]):
+            raise ReconciliationError("Creator presented-date verification failed. The existing Books payment will be reused on retry.")
 
     @staticmethod
     def _require_creator_update_success(response: Any) -> None:
@@ -1019,6 +1066,7 @@ class OnlinePaymentReviewService:
                 if _text(payment.get("_review_payment_type")).casefold() == "cheque"
                 else payment.get("Payment_Date")
             ),
+            "date_source": _text(payment.get("_review_date_source")) or "payment_date",
             "amount": _text(payment.get("Payment_Amount")),
             "reference": _text(payment.get("Reference")),
             "payment_id": _text(payment.get("Payment_ID")),
@@ -1157,6 +1205,8 @@ class OnlinePaymentReviewService:
             date_tolerance_days = int(
                 payment.get("date_tolerance_days", self.config.date_tolerance_days)
             )
+            if payment.get("date_source") == "cheque_date" and transaction_date < payment_date:
+                continue
             if abs((transaction_date - payment_date).days) > date_tolerance_days:
                 continue
             if abs(abs(transaction_amount) - abs(amount)) > Decimal(
@@ -1260,6 +1310,7 @@ class OnlinePaymentReviewService:
             or not transaction_date
             or payment_amount is None
             or transaction_amount is None
+            or (creator.get("date_source") == "cheque_date" and transaction_date < payment_date)
             or abs((transaction_date - payment_date).days) > tolerance_days
             or abs(abs(transaction_amount) - abs(payment_amount))
             > Decimal(str(self.config.amount_tolerance))
@@ -1274,7 +1325,7 @@ class OnlinePaymentReviewService:
         allocations: Sequence[Mapping[str, Any]],
     ) -> Dict[str, Any]:
         creator = entry["creator"]
-        payment_date = parse_date(creator.get("date"))
+        payment_date = parse_date(entry["bank"].get("date") if _text(entry.get("payment_type")).casefold() == "cheque" else creator.get("date"))
         amount = _decimal(creator.get("amount"))
         return customer_payment_payload(
             customer_id=creator["books_customer_id"],
@@ -1480,4 +1531,8 @@ class OnlinePaymentReviewService:
         entry["bank_name"] = name
 
     def _save(self, batch: Mapping[str, Any]) -> None:
+        statuses = {row["transaction_id"]: row.get("categorization_status", "pending") for row in batch.get("bank_suggestions", [])}
+        for row in batch.get("bank_records", []):
+            if row["transaction_id"] in statuses:
+                row["categorization_status"] = statuses[row["transaction_id"]]
         write_atomic_json(self.config.state_path, batch)

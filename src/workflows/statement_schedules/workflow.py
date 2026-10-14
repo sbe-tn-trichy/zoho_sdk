@@ -24,6 +24,50 @@ def money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def reviewed_asset_table(review: Mapping[str, Any], period: Mapping[str, str]) -> list[list[Any]]:
+    """Render an explicitly reviewed annual statement without inferring depreciation."""
+    if review.get("start") != period["start"] or review.get("end") != period["end"]:
+        raise ValueError("Reviewed asset statement dates do not match the current year")
+    entries = review.get("rows")
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("Reviewed asset statement requires nonempty rows")
+    rows: list[list[Any]] = [["DEPRECIATION STATEMENT:"],
+        ["PARTICULARS", "WDV AS ON " + date.fromisoformat(period["start"]).strftime("%d.%m.%Y"),
+         "ADDITIONS", "", "DOP", "TOTAL", "RATE", "DEPR. FOR THE YEAR",
+         "WDV AS ON " + date.fromisoformat(period["end"]).strftime("%d.%m.%Y")],
+        ["", "", "Before 30/9", "After 30/9"]]
+    seen = set()
+    for entry in entries:
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip() or name in seen:
+            raise ValueError("Reviewed asset names must be nonempty and unique")
+        seen.add(name)
+        for required in ("opening", "rate", "depreciation"):
+            if required not in entry:
+                raise ValueError(f"Missing reviewed {required}: {name}")
+        opening, before, after, rate, depreciation = (
+            amount(entry.get(key, 0)) for key in
+            ("opening", "before_cutoff", "after_cutoff", "rate", "depreciation"))
+        if min(opening, before, after, depreciation) < 0 or not 0 <= rate <= 1:
+            raise ValueError(f"Invalid reviewed asset values: {name}")
+        total = opening + before + after
+        if depreciation > total:
+            raise ValueError(f"Reviewed depreciation exceeds WDV: {name}")
+        for key, expected in (("total", total), ("closing", total - depreciation)):
+            if key in entry and abs(amount(entry[key]) - expected) > Decimal("0.01"):
+                raise ValueError(f"Reviewed {key} does not reconcile: {name}")
+        purchase_date = entry.get("purchase_date", "")
+        if purchase_date:
+            date.fromisoformat(purchase_date)
+        r = len(rows) + 1
+        rows.append([name, float(opening), float(before) if before else "",
+                     float(after) if after else "", purchase_date, f"=SUM(B{r}:D{r})",
+                     float(rate), float(depreciation), f"=F{r}-H{r}"])
+    last = len(rows)
+    rows.extend([[], ["Total"] + [f"=SUM({col}4:{col}{last})" if col in "BCDFHI" else "" for col in "BCDEFGHI"]])
+    return rows
+
+
 def nodes(rows: Sequence[Mapping[str, Any]], path: tuple[str, ...] = ()):
     for row in rows:
         current = path + (row["name"],)
@@ -254,6 +298,42 @@ def verify_asset(asset: Mapping[str, Any], history: Sequence[Mapping[str, Any]],
     )
 
 
+
+def reviewed_statement_with_additions(review: Mapping[str, Any], period: Mapping[str, str],
+                                      results: Sequence[AssetVerification]) -> dict[str, Any]:
+    """Append register acquisitions, excluding explicitly matched opening imports."""
+    reviewed_asset_table(review, period)
+    rows = [dict(row) for row in review["rows"]]
+    matched = {}
+    for row in rows:
+        identity = row.get("opening_asset_id")
+        if identity:
+            if identity in matched:
+                raise ValueError(f"Duplicate reviewed opening asset ID: {identity}")
+            matched[identity] = row
+    found = set()
+    for result in sorted(results, key=lambda r: (r.purchase_date, r.name.casefold(), r.asset_id)):
+        additions = result.before_cutoff + result.after_cutoff
+        if result.asset_id in matched:
+            found.add(result.asset_id)
+            opening = amount(matched[result.asset_id]["opening"])
+            if result.opening == 0 and result.purchase_date == period["start"]:
+                if additions != opening:
+                    raise ValueError(f"Reviewed opening import differs from acquisition: {result.name}")
+                continue
+            if result.opening != opening or additions:
+                raise ValueError(f"Reviewed opening asset basis differs: {result.name}")
+            continue
+        if period["start"] <= result.purchase_date <= period["end"] and additions:
+            rows.append({"name": result.name, "opening": 0,
+                         "before_cutoff": result.before_cutoff, "after_cutoff": result.after_cutoff,
+                         "purchase_date": result.purchase_date, "rate": result.rate,
+                         "depreciation": result.posted})
+    if set(matched) != found:
+        raise ValueError("Reviewed opening assets absent from scoped register: " + ", ".join(sorted(set(matched) - found)))
+    return dict(review, rows=rows)
+
+
 def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -> SchedulePlan:
     """Build two-year notes and statement links, with current-year assets only."""
     periods = config["periods"]
@@ -370,7 +450,9 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
         header_rows[number] = len(rows) + 1
         rows.append([f"Note {number}: {note['title']}"])
         first_row = len(rows) + 1
-        items = sorted(classified[number].items(), key=lambda pair: (pair[1]["name"].casefold(), pair[0]))
+        items = sorted(classified[number].items(), key=lambda pair: (
+            note["title"] == "Other Expenses" and not pair[1]["name"].endswith("(GST)"),
+            pair[1]["name"].casefold(), pair[0]))
         if "groups" in note:
             groups = note["groups"]
             names = [group["name"] for group in groups]
@@ -633,5 +715,34 @@ def build_schedule_plan(sources: Mapping[str, Any], config: Mapping[str, Any]) -
         checks[period["label"]]["fixed_asset_ledger_wdv"] = str(money(ledger_wdv))
         if abs(register_wdv - ledger_wdv) > Decimal("0.01"):
             warnings.append(f"{period['label']}: asset register closing WDV {register_wdv} versus Note 6 ledger WDV {ledger_wdv}; register coverage or ledger values need review.")
-    values[qualified(config["sheets"]["assets"], f"A1:O{len(asset_rows)}")] = asset_rows
+    layout = config.get("asset_layout", "ledger_tables")
+    if layout not in {"ledger_tables", "reviewed_statement"}:
+        raise ValueError(f"Unknown asset layout: {layout}")
+    last_column = "O"
+    if layout == "reviewed_statement":
+        period = max(periods, key=lambda p: date.fromisoformat(p["end"]))
+        for row in config.get("reviewed_asset_statement", {}).get("rows", []):
+            account_id = row.get("opening_account_id")
+            if account_id:
+                identity = row.get("opening_asset_id")
+                if not identity or asset_accounts.get(identity) != account_id:
+                    raise ValueError(f"Reviewed opening account mapping differs: {row['name']}")
+                warnings.append(f"{period['label']}: reviewed {row['name']} maps to {accounts[account_id][0]} account ({account_id}).")
+        review = reviewed_statement_with_additions(config.get("reviewed_asset_statement", {}),
+                                                  period, asset_checks[period["label"]])
+        asset_rows = reviewed_asset_table(review, period)
+        reviewed_dep = sum((amount(row["depreciation"]) for row in review["rows"]), Decimal(0))
+        reviewed_closing = sum((amount(row["opening"]) + amount(row.get("before_cutoff", 0)) +
+                               amount(row.get("after_cutoff", 0)) - amount(row["depreciation"])
+                              for row in review["rows"]), Decimal(0))
+        current = checks[period["label"]]
+        current["reviewed_asset_depreciation"] = str(money(reviewed_dep))
+        current["reviewed_asset_closing_wdv"] = str(money(reviewed_closing))
+        warnings.append(f"{period['label']}: asset statement uses reviewed opening rows and posted depreciation for register additions; Books register remains an independent verification source.")
+        for label, actual, expected in (("depreciation versus P&L", reviewed_dep, amount(current["pnl_depreciation"])),
+                                        ("closing WDV versus Note 6", reviewed_closing, amount(current["fixed_asset_ledger_wdv"]))):
+            if abs(actual - expected) > Decimal("0.01"):
+                warnings.append(f"{period['label']}: reviewed {label}: {money(actual)} versus {money(expected)}; difference {money(actual - expected)}.")
+        last_column = "I"
+    values[qualified(config["sheets"]["assets"], f"A1:{last_column}{len(asset_rows)}")] = asset_rows
     return SchedulePlan(values, total_rows, asset_checks, tuple(warnings), checks)

@@ -283,3 +283,95 @@ def test_redacted_upi_suggestions_include_all_suffix_collisions():
     ]
     assert customer_name_suggestions({"description": "UPI/XXuram@okaxis"}, rows) == [
         "First Customer", "Second Customer"]
+
+
+def test_bank_source_retains_all_lines_and_competing_creator_records(tmp_path):
+    creator, books = MagicMock(), MagicMock()
+    payment = {"ID": "p1", "Payment_Date": "2026-10-01", "Payment_Amount": "1000",
+               "Reference": "12345", "Customer_Name": {"ID": "c1", "zc_display_value": "Alice"}}
+    creator.get_all_records.side_effect = [[payment, {**payment, "ID": "p2"},
+        {**payment, "ID": "posted", "Books_Transaction_Id": "existing"}],
+        [{"ID": "c1", "Customer_Id": "customer"}]]
+    books.bank_transactions.list_all.return_value = [
+        {"transaction_id": "matched", "date": "2026-10-01", "amount": "1000", "reference_number": "12345", "debit_or_credit": "debit"},
+        {"transaction_id": "missing", "date": "2026-10-02", "amount": "2000", "debit_or_credit": "debit"},
+        {"transaction_id": "expense", "date": "2026-10-01", "amount": "1000", "description": "Alice/TA", "debit_or_credit": "credit"}]
+    books.invoices.list_all.return_value = []
+    service = OnlinePaymentReviewService(creator, books, OnlinePaymentReviewConfig(
+        creator_app_link_name="app", bank_account_id="bank", state_path=tmp_path / "queue.json"))
+    batch = service.refresh()
+    rows = {row["transaction_id"]: row for row in batch["bank_records"]}
+    assert set(rows) == {"matched", "missing", "expense"}
+    assert rows["matched"]["creator_entry_ids"] == ["p1", "p2"]
+    assert rows["missing"]["creator_entry_ids"] == []
+    assert rows["expense"]["creator_entry_ids"] == []
+    assert {entry["id"] for entry in batch["entries"]} == {"p1", "p2"}
+    books.bank_transactions.list_all.assert_called_once_with(params={"account_id": "bank", "filter_by": "Status.Uncategorized"})
+    books.customer_payments.create.assert_not_called()
+    assert service.load()["bank_records"] == batch["bank_records"]
+
+
+@pytest.mark.parametrize("details,date,error", [
+    ([], "03-Oct-2026", ""),
+    ([{"Cheque_Number": "000432", "Payment_ID.Customer_Name": {"ID": "c"}, "Presented_Date": ""}], "03-Oct-2026", ""),
+    ([], "", "No Presented_Date or Cheque_Date is available"),
+])
+def test_optional_cheque_presentation(details, date, error):
+    from workflows.collection_reconciliation.cheques import attach_presented_dates
+    payment = {"_review_payment_type": "Cheque", "Reference": "0432", "Customer_Name": {"ID": "c"}, "Cheque_Date": date}
+    attach_presented_dates([payment], details)
+    assert payment["_review_presented_date"] == date
+    assert payment["_review_presented_date_error"] == error
+
+
+@pytest.mark.parametrize("bank_date,matched", [("2026-10-02", False), ("2026-10-05", True), ("2026-10-11", False)])
+def test_cheque_date_fallback_clearing_window(tmp_path, bank_date, matched):
+    service = OnlinePaymentReviewService(MagicMock(), MagicMock(), OnlinePaymentReviewConfig(creator_app_link_name="app", bank_account_id="bank", state_path=tmp_path / "q.json"))
+    payment = {"date": "2026-10-03", "date_source": "cheque_date", "amount": "5000", "reference": "0432", "payment_type": "Cheque", "date_tolerance_days": 7}
+    bank = {"transaction_id": "bank-line", "date": bank_date, "amount": "5000", "reference": "000432"}
+    candidate, _ = service._find_transaction(payment, [bank], set())
+    assert bool(candidate) is matched
+    if not matched:
+        with pytest.raises(ReconciliationError):
+            service._require_same_date_amount({"creator": payment}, bank)
+
+@pytest.mark.parametrize('payment_type,expected', [('Cheque', '2026-10-05'), ('Online', '2026-10-03')])
+def test_books_payment_date_uses_cheque_bank_date_only(tmp_path, payment_type, expected):
+    service = OnlinePaymentReviewService(MagicMock(), MagicMock(), OnlinePaymentReviewConfig(creator_app_link_name='app', bank_account_id='bank', state_path=tmp_path / 'q.json'))
+    entry = {'id': 'creator', 'payment_type': payment_type, 'bank_account_id': 'bank', 'bank': {'date': '2026-10-05'}, 'creator': {'date': '2026-10-03', 'amount': '5000', 'reference': '0432', 'books_customer_id': 'customer'}}
+    assert service._customer_payment_payload(entry, [])['date'] == expected
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_cheque_presentation_checkpoint_create_update_and_retry(tmp_path, existing):
+    creator = MagicMock()
+    service = OnlinePaymentReviewService(creator, MagicMock(), OnlinePaymentReviewConfig(creator_app_link_name='app', bank_account_id='bank', state_path=tmp_path / 'q.json'))
+    entry = {'id': '123', 'bank': {'date': '2026-10-05'}, 'creator': {'reference': '0432'}}
+    detail = {'ID': 'detail', 'Payment_ID': {'ID': '123'}, 'Cheque_Number': '000432', 'Presented_Date': '03-Oct-2026'}
+    verified = {**detail, 'Presented_Date': '05-Oct-2026'}
+    creator.get_all_records.side_effect = [[detail] if existing else [], [verified], [verified]]
+    creator.add_records.return_value = {'code': 3000}
+    creator.update_records.return_value = {'code': 3000}
+    service._checkpoint_cheque_presentation(entry)
+    service._checkpoint_cheque_presentation(entry)
+    assert all(call.kwargs == {"field_config": "all"} for call in creator.get_all_records.call_args_list)
+    action = creator.update_records if existing else creator.add_records
+    action.assert_called_once()
+    payload = action.call_args.args[2]['data']
+    assert payload['Presented_Date'] == '05-Oct-2026'
+    assert payload['Payment_ID'] == '123'
+
+
+@pytest.mark.parametrize('failure', ['duplicate', 'wrong_cheque', 'rejected', 'readback'])
+def test_cheque_presentation_checkpoint_blocks_errors(tmp_path, failure):
+    creator = MagicMock()
+    service = OnlinePaymentReviewService(creator, MagicMock(), OnlinePaymentReviewConfig(creator_app_link_name='app', bank_account_id='bank', state_path=tmp_path / 'q.json'))
+    entry = {'id': '123', 'bank': {'date': '2026-10-05'}, 'creator': {'reference': '0432'}}
+    detail = {'ID': 'detail', 'Payment_ID': {'ID': '123'}, 'Cheque_Number': '9999' if failure == 'wrong_cheque' else '0432', 'Presented_Date': '03-Oct-2026'}
+    creator.get_all_records.side_effect = [[detail, detail] if failure == 'duplicate' else [detail], [detail]]
+    creator.update_records.return_value = {'code': 3001 if failure == 'rejected' else 3000}
+    with pytest.raises(ReconciliationError):
+        service._checkpoint_cheque_presentation(entry)
+    if failure in {'duplicate', 'wrong_cheque'}:
+        creator.update_records.assert_not_called()
+    creator.add_records.assert_not_called()

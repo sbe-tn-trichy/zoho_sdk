@@ -145,13 +145,17 @@ class ZohoCreatorAPI(BaseZohoClient):
         self,
         app_link_name: str,
         report_link_name: str,
-        criteria: Optional[str] = None
+        criteria: Optional[str] = None,
+        *,
+        field_config: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Custom function: Auto-paginates using record_cursor to fetch all records.
         """
         all_records = []
         params = {"max_records": 1000}
+        if field_config:
+            params["field_config"] = field_config
         if criteria:
             params["criteria"] = criteria
             
@@ -175,7 +179,8 @@ class ZohoCreatorAPI(BaseZohoClient):
             
             # Query next page using cursor in header
             headers = {"record_cursor": cursor}
-            res = self.get_records(app_link_name, report_link_name, headers=headers)
+            page_options = {"params": {"field_config": field_config}} if field_config else {}
+            res = self.get_records(app_link_name, report_link_name, headers=headers, **page_options)
             data = res.get("data", [])
             all_records.extend(data)
             if not data:

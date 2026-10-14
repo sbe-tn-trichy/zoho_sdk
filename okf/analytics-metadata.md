@@ -119,6 +119,22 @@ remain.
 
 # Related Knowledge
 
+## Folder Organization
+
+Reports and supporting query tables are organized by business function: Sales &
+Orders, Receivables & Collections, Purchases & Payables, Inventory & Fulfilment,
+GST & Tax, Banking & Cash, Accounting & Finance, Reconciliation, Reference Data,
+and Development. Imported source tables retain their connector folders. Brand
+and vendor names remain in view names and filters.
+
+Folder moves use the Analytics v2 `views/movetofolder` endpoint. This workspace
+rejects multi-view CONFIG parameters with error 8507; compact, single-view
+requests work. A successful move can return an empty JSON object, so verify
+folder IDs through live inventory read-back rather than relying on response
+content. Preserve original folder IDs and checkpoint progress before continuing.
+Folder moves do not refresh the canonical metadata cache; cached folder
+placements remain historical until an explicitly requested manual sync.
+
 ## Detailed General Ledger
 
 Workspace `264324000000002043` contains **detailed general ledger**

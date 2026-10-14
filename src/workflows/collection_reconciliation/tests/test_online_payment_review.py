@@ -830,7 +830,9 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
                 }
             ]
         }
-        service.accept_and_push("creator-1")
+        with patch.object(service, "_checkpoint_cheque_presentation") as presentation:
+            service.accept_and_push("creator-1")
+        presentation.assert_called_once()
 
         payload = self.books.customer_payments.create.call_args.args[0]
         self.assertEqual(payload["payment_mode"], "check")
@@ -920,9 +922,11 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.assertTrue(entry["reviewable"])
         self.assertEqual(entry["bank_name"], "HDFC")
 
-    def test_cheque_without_presented_detail_is_not_reviewable(self):
+    def test_cheque_without_presented_detail_uses_cheque_date(self):
         cheque = dict(self.payment)
         cheque.pop("Payment_Date")
+        cheque["Reference"] = "0432"
+        self.bank["reference_number"] = "000432"
         cheque["Cheque_Date"] = "2026-07-12"
         service = OnlinePaymentReviewService(
             self.creator,
@@ -939,12 +943,9 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
 
         entry = service.refresh()["entries"][0]
 
-        self.assertFalse(entry["reviewable"])
-        self.assertEqual(entry["creator"]["date"], "")
-        self.assertEqual(
-            entry["reason"],
-            "No presented cheque detail matched cheque number and customer",
-        )
+        self.assertTrue(entry["reviewable"])
+        self.assertEqual(entry["creator"]["date"], "2026-07-12")
+        self.assertEqual(entry["creator"]["date_source"], "cheque_date")
 
 
 if __name__ == "__main__":

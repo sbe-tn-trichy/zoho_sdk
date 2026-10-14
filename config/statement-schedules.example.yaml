@@ -128,3 +128,14 @@ checks:
   expense_notes: [13, 14, 15]
   profit_before_tax_path: [IX. Profit before tax (VII - VIII)]
   depreciation_path: [IV. Expenses, 6. Depreciation And Amortization Expense]
+
+# Default: ledger_tables. To use a separately reviewed annual statement, select
+# reviewed_statement and supply explicit annual inputs (rate is a fraction).
+# asset_layout: reviewed_statement
+# reviewed_asset_statement:
+#   start: '2025-04-01'
+#   end: '2026-03-31'
+#   rows:
+#     - {name: Example asset, opening: 1000, rate: 0.15, depreciation: 150}
+# Optional opening_asset_id links a reviewed opening row to a register asset.
+# New FY register acquisitions are appended automatically with posted depreciation.

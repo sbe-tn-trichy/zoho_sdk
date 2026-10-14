@@ -121,6 +121,30 @@ def config_and_sources():
     return config, sources
 
 
+def test_other_expenses_sorts_gst_suffix_first_with_amounts_preserved():
+    config, sources = config_and_sources()
+    names = ["Zulu (GST)", "Alpha", "Alpha (GST)", "Contains (GST) text", "Beta"]
+    for report in sources["reports"].values():
+        pnl = report["profitandloss"]["schedule_profit_and_loss"]
+        leaf = next(n for n, _ in nodes(pnl) if n.get("account_id") == "id15")
+        leaf.pop("account_id")
+        leaf["account_transactions"] = [
+            {"account_id": f"expense{i}", "name": name, "total": i + 1}
+            for i, name in enumerate(names)
+        ]
+        leaf["total"] = 15
+        pbt = next(n for n, path in nodes(pnl)
+                   if list(path) == config["checks"]["profit_before_tax_path"])
+        pbt["total"] = -15
+    plan = build_schedule_plan(sources, config)
+    rows = next(rows for address, rows in plan.values.items() if address.startswith("'Notes"))
+    heading = next(i for i, row in enumerate(rows) if row and row[0] == "Note 15: Other Expenses")
+    assert rows[heading + 1:heading + 6] == [
+        ["Alpha (GST)", 3.0, 3.0], ["Zulu (GST)", 1.0, 1.0],
+        ["Alpha", 2.0, 2.0], ["Beta", 5.0, 5.0], ["Contains (GST) text", 4.0, 4.0],
+    ]
+
+
 def test_plan_links_two_year_notes_and_does_not_write_statement_subtotals():
     config, sources = config_and_sources()
     plan = build_schedule_plan(sources, config)
@@ -778,3 +802,137 @@ def test_ledger_opening_refuses_duplicate_accumulated_depreciation_assignment():
     config["asset_accumulated_depreciation_accounts"] = {"id6": ["dep"], "other": ["dep"]}
     with pytest.raises(ValueError, match="assigned twice"):
         build_schedule_plan(sources, config)
+
+
+def test_reviewed_statement_preserves_amounts_and_layout():
+    config, sources = config_and_sources()
+    config['asset_layout'] = 'reviewed_statement'
+    config['reviewed_asset_statement'] = {'start': '2025-04-01', 'end': '2026-03-31',
+        'rows': [{'name': '=Reviewed AC', 'opening': '38341.25', 'rate': '.15', 'depreciation': '2875.59'}]}
+    plan = build_schedule_plan(sources, config)
+    rows = plan.values["'Assets & Depreciation'!A1:I6"]
+    assert rows[0] == ['DEPRECIATION STATEMENT:']
+    assert rows[3] == ['=Reviewed AC', 38341.25, '', '', '', '=SUM(B4:D4)', .15, 2875.59, '=F4-H4']
+    assert rows[5][7] == '=SUM(H4:H4)'
+    assert plan.checks['fy2025-26']['reviewed_asset_depreciation'] == '2875.59'
+    assert any('reviewed depreciation versus P&L' in w for w in plan.warnings)
+    requests = update_requests(plan.values, config)
+    asset_request = next(r['updateCells'] for r in requests if r['updateCells']['range']['sheetId'] == config['sheet_ids']['assets'])
+    assert asset_request['range']['endColumnIndex'] == 9
+    assert asset_request['rows'][3]['values'][0]['userEnteredValue'] == {'stringValue': '=Reviewed AC'}
+    assert asset_request['rows'][3]['values'][5]['userEnteredValue'] == {'formulaValue': '=SUM(B4:D4)'}
+
+
+@pytest.mark.parametrize('change', [
+    {'end': '2027-03-31'}, {'rows': []},
+    {'rows': [{'name': 'A', 'opening': 1, 'rate': 2, 'depreciation': 0}]},
+    {'rows': [{'name': 'A', 'opening': 1, 'depreciation': 2}]},
+    {'rows': [{'name': 'A', 'opening': 'nan', 'depreciation': 0}]},
+    {'rows': [{'name': 'A', 'opening': 1, 'rate': .15, 'depreciation': 0, 'closing': 2}]},
+    {'rows': [{'name': 'A', 'opening': 1, 'rate': .15, 'depreciation': 0}] * 2},
+])
+def test_invalid_reviewed_statement_stops_plan(change):
+    config, sources = config_and_sources()
+    config['asset_layout'] = 'reviewed_statement'
+    config['reviewed_asset_statement'] = {'start': '2025-04-01', 'end': '2026-03-31',
+        'rows': [{'name': 'A', 'opening': 1, 'depreciation': 0}], **change}
+    with pytest.raises(ValueError):
+        build_schedule_plan(sources, config)
+
+
+def test_reviewed_apply_preserves_columns_after_i_and_clears_stale_rows(tmp_path):
+    config, sources = config_and_sources()
+    config['asset_layout'] = 'reviewed_statement'
+    config['reviewed_asset_statement'] = {'start': '2025-04-01', 'end': '2026-03-31',
+        'rows': [{'name': 'Machine', 'opening': 100, 'rate': .15, 'depreciation': 15}]}
+    config['backup_path'] = str(tmp_path / 'before.json')
+    session = SheetsSession(config)
+    title = config['sheets']['assets']
+    session.cells[(title, 0, 9)] = 'User content'
+    apply_plan('spreadsheet', build_schedule_plan(sources, config).values,
+               access_token='mock', config=config, session=session)
+    assert session.cells[(title, 0, 9)] == 'User content'
+    assert session.cells[(title, 49, 0)] == ''
+    asset_updates = [r['updateCells'] for r in session.posted[0]['requests']
+                     if r['updateCells']['range']['sheetId'] == config['sheet_ids']['assets']]
+    assert all(r['range']['endColumnIndex'] <= 9 for r in asset_updates)
+
+
+def test_asset_statement_preview_displays_calculated_sheet_values():
+    from apps.update_statement_schedules import asset_statement_preview
+    config, sources = config_and_sources()
+    config['asset_layout'] = 'reviewed_statement'
+    config['reviewed_asset_statement'] = {'start': '2025-04-01', 'end': '2026-03-31',
+        'rows': [{'name': 'AC', 'opening': '38341.25', 'rate': .15, 'depreciation': '2875.59'}]}
+    preview = '\n'.join(asset_statement_preview(build_schedule_plan(sources, config).values, config))
+    assert 'WDV AS ON 01.04.2025' in preview
+    assert '| AC | 38,341.25 |  |  |  | 38,341.25 | 0.15 | 2,875.59 | 35,465.66 |' in preview
+    assert '| Total | 38,341.25 | 0.00 | 0.00 |  | 38,341.25 |  | 2,875.59 | 35,465.66 |' in preview
+    assert '=SUM(' not in preview
+    assert asset_statement_preview({}, {'asset_layout': 'ledger_tables'}) == []
+
+
+def test_reviewed_statement_adds_current_year_acquisitions_with_posted_depreciation():
+    config, sources = config_and_sources()
+    config['asset_layout'] = 'reviewed_statement'
+    config['reviewed_asset_statement'] = {'start': '2025-04-01', 'end': '2026-03-31',
+        'rows': [{'name': 'Reviewed opening', 'opening': 100, 'rate': .15, 'depreciation': 15}]}
+    sources['assets'] = [{'asset': asset(), 'history': history()}]
+    plan = build_schedule_plan(sources, config)
+    rows = plan.values["'Assets & Depreciation'!A1:I7"]
+    assert rows[4] == ['Machine', 0.0, '', 1000.0, '2025-10-01', '=SUM(B5:D5)', .15, 74.79, '=F5-H5']
+    assert plan.checks['fy2025-26']['reviewed_asset_depreciation'] == '89.79'
+
+
+@pytest.mark.parametrize('purchase', ['2025-04-01', '2025-09-30', '2025-10-01', '2026-03-31'])
+def test_reviewed_addition_cutoff_and_year_boundaries(purchase):
+    from dataclasses import replace
+    from workflows.statement_schedules.workflow import reviewed_statement_with_additions
+    period = {'start': '2025-04-01', 'end': '2026-03-31'}
+    review = dict(period, rows=[{'name': 'Opening', 'opening': 1, 'rate': .15, 'depreciation': 0}])
+    result = verify_asset(asset(), history(), start=period["start"], end=period["end"])
+    before = Decimal(1000) if purchase <= '2025-09-30' else Decimal(0)
+    result = replace(result, purchase_date=purchase, before_cutoff=before, after_cutoff=Decimal(1000)-before)
+    rows = reviewed_statement_with_additions(review, period, [result])['rows']
+    assert rows[1]['before_cutoff'] == before
+    assert rows[1]['purchase_date'] == purchase
+    for excluded in ('2025-03-31', '2026-04-01'):
+        assert len(reviewed_statement_with_additions(review, period, [replace(result, purchase_date=excluded)])['rows']) == 1
+
+
+def test_reviewed_opening_import_match_prevents_double_counting_and_fails_on_drift():
+    from dataclasses import replace
+    from workflows.statement_schedules.workflow import reviewed_statement_with_additions
+    period = {'start': '2025-04-01', 'end': '2026-03-31'}
+    review = dict(period, rows=[{'name': 'Opening', 'opening_asset_id': 'asset',
+                               'opening': 1000, 'rate': .15, 'depreciation': 150}])
+    result = replace(verify_asset(asset(), history(), start=period["start"], end=period["end"]), purchase_date=period['start'],
+                     before_cutoff=Decimal(1000), after_cutoff=Decimal(0))
+    assert reviewed_statement_with_additions(review, period, [result])['rows'] == review['rows']
+    with pytest.raises(ValueError, match='differs from acquisition'):
+        reviewed_statement_with_additions(review, period, [replace(result, before_cutoff=Decimal(900))])
+    with pytest.raises(ValueError, match='absent from scoped register'):
+        reviewed_statement_with_additions(review, period, [])
+    with pytest.raises(ValueError, match='Duplicate reviewed opening'):
+        reviewed_statement_with_additions(dict(review, rows=review['rows'] + [dict(review['rows'][0], name='Other')]), period, [result])
+
+
+@pytest.mark.parametrize('account_id', ['ledger', 'wrong'])
+def test_reviewed_opening_account_mapping_is_verified(account_id):
+    config, sources = config_and_sources()
+    config['asset_layout'] = 'reviewed_statement'
+    config['reviewed_asset_statement'] = {'start': '2025-04-01', 'end': '2026-03-31',
+        'rows': [{'name': 'TVS excel', 'opening_asset_id': 'asset', 'opening_account_id': account_id,
+                  'opening': 1000, 'rate': .15, 'depreciation': 150}]}
+    record = asset() | {'asset_purchase_date': '2025-04-01', 'depreciation_start_date': '2025-04-01'}
+    rows = [{'valuation_id': 'acq', 'type': 'acquisition', 'valuation_date': '2025-04-01',
+             'revise_value': 1000, 'current_value': 1000, 'is_journal_posted': False}]
+    sources['assets'] = [{'asset': record, 'history': rows}]
+    if account_id == 'wrong':
+        with pytest.raises(ValueError, match='account mapping differs'):
+            build_schedule_plan(sources, config)
+    else:
+        plan = build_schedule_plan(sources, config)
+        assert any('TVS excel maps to Machinery account (ledger)' in w for w in plan.warnings)
+        table = next(v for a, v in plan.values.items() if a.startswith("'Assets & Depreciation'!"))
+        assert len(table) == 6

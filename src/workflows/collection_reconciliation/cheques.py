@@ -40,20 +40,15 @@ def attach_presented_dates(
             _text(lookup.get("ID")),
         )
         candidates = details_by_key.get(key, [])
-        if len(candidates) != 1:
+        if len(candidates) > 1:
             payment["_review_presented_date"] = ""
-            payment["_review_presented_date_error"] = (
-                "No presented cheque detail matched cheque number and customer"
-                if not candidates
-                else "Multiple presented cheque details matched cheque number and customer"
-            )
+            payment["_review_presented_date_error"] = "Multiple presented cheque details matched cheque number and customer"
             continue
 
-        presented_date = _text(candidates[0].get("Presented_Date"))
-        payment["_review_presented_date"] = presented_date
-        payment["_review_presented_date_error"] = (
-            "The matched cheque detail has no Presented_Date"
-            if not presented_date
-            else ""
-        )
-        payment["_review_cheque_detail_id"] = _text(candidates[0].get("ID"))
+        presented_date = _text(candidates[0].get("Presented_Date")) if candidates else ""
+        cheque_date = _text(payment.get("Cheque_Date"))
+        payment["_review_presented_date"] = presented_date or cheque_date
+        payment["_review_date_source"] = "presented_date" if presented_date else "cheque_date"
+        payment["_review_presented_date_error"] = "" if presented_date or cheque_date else "No Presented_Date or Cheque_Date is available"
+        if candidates:
+            payment["_review_cheque_detail_id"] = _text(candidates[0].get("ID"))

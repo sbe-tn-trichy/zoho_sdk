@@ -5,6 +5,12 @@ description: Two-year Schedule III sheet updates and current-year fixed-asset de
 
 # NCE document Preparation
 
+Other Expenses note accounts ending in `(GST)` appear first. Both that group
+and the remaining accounts retain alphabetical ordering and their amounts.
+NCE Interest Expense is assigned by account ID to Note 16 Finance Costs and
+linked to P&L row 11 for both years. It is excluded from Note 15; Finance Costs
+is included in expense reconciliation, preserving profit and total expenses.
+
 The workbook's manually maintained `checkbox` tab compares entered FY 2025–26
 AIS/supporting figures and FY 2024–25 audited financials with statement and note
 lines. Column E holds source amounts; F holds documented adjustments; G:I show
@@ -26,6 +32,10 @@ only the matching checkbox H formula, choosing the year's note amount column
 and rejecting missing or duplicate labels in the sheet. These mappings do not
 change note classifications, statement totals, or Books records. Other custom
 lookups remain preserved.
+The FY 2024–25 Other Expenses comparison includes Note 15 accounts without
+a separate audited expense line, plus Other Expenses. Accounts already covered
+by individual or combined audited checks are excluded to avoid double counting.
+Its explicit membership lives in `checkbox_mappings`; differences remain visible.
 Adjacent formula cells are read as column ranges to keep large check lists
 within Google request URL limits.
 Newly added or renamed statement/note lines require updating its check list.
@@ -39,7 +49,7 @@ April–March periods, note classifications and exact statement destination rows
 live in the Git-ignored `config/statement-schedules.yaml`. A generic schema/example
 is [statement-schedules.example.yaml](../config/statement-schedules.example.yaml).
 
-Run `.venv/Scripts/python.exe apps/update_statement_schedules.py` for a read-only
+Run `.venv/bin/python apps/update_statement_schedules.py` for a read-only
 live preview. Each period makes one Schedule III P&L and one Schedule III balance
 sheet request. With inventory rollforward enabled, one additional balance sheet
 at the earlier year's opening date is fetched, five report requests overall.
@@ -125,6 +135,28 @@ includes identified fixed-asset ledger balances absent from the register using
 prior/current balance-sheet reads, leaving depreciation blank and warning about
 missing rate/history. Books remains unchanged. Missing account identity/name fails before apply. Register reconciliation remains.
  
+
+NCE now selects `asset_layout: reviewed_statement` for the user-reviewed single
+statement in A:I. `reviewed_asset_statement` stores explicit start/end dates and
+ordered rows (`name`, `opening`, optional `before_cutoff`, `after_cutoff`,
+`purchase_date`, `rate` as a fraction, and `depreciation`). Opening-row amounts are reviewed inputs. Current-year scoped register
+acquisitions are appended with zero opening, purchase date, cutoff-split additions,
+rate and posted depreciation. Optional `opening_asset_id` explicitly matches an
+opening row to a register asset. Optional `opening_account_id` also pins its
+ledger account; a mismatch fails and verified mappings appear in preview observations. Matching first-day acquisitions equal to the
+reviewed opening are treated as imported opening balances and are not added
+twice; missing IDs, duplicate assignments or differing basis fail. Other matched
+assets must reconcile to their historical opening with no additions. The renderer preserves their
+order and depreciation, generates total/closing formulas, and leaves a blank row
+before the totals. Optional supplied `total`/`closing` amounts must reconcile
+within one paisa. Invalid amounts, duplicate names, excess depreciation and stale
+periods fail. Differences against P&L depreciation and Note 6 remain visible in
+the preview; this layout does not change statement or Books accounting amounts.
+The Markdown preview includes the A:I sheet output with calculated formula
+values and totals before the independent register checks. Only A:I is managed for this layout, including stale-row clearing; J:P and native
+formatting remain outside its writes. The default `ledger_tables` layout retains
+the two register-verification tables above. Reviewed annual inputs must be updated
+explicitly before preparing another financial year.
 
 The asset check supports yearly declining depreciation with `prorata_basis`
 (including the depreciation start day, divided by actual FY days) or `no_prorata`.

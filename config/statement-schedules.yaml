@@ -22,6 +22,7 @@ sheet_ids:
   notes: 41480615
   assets: 1447215420
 account_notes:
+  '1094368000020272073': 16
   '1094368000029132050': 14
   '1094368000032069241': 14
   '1094368000000000504': 12
@@ -227,6 +228,14 @@ notes:
     - 7. Other Expenses
   statement: profitandloss
   statement_row: 13
+- number: 16
+  title: Finance Costs
+  report: profitandloss
+  paths:
+  - - IV. Expenses
+    - 5. Finance Costs
+  statement: profitandloss
+  statement_row: 11
 direct_inputs:
 - statement: balancesheet
   row: 10
@@ -265,13 +274,6 @@ direct_inputs:
   expense: true
   inventory_changes: true
 - statement: profitandloss
-  row: 11
-  report: profitandloss
-  path:
-  - IV. Expenses
-  - 5. Finance Costs
-  expense: true
-- statement: profitandloss
   row: 12
   report: profitandloss
   path:
@@ -309,6 +311,7 @@ checks:
   - 13
   - 14
   - 15
+  - 16
   profit_before_tax_path:
   - IX. Profit before tax (VII - VIII)
   depreciation_path:
@@ -335,3 +338,67 @@ checkbox_mappings:
   line_item: Salaries and Employee Wage
   note_lines:
   - Salaries and Employee Wage
+- year: '2024–25'
+  section: Audited combined lines
+  line_item: Other Expenses (combined)
+  note_lines:
+  - Automobile Expense
+  - Bank Charges
+  - Bank Charges (GST)
+  - Cheque Return Charges Inward (GST)
+  - Consultant Expense
+  - Consultant Expense (GST)
+  - Donation Expense
+  - Fitting Charges Expense
+  - Gifts
+  - Loading & Unloading
+  - Merchandise
+  - Office Supplies
+  - Office Supplies (GST)
+  - Other Expenses
+  - POOJA EXP
+  - Sales Incentive
+  - Software Expenses (GST)
+  - TEA EXP
+  - Telephone Expense (GST)
+asset_layout: reviewed_statement
+reviewed_asset_statement:
+  start: '2025-04-01'
+  end: '2026-03-31'
+  rows:
+  - name: Air Conditioner
+    opening_asset_id: '1094368000063118469'
+    opening: '38341.25'
+    rate: '.15'
+    depreciation: '5751.20'
+  - name: Furniture & Fittings
+    opening_asset_id: '1094368000063147524'
+    opening: '13438.05'
+    rate: '.10'
+    depreciation: '1343.81'
+  - name: Computer
+    opening_asset_id: '1094368000063118491'
+    opening: '23313.63'
+    rate: '.40'
+    depreciation: '9325.46'
+  - name: TVS excel
+    opening_asset_id: '1094368000063152175'
+    opening_account_id: '1094368000063152114'
+    opening: '2889.43'
+    rate: '.15'
+    depreciation: '433.41'
+  - name: Software
+    opening_asset_id: '1094368000063147355'
+    opening: '93739.01'
+    rate: '.40'
+    depreciation: '37495.60'
+  - name: ELECTRIC BIKE
+    opening_asset_id: '1094368000063147506'
+    opening: '35483.94'
+    rate: '.40'
+    depreciation: '14193.58'
+  - name: Elevator (Goods)
+    opening_asset_id: '1094368000063118042'
+    opening: '85255.00'
+    rate: '.15'
+    depreciation: '12788.25'

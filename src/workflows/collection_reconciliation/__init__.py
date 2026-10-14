@@ -22,6 +22,7 @@ from .review import OnlinePaymentReviewConfig, OnlinePaymentReviewService
 from .repair import repair_payment_allocations
 from .types import (
     BankMatchCandidate,
+    BankStatementRecord,
     ChequeDetail,
     InvoiceAllocation,
     PaymentProposal,
@@ -48,6 +49,7 @@ __all__ = [
     "repair_payment_allocations",
     "InvoiceAllocation",
     "BankMatchCandidate",
+    "BankStatementRecord",
     "ChequeDetail",
     "PaymentProposal",
 ]
