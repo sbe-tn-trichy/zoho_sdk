@@ -179,3 +179,7 @@ zero disables caching. `--force-refresh` clears caches before preview reads.
 to 6000 UTF-8 bytes before URL encoding. These are application budgets,
 not published Zoho limits. Posting always validates Analytics and invoices
 with live reads. See [Request Efficiency](collection-reconciliation.md#request-efficiency).
+
+Polycab supplier-credit creation uses `POLYCAB_SCHEME_ACCOUNT_ID`,
+`POLYCAB_RMA_ACCOUNT_ID` and `POLYCAB_CLEARING_ACCOUNT_ID`; see
+[credit import](polycab-credit-import.md) for command selection and accounting rules.

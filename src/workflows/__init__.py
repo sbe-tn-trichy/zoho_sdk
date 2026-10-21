@@ -23,6 +23,10 @@ from .core.models import DotDict
 
 
 _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "review_unearned_revenue_analytics": (".unearned_revenue", "review_unearned_revenue_analytics"),
+    "find_unused_customer_payments": (".unearned_revenue", "find_unused_customer_payments"),
+    "UnusedPayment": (".unearned_revenue", "UnusedPayment"),
+    "UnearnedRevenueReview": (".unearned_revenue", "UnearnedRevenueReview"),
     "sync_customer_numbers": (".customer_registration", "sync_customer_numbers"),
     "CustomerNumberChange": (".customer_registration", "CustomerNumberChange"),
     "CustomerNumberSyncResult": (".customer_registration", "CustomerNumberSyncResult"),
@@ -94,6 +98,8 @@ _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
     "REQUIRED_OAUTH_SCOPES": (".collection_reconciliation", "REQUIRED_OAUTH_SCOPES"),
     "missing_oauth_scopes": (".collection_reconciliation", "missing_oauth_scopes"),
     "reconcile_collections": (".collection_reconciliation", "reconcile_collections"),
+    "CreditImportPolicy": (".polycab_credit_memos.importer", "CreditImportPolicy"),
+    "import_credit_pdf": (".polycab_credit_memos.importer", "import_credit_pdf"),
     "check_vendor_credits_location": (".polycab_credit_memos.processor", "check_vendor_credits_location"),
     "create_vendor_credit_from_pdf": (".polycab_credit_memos.processor", "create_vendor_credit_from_pdf"),
     "parse_polycab_credit_memo": (".polycab_credit_memos.processor", "parse_polycab_credit_memo"),
@@ -130,6 +136,16 @@ _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
     "CustomerPaymentDateChecker": (".customer_payment_date_check", "CustomerPaymentDateChecker"),
     "check_customer_payment_dates": (".customer_payment_date_check", "check_customer_payment_dates"),
 }
+
+
+_LAZY_EXPORTS.update({
+    "render_payment_ocr_markdown": (".creator_payment_ocr", "render_payment_ocr_markdown"),
+    "PaymentOCRSource": (".creator_payment_ocr", "PaymentOCRSource"),
+    "review_creator_payment_images": (".creator_payment_ocr", "review_creator_payment_images"),
+    "OCRDetails": (".creator_payment_ocr", "OCRDetails"),
+    "extract_payment_details": (".creator_payment_ocr", "extract_payment_details"),
+    "cross_check_payment": (".creator_payment_ocr", "cross_check_payment"),
+})
 
 
 def __getattr__(name: str):
@@ -210,6 +226,8 @@ __all__ = [
     "parse_zeiss_pdf_statement",
     "consolidate_zeiss_statements",
     "parse_polycab_credit_memo",
+    "CreditImportPolicy",
+    "import_credit_pdf",
     "create_vendor_credit_from_pdf",
     "upload_vendor_credit_attachment",
     "upload_to_workdrive",
@@ -247,3 +265,7 @@ __all__ = [
 from .gst_cash_ledger import GSTCashLedgerCheck, check_gst_cash_ledger, fetch_gst_cash_ledger_report
 from .gst_monthly import MonthlyGSTCheck, check_monthly_gst, gst_movements, month_bounds
 __all__ += ['MonthlyGSTCheck', 'check_monthly_gst', 'gst_movements', 'month_bounds']
+
+__all__ += ["PaymentOCRSource", "review_creator_payment_images", "OCRDetails", "extract_payment_details", "cross_check_payment"]
+
+__all__ += ["render_payment_ocr_markdown"]

@@ -14,6 +14,8 @@ Implemented domain workflows, grouped by purpose. Code and tests are authoritati
 
 ## Financial reporting
 
+Unearned Revenue candidates: [workflow](src/workflows/unearned_revenue.py), run `apps/find_unearned_revenue.py`; [contract and limitations](okf/unearned-revenue.md).
+
 | Workflow | Module |
 |---|---|
 | AIS master reconciliation | [ais_reconciliation](src/workflows/ais_reconciliation/) |
@@ -84,7 +86,7 @@ Bank Statement Categorization includes Creator collection matching, Analytics-as
 
 | Workflow | Module |
 |---|---|
-| Polycab credit-memo processing and attachments | [polycab_credit_memos](src/workflows/polycab_credit_memos/) |
+| Polycab credit-memo processing and attachments (primary CLI: `apps/import_polycab_credit.py`; preview by default) | [polycab_credit_memos](src/workflows/polycab_credit_memos/) |
 | Polycab vendor-credit review and correction | [polycab_credit_review](src/workflows/polycab_credit_review/) |
 | GSTIN-checked vendor–customer payment offset | [vendor_customer_offset](src/workflows/vendor_customer_offset/) |
 | Bill updates with payment preservation and posting-date updates | [bill_updates](src/workflows/bill_updates.py) |
@@ -116,3 +118,7 @@ Use each app's help and relevant OKF documentation for configuration, arguments 
 Customer registration in Books and Creator: [customer_registration](src/workflows/customer_registration/), run with [register_customer.py](apps/register_customer.py). See [usage and recovery](okf/customer-registration.md).
 
 Creator customer-number backfill: [sync_customer_numbers.py](apps/sync_customer_numbers.py), using [customer_registration](src/workflows/customer_registration/) with explicit Books IDs and a dry-run default.
+
+### Creator payment image OCR
+
+Run `.venv/bin/python apps/review_creator_payment_images.py` to download and review online and cheque payment evidence. See [workflow documentation](okf/creator-payment-ocr.md) for filters, output, and OCR limitations.

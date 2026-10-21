@@ -24,6 +24,7 @@ workflows = [
     "python-dotenv>=1.0.0",
     "openpyxl>=3.1.5",
 ]
+ocr = ["pytesseract>=0.3.13", "Pillow>=11.0.0"]
 test = ["pytest>=8.0.0"]
 
 [tool.setuptools.packages.find]

@@ -170,8 +170,10 @@ def test_plan_preserves_rounding_and_unrelated_notes_fields(records):
     assert len(payload['line_items']) == 2
     assert all(x['item_id'] == '3' and x['account_id'] == '4' for x in payload['line_items'])
     assert payload['custom_fields'][1]['value'] == 'keep'
-    assert 'RSO#: 12345\nINV#: SBE2526INV-001' in payload['notes']
-    assert 'Human note' in payload['notes'] and 'ROUNDING_APPLIED_INR: 0.32' in payload['notes']
+    assert 'notes' not in payload and 'notes' not in plan.payloads['journal']
+    for line in payload['line_items'] + plan.payloads['journal']['line_items']:
+        assert 'RSO#: 12345\nINV#: SBE2526INV-001' in line['description']
+        assert 'ROUNDING_APPLIED_INR: 0.32' in line['description']
     assert set(plan.payloads['payment']) == {'description'}
     assert 'product_type' not in payload['line_items'][0]
 

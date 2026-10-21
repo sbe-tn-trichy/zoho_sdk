@@ -1,5 +1,21 @@
 # Knowledge Change Log
 
+## 2026-10-21
+
+- Made the [payment OCR report](creator-payment-ocr.md) a compact problems-only table with side-by-side values and image links.
+
+- Improved [payment OCR](creator-payment-ocr.md) for dark screenshots and missing currency glyphs; suspected leading-digit currency errors require review.
+
+- Changed [Creator payment image OCR](creator-payment-ocr.md) output to an atomic Markdown review report and Markdown CLI summary.
+
+- Added [Creator payment image OCR](creator-payment-ocr.md) with authenticated downloads, local evidence, and conservative read-only comparisons.
+
+- Kept Polycab trace references in vendor-credit/journal line descriptions and customer payment descriptions; imports and corrections leave transaction notes unchanged.
+
+- Added [Polycab credit import](polycab-credit-import.md): Scheme credits to Kitty, RSO credits to RMA Expense with clearing journal and exact-invoice payment, shared trace references, checkpoints and read-back checks. Legacy RSO creation is blocked to prevent incomplete settlement.
+
+- Added read-only Analytics Unearned Revenue review with unused-payment/customer totals, account accrual balance and Entity ID evidence; retained the Books detail scan as a library API.
+
 ## 2026-10-14
 
 - Added bulk bank-line selection for vendor advances and cash transfers using per-row validated categorization, detailed confirmation, and retry retention for failures.

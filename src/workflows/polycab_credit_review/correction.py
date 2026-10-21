@@ -82,7 +82,7 @@ def build_credit_correction_plan(audit: CreditAudit, policy: RmaCreditPolicy) ->
         row = {key: line[key] for key in ('line_item_id', 'quantity', 'rate', 'item_order', 'tax_id', 'location_id') if key in line}
         row.update(item_id=policy.rma_item_id, account_id=policy.rma_account_id,
                    description=update_reference_lines(line.get('description', ''),
-                       [('CN#', memo.supplier_number)] + [(k, v) for k, v in reference_pairs(checked) if k not in ('VC#', 'CN#')],
+                       [('CN#', memo.supplier_number)] + [(k, v) for k, v in pairs if k != 'CN#'],
                        managed_labels=_LABELS))
         lines.append(row)
     custom_fields = [{'customfield_id': x['customfield_id'],
@@ -93,14 +93,12 @@ def build_credit_correction_plan(audit: CreditAudit, policy: RmaCreditPolicy) ->
         row = {key: line[key] for key in ('line_id', 'debit_or_credit', 'amount', 'tax_id', 'location_id', 'account_id') if key in line}
         if row['debit_or_credit'] == 'debit':
             row['account_id'] = policy.rma_account_id
-        row['description'] = update_reference_lines(line.get('description', ''), reference_pairs(checked), managed_labels=_LABELS)
+        row['description'] = update_reference_lines(line.get('description', ''), pairs, managed_labels=_LABELS)
         jlines.append(row)
     payloads = {
-        'vc': {'line_items': lines, 'custom_fields': custom_fields,
-               'notes': update_reference_lines(credit.get('notes', ''), pairs, managed_labels=_LABELS)},
+        'vc': {'line_items': lines, 'custom_fields': custom_fields},
         'journal': {'journal_date': journal['journal_date'], 'journal_type': journal['journal_type'],
-                    'location_id': journal['location_id'], 'line_items': jlines,
-                    'notes': update_reference_lines(journal.get('notes', ''), pairs, managed_labels=_LABELS)},
+                    'location_id': journal['location_id'], 'line_items': jlines},
         'payment': {'description': update_reference_lines(payment.get('description', ''), pairs, managed_labels=_LABELS)},
     }
     return CreditCorrectionPlan(policy, checked, payloads)

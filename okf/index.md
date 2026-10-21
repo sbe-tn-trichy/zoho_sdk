@@ -13,6 +13,10 @@ okf_version: "0.2"
 
 ## Reference
 
+* [Creator Payment Image OCR](creator-payment-ocr.md) - Read-only image download, local Tesseract extraction, and comparison against Creator payments.
+
+* [Unearned Revenue Review](unearned-revenue.md) - Analytics unused payment balances, account accrual totals and association limits.
+
 * [Workflow Catalog](../WORKFLOWS.md) - Business workflow names, module locations and application guidance.
 
 * [GST Cash-ledger Comparison](gst-cash-ledger.md) - Cash tax balances versus output minus input GST.
@@ -35,6 +39,7 @@ okf_version: "0.2"
 * [Duplicate Customer Payment Check](duplicate-payment-check.md) - Read-only detection of customer payments sharing the same customer, date, and amount.
 * [Customer Payment Date Mismatch](customer-payment-date-mismatch.md) - Read-only detection of customer payments where payment date differs from invoice application dates.
 * [Polycab RSO Import](polycab-rso-import.md) - Parse Polycab return-sales-order PDFs, create location-scoped Books sales orders, and attach the source PDF.
+* [Polycab Credit Import](polycab-credit-import.md) - Scheme Kitty credits and traceable RSO credit/journal/customer-payment creation.
 * [Polycab Vendor-credit Review](polycab-credit-review.md) - Poppler PDF audits, labeled references and reviewed RMA credit/journal/payment corrections.
 * [Analytics Metadata Snapshots](analytics-metadata.md) - Cached SQLite analysis, manual sync, freshness timestamps, saved query SQL, and workflow impact.
 * [Bank–Vendor Ledger Matching](bank-vendor-ledger-matching.md) - Books bank-withdrawal matching and ICICI UPI reference normalization.

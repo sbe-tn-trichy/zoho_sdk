@@ -5,6 +5,8 @@ description: Poppler PDF evidence and reviewed RMA vendor-credit, journal and cu
 
 # Polycab vendor-credit review
 
+For new credits and creation of the journal/payment, use [Polycab credit import](polycab-credit-import.md).
+
 `workflows.polycab_credit_review.review_polycab_vendor_credits()` receives a Books
 client, `RmaCreditPolicy`, inclusive dates and optional exact credit numbers. It
 downloads every detail-record attachment, extracts all pages with Poppler
@@ -54,8 +56,8 @@ totals, reallocates payments or creates missing journals/payments.
 Each reference occupies a labeled line (`RSO#:`, `INV#:`, `JNL#:`, `CP#:`).
 Repeated `CN#:` and `SUPPLIER_CN#:` lines represent combined supplier notes.
 Rounding invoice, amount applied and unused amount have separate labeled lines.
-VC line descriptions, VC notes, journal lines/notes and payment descriptions use
-the same format. Existing human notes are preserved; repeated runs replace
+VC line descriptions, journal line descriptions and payment descriptions use
+the same format. Transaction notes are left unchanged. Repeated runs replace
 managed labeled lines without appending duplicate reference blocks.
 
 - `pdf.py` owns Poppler extraction and supplier-note parsing/deduplication.

@@ -144,16 +144,13 @@ class TestCreditMemoProcessor(unittest.TestCase):
         self.assertEqual(payload["bill_id"], "bill_777")
         self.assertNotIn("reference_invoice_type", payload)
         
-        # Test Case 3: RSO CN description override with RSO Number alone
+        # Legacy single-record import must not bypass RSO settlement.
         books_client.vendor_credits.create.reset_mock()
         mock_resolve_item.return_value = Config.ZOHO_RSO_CN_ITEM_ID
-        mock_parse.return_value["raw_text"] = "RSO Number : 25267008565 E-Way Bill No :\n"
-        
-        res = create_vendor_credit_from_pdf(books_client, "dummy.pdf")
-        books_client.vendor_credits.create.assert_called_once()
-        payload = books_client.vendor_credits.create.call_args.args[0]
-        self.assertEqual(payload["line_items"][0]["description"], "25267008565")
-        self.assertEqual(payload["line_items"][0]["item_id"], Config.ZOHO_RSO_CN_ITEM_ID)
+        with self.assertRaisesRegex(ValueError, 'RSO credits require'):
+            create_vendor_credit_from_pdf(books_client, "dummy.pdf")
+        books_client.vendor_credits.create.assert_not_called()
+        mock_resolve_item.return_value = "item_123"
 
         # Test Case 4: An explicit vendor ID bypasses name-based resolution.
         books_client.vendor_credits.create.reset_mock()

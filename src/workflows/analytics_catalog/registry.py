@@ -19,6 +19,9 @@ def _references(key: str, source: str, names: tuple[str, ...]) -> tuple[Workflow
 
 
 DEFAULT_REFERENCES = (
+    *_references("unearned_revenue", "src/workflows/unearned_revenue.py",
+                 ("Customer Payments (Zoho Books)", "Customers (Zoho Books)",
+                  "Accrual Transactions (Zoho Books)", "Accounts (Zoho Books)")),
     WorkflowViewReference("detailed_general_ledger", "detailed general ledger",
                           "okf/analytics-metadata.md", view_id="264324000008493010",
                           notes="FY 2025-26 accrual postings joined to account name and account type."),

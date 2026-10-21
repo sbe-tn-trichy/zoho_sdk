@@ -101,6 +101,35 @@ class ZohoCreatorAPI(BaseZohoClient):
             kwargs["headers"] = headers
         return self.request("GET", f"data/{self.account_owner_name}/{app_link_name}/report/{report_link_name}", **kwargs)
 
+    def download_file(
+        self,
+        app_link_name: str,
+        report_link_name: str,
+        record_id: str,
+        field_link_name: str,
+        destination: str,
+        *,
+        filepath: Optional[str] = None,
+    ) -> str:
+        """Download one report attachment to a caller-selected local path.
+
+        Pass the API-returned filepath for fields supporting multiple uploads.
+        Attachment URLs are never followed, keeping OAuth on the API host.
+        """
+        from urllib.parse import quote
+        from zoho.downloads import write_response_to_file
+
+        parts = (self.account_owner_name, app_link_name, report_link_name,
+                 record_id, field_link_name)
+        if any(not str(part).strip() for part in parts):
+            raise ValueError("Owner, app, report, record and field are required.")
+        owner, app, report, record, field = (quote(str(part), safe="") for part in parts)
+        response = self.request(
+            "GET", f"data/{owner}/{app}/report/{report}/{record}/{field}/download",
+            params={"filepath": filepath} if filepath else None, stream=True,
+        )
+        return write_response_to_file(response, destination)
+
     def add_records(
         self,
         app_link_name: str,

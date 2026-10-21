@@ -168,10 +168,7 @@ def resolve_account_id(books_client: Any, name: str) -> Optional[str]:
         res = books_client.chart_of_accounts.list()
         _CHART_OF_ACCOUNTS_CACHE = res.get("chartofaccounts", [])
     for a in _CHART_OF_ACCOUNTS_CACHE:
-        if name.lower() in a.get("account_name", "").lower():
-            return a.get("account_id")
-    for a in _CHART_OF_ACCOUNTS_CACHE:
-        if "purchase discounts" in a.get("account_name", "").lower():
+        if name.casefold() == a.get("account_name", "").casefold():
             return a.get("account_id")
     return None
 
@@ -215,7 +212,7 @@ def create_vendor_credit_from_pdf(
     books_client: Any, 
     pdf_path: str, 
     vendor_name: str = "Polycab",
-    account_name: str = "Polycab Scheme - Expense",
+    account_name: str = "Polycab Kitty",
     vendor_id: Optional[str] = None,
     location_id: str = Config.EXPECTED_LOCATION_ID,
 ) -> Dict[str, Any]:
@@ -237,17 +234,15 @@ def create_vendor_credit_from_pdf(
         bill_id = resolve_bill_id_by_number(books_client, vendor_id, bill_number)
         
     item_id = resolve_item_id(details["raw_text"])
+    if item_id == Config.ZOHO_RSO_CN_ITEM_ID:
+        raise ValueError('RSO credits require import_credit_pdf / apps/import_polycab_credit.py '
+                         'to create the journal, customer payment and trace references')
     account_id = resolve_account_id(books_client, account_name)
     if not account_id:
         raise ValueError(f"Could not resolve account ID for name: '{account_name}'")
     
-    # If it is an RSO CN, use the RSO number alone as description
     description = details["description"]
-    if item_id == Config.ZOHO_RSO_CN_ITEM_ID:
-        rso_match = re.search(r"RSO\s+(?:Number|No\.?)\s*:\s*(\d+)", details["raw_text"], re.IGNORECASE)
-        if rso_match:
-            description = rso_match.group(1).strip()
-    
+
     payload = {
         "vendor_id": vendor_id,
         "location_id": location_id,
