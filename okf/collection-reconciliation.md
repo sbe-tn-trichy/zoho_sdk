@@ -207,15 +207,20 @@ historical categorized records in Analytics `Payment Customer Finder` view
 remitter identifiers (UPI VPA, phone numbers, remitter names) from the bank line
 narration and executes targeted SQL queries against the Finder view rather than
 downloading the full table. If historical records identify exactly one customer, that customer must confirm
-the Creator customer name; a unique different customer blocks acceptance as a
-conflict. History matching multiple distinct customers is inconclusive: the UI
+the Creator customer name; a unique different customer produces a visible conflict warning. The proposal
+retains its invoice preview and can be accepted individually after explicitly
+confirming that the payment belongs to the Creator customer. The server requires
+`allow_customer_name_override=True`, rechecks live history before posting, and
+records the confirmed customer, historical names, and confirmation time in the
+local checkpoint. Bulk acceptance does not override customer conflicts; use
+individual Accept & Push. History matching multiple distinct customers is inconclusive: the UI
 shows a note and the candidate remains eligible for invoice preview and acceptance
 subject to the other matching and allocation checks. If no prior records exist for that
 remitter, the exact date, amount, and reference match remains reviewable.
 Redacted UPI local IDs such as `XXuram@okaxis` search history using the
 visible four-character suffix plus handle (`uram@okaxis`), including older
 unredacted narrations. The suffix alone is never a remitter token. Redacted IDs can collide; multiple historical customers therefore produce the
-same non-blocking note, while a unique different customer still blocks acceptance.
+same non-blocking note, while a unique different customer requires individual customer confirmation.
 Date, amount, and reference predicates remain unchanged.
 A targeted lookup is also re-executed immediately before a push so a stale preview
 cannot authorize a payment.
@@ -357,7 +362,7 @@ customer mappings for 300 seconds by default. Empty historical matches are
 cached too. Caches are scoped to their injected client and configured
 workspace/view or app/report; they are never written to the state file.
 Banks and invoice balances are read on every preview refresh. A customer
-conflict skips its invoice preview, and repeat acceptance of an already pushed
+conflict retains its invoice preview for review, and repeat acceptance of an already pushed
 entry returns before making network calls.
 
 `refresh(force_refresh=True)`, the UI **Force refresh** button, and CLI

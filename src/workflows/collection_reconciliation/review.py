@@ -217,14 +217,9 @@ class OnlinePaymentReviewService:
                     self._migrate_bank_identity(terminal, previous)
                     entries.append(terminal)
                     continue
-                if entry.get("customer_name_valid") is not False:
-                    self._attach_invoice_preview(entry, invoice_cache)
-                else:
-                    entry.update(invoice_allocations=[], allocation_status="unavailable",
-                                 allocation_error=entry["customer_name_reason"])
+                self._attach_invoice_preview(entry, invoice_cache)
                 if entry.get("customer_name_valid") is False:
-                    entry["reviewable"] = False
-                    entry["reason"] = entry["customer_name_reason"]
+                    entry["reason"] += " " + entry["customer_name_reason"]
                 if old and old.get("fingerprint") == entry["fingerprint"]:
                     for key in (
                         "decision",
@@ -467,6 +462,7 @@ class OnlinePaymentReviewService:
         *,
         selected_bank_transaction_id: str = "",
         allow_reference_override: bool = False,
+        allow_customer_name_override: bool = False,
     ) -> Dict[str, Any]:
         """Push one approved proposal to Books, then checkpoint it in Creator."""
         with self._lock:
@@ -522,7 +518,16 @@ class OnlinePaymentReviewService:
             self._check_customer_name(entry, self._query_historical_customer_finder(live_tokens))
             if entry.get("customer_name_valid") is False:
                 self._save(batch)
-                raise ReconciliationError(entry["customer_name_reason"])
+                if not allow_customer_name_override:
+                    raise ReconciliationError(
+                        entry["customer_name_reason"]
+                        + " Explicit confirmation of the Creator customer is required."
+                    )
+                entry["manual_customer_name_override"] = {
+                    "confirmed_at": _now(),
+                    "customer_name": entry["creator"]["customer_name"],
+                    "historical_customer_names": entry["historical_customer_names"],
+                }
             entry.update(
                 {
                     "decision": "accepted",

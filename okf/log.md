@@ -1,5 +1,9 @@
 # Knowledge Change Log
 
+## 2026-10-22
+
+- Changed [bank categorization](collection-reconciliation.md) customer-history conflicts to visible warnings with individual explicit customer confirmation, live revalidation, and an audit checkpoint.
+
 ## 2026-10-21
 
 - Made the [payment OCR report](creator-payment-ocr.md) a compact problems-only table with side-by-side values and image links.

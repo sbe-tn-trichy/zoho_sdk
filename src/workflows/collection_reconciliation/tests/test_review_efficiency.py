@@ -86,7 +86,7 @@ def test_history_cache_scope_and_positive_results(review):
     review.analytics.queries.execute.assert_called_once()
 
 
-def test_conflict_skips_invoices_and_accept_bypasses_preview_cache(review):
+def test_conflict_retains_invoices_and_accept_bypasses_preview_cache(review):
     review.refresh()
     review.analytics.queries.execute.return_value = [
         {"Customer Name": "Other Customer", "Description": "example@okaxis"}
@@ -97,8 +97,8 @@ def test_conflict_skips_invoices_and_accept_bypasses_preview_cache(review):
     review.books.customer_payments.create.assert_not_called()
     review.books.invoices.list_all.reset_mock()
     batch = review.refresh(force_refresh=True)
-    assert not batch["entries"][0]["reviewable"]
-    review.books.invoices.list_all.assert_not_called()
+    assert batch["entries"][0]["reviewable"]
+    review.books.invoices.list_all.assert_called_once()
 
 
 def test_repeat_accept_needs_no_external_reads(review):

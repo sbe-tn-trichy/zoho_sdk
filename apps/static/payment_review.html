@@ -245,7 +245,7 @@
   }
 
   function eligible(e) {
-    const hasCandidate = e.reviewable || (isPossible(e) && selectedPossibleCandidateId(e) && e.creator?.books_customer_id && e.customer_name_valid !== false);
+    const hasCandidate = e.reviewable || (isPossible(e) && selectedPossibleCandidateId(e) && e.creator?.books_customer_id);
     return hasCandidate && state(e) !== 'pushed' && !inProgress(e);
   }
 
@@ -336,7 +336,7 @@
         <td class="ref">${esc(c.reference) || '<span class="muted">Missing</span>'}</td>
         <td>${bankHtml(e)}</td>
         <td class="allocation">${allocationHtml(e)}</td>
-        <td>${esc(e.reason)}${e.customer_name_valid == null && e.historical_customer_names?.length > 1 ? `<div class="muted">${esc(e.customer_name_reason)}</div>` : ''}</td>
+        <td>${esc(e.reason)}${(e.customer_name_valid === false || (e.customer_name_valid == null && e.historical_customer_names?.length > 1)) ? `<div class="muted">${esc(e.customer_name_reason)}</div>` : ''}</td>
         <td>
           <div class="actions">
             <button class="reject" onclick="rejectEntry('${esc(e.id)}')" ${s === 'pushed' || busy || e.books_payment_id ? 'disabled' : ''}>Reject</button>
@@ -582,13 +582,15 @@
   async function acceptEntry(id) {
     const entry = (batch.entries || []).find(e => String(e.id) === String(id));
     const possibleId = entry && isPossible(entry) ? selectedPossibleCandidateId(entry) : '';
+    const customerWarning = entry?.customer_name_valid === false ? ` ${entry.customer_name_reason} Confirm that this payment belongs to ${entry.creator.customer_name}.` : '';
     const warning = possibleId ? ' The Creator and bank references differ; this explicitly overrides the reference check.' : '';
-    if (!confirm(`Accept and push this payment to Zoho Books now?${warning} Open invoices will be refreshed and allocated oldest-due-first before creation.`)) return;
+    if (!confirm(`Accept and push this payment to Zoho Books now?${warning}${customerWarning} Open invoices will be refreshed and allocated oldest-due-first before creation.`)) return;
     try {
       notify('Refreshing invoices and pushing approved payment…');
       await api('/api/entries/' + encodeURIComponent(id) + '/accept', 'POST', {
         bank_transaction_id: possibleId,
-        allow_reference_override: Boolean(possibleId)
+        allow_reference_override: Boolean(possibleId),
+        allow_customer_name_override: entry?.customer_name_valid === false
       });
       await load();
       notify('Payment allocated, pushed, and matched successfully.');
@@ -601,6 +603,10 @@
   async function acceptSelected() {
     const ids = [...selected];
     if (!ids.length) return;
+    if (ids.some(id => (batch.entries || []).find(e => String(e.id) === String(id))?.customer_name_valid === false)) {
+      notify('Payments with customer history conflicts require individual Accept & Push confirmation.', true);
+      return;
+    }
     const selectedBankIds = Object.fromEntries(ids.map(id => {
       const entry = (batch.entries || []).find(e => String(e.id) === String(id));
       return [id, entry && isPossible(entry) ? selectedPossibleCandidateId(entry) : ''];

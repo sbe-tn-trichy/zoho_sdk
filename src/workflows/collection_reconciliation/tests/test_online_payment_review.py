@@ -160,10 +160,25 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.books.customer_payments.create.assert_not_called()
 
         entry = self._refresh()["entries"][0]
-        self.assertFalse(entry["reviewable"])
+        self.assertTrue(entry["reviewable"])
         self.assertFalse(entry["customer_name_valid"])
+        self.assertIn("Other Customer", entry["reason"])
+        self.assertTrue(entry["invoice_allocations"])
         with self.assertRaisesRegex(ReconciliationError, "Conflict: Analytics historical records"):
             self.service.accept_and_push(entry["id"])
+
+    def test_customer_history_conflict_requires_explicit_confirmation(self):
+        entry = self._refresh()["entries"][0]
+        with patch.object(self.service, "_query_historical_customer_finder", return_value=[]), patch.object(self.service, "_push_entry") as push:
+            def conflict(entry, rows):
+                entry.update(customer_name_valid=False, customer_name_reason="Conflict: Analytics historical records", historical_customer_names=["Other Customer"])
+            with patch.object(self.service, "_check_customer_name", side_effect=conflict):
+                with self.assertRaisesRegex(ReconciliationError, "Explicit confirmation"):
+                    self.service.accept_and_push(entry["id"])
+                push.assert_not_called()
+                result = self.service.accept_and_push(entry["id"], allow_customer_name_override=True)
+                push.assert_called_once()
+                self.assertEqual(result["manual_customer_name_override"]["historical_customer_names"], ["Other Customer"])
 
     def test_redacted_upi_history_and_suffix_collision(self):
         self.service.config = replace(self.config, customer_finder_view_id="view")

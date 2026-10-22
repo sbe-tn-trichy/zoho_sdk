@@ -147,6 +147,7 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str,
                     self._json(
                         service.accept_and_push(
                             entry_id,
+                            allow_customer_name_override=body.get("allow_customer_name_override") is True,
                             selected_bank_transaction_id=str(
                                 body.get("bank_transaction_id") or ""
                             ),
