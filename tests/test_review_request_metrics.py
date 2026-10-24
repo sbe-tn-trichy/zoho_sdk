@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from apps.request_metrics import RequestMetrics
+from workflows.core import RequestMetrics
 
 
 def test_service_counts_and_existing_callback_are_preserved():
@@ -100,3 +100,10 @@ def test_preview_cache_avoids_real_sdk_export_requests(tmp_path):
     assert dict(accept) == {"analytics": 3}
     assert client.session.request.call_count == 6
     client.close()
+
+
+def test_legacy_request_metrics_export_is_canonical():
+    from apps.request_metrics import RequestMetrics as LegacyRequestMetrics
+    from workflows.core.request_metrics import RequestMetrics as CanonicalRequestMetrics
+
+    assert LegacyRequestMetrics is RequestMetrics is CanonicalRequestMetrics

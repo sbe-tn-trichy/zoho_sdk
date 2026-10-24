@@ -24,10 +24,7 @@ from workflows.collection_reconciliation import (
 )
 from workflows.core.auth import get_analytics_client, get_books_client, get_creator_client
 from workflows.core.config import Config
-try:
-    from .request_metrics import RequestMetrics
-except ImportError:
-    from request_metrics import RequestMetrics
+from workflows.core import RequestMetrics
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "static" / "payment_review.html"
 HTML = _TEMPLATE_PATH.read_text(encoding="utf-8")

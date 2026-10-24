@@ -43,6 +43,12 @@ Newly added or renamed statement/note lines require updating its check list.
 [apps/update_statement_schedules.py](../apps/update_statement_schedules.py) prepares
 the four-tab financial statement workbook using the public
 [workflows.statement_schedules](../src/workflows/statement_schedules/) API.
+Google Sheets range parsing, cell construction, changed-value batching, note
+bold formatting and verified execution live in
+[workflows.statement_schedules.writer](../src/workflows/statement_schedules/writer.py).
+The package exports `grid_address`, `cell_data`, `update_requests`,
+`changed_update_requests`, `note_bold_requests` and `apply_plan`; the CLI retains
+compatibility re-exports and owns arguments, source loading and preview output.
 This runner is separate from the older, differently laid-out statement updater.
 The Google workbook identity, Books organization, excluded location, two complete
 April–March periods, note classifications and exact statement destination rows
@@ -177,7 +183,7 @@ match configured organization, periods and scope. `--output` accepts an explicit
 directory outside input files. These artifacts contain financial data and stay
 Git-ignored.
 
-`--apply` needs `GOOGLE_SHEETS_ACCESS_TOKEN` with edit access. The runner verifies
+`--apply` needs `GOOGLE_SHEETS_ACCESS_TOKEN` with edit access. The workflow writer verifies
 tab names and IDs, bounds and native validation, refuses unexpected statement
 formulas (allowing previous generated note links to move), saves
 `sheet-before.json`, and compares native `userEnteredValue` with the plan before

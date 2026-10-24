@@ -1,5 +1,9 @@
 # Knowledge Change Log
 
+## 2026-10-24
+
+- Moved [request metrics](workflow-helpers.md) into `workflows.core` and the [schedule Sheets writer](statement-schedules.md) into `workflows.statement_schedules`, retaining application compatibility exports.
+
 ## 2026-10-22
 
 - Changed [bank categorization](collection-reconciliation.md) customer-history conflicts to visible warnings with individual explicit customer confirmation, live revalidation, and an audit checkpoint.

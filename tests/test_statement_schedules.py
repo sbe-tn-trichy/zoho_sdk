@@ -8,7 +8,10 @@ import yaml
 
 from workflows.statement_schedules import build_schedule_plan, fetch_schedule_sources, validate_sources, verify_asset
 from zoho.books.resources.fixed_assets import FixedAssets
-from apps.update_statement_schedules import apply_plan, changed_update_requests, grid_address, main, note_bold_requests, update_requests
+from apps.update_statement_schedules import main
+from workflows.statement_schedules import (
+    apply_plan, changed_update_requests, grid_address, note_bold_requests, update_requests,
+)
 from workflows.statement_schedules.workflow import KEYS, nodes
 
 
@@ -936,3 +939,13 @@ def test_reviewed_opening_account_mapping_is_verified(account_id):
         assert any('TVS excel maps to Machinery account (ledger)' in w for w in plan.warnings)
         table = next(v for a, v in plan.values.items() if a.startswith("'Assets & Depreciation'!"))
         assert len(table) == 6
+
+
+def test_legacy_writer_exports_are_canonical():
+    from apps import update_statement_schedules as legacy
+    from workflows.statement_schedules import writer
+    import workflows.statement_schedules as schedules
+
+    for name in ("apply_plan", "cell_data", "changed_update_requests", "grid_address",
+                 "note_bold_requests", "update_requests"):
+        assert getattr(legacy, name) is getattr(schedules, name) is getattr(writer, name)

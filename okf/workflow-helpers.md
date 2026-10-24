@@ -86,6 +86,11 @@ supported resulting start years are 1900–2098. Invalid input raises `ValueErro
 Calendar comparisons reuse `workflows.core.matching.parse_date`; no implicit
 `date`/`datetime` comparisons are supported.
 
+`workflows.core.request_metrics.RequestMetrics` (also exported from
+`workflows.core`) counts completed SDK requests within an operation without
+logging payloads and preserves existing completion callbacks. Payment review
+uses this canonical helper; `apps.request_metrics` remains a compatibility re-export.
+
 ## Payment applications
 
 `workflows.payment_inspection` accepts an Analytics client and workspace ID,
