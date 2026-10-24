@@ -174,7 +174,7 @@ class OnlinePaymentReviewService:
             used_transaction_ids = set()
             raw_entries = []
             bank_comparisons = []
-            customer_bank_transactions = [tx for tx in bank_transactions if bank_line_kind(tx) not in {"cash_deposit", "salary", "travel_allowance", "vendor_advance"}]
+            customer_bank_transactions = [tx for tx in bank_transactions if bank_line_kind(tx) not in {"cash_deposit", "electricity", "salary", "travel_allowance", "vendor_advance"}]
             for payment in payments:
                 # Bank-source comparisons must retain every competing Creator
                 # record, even when the posting queue has reserved this line.
@@ -272,8 +272,8 @@ class OnlinePaymentReviewService:
                     "bank_name": _text(transaction.get("_review_bank_name")),
                     "bank_account_id": _text(transaction.get("_review_bank_account_id")),
                     "kind": bank_line_kind(transaction),
-                    "customer_suggestions": customer_finder.suggest(transaction) if bank_line_kind(transaction) not in {"travel_allowance", "salary", "cash_deposit", "vendor_advance"} else [],
-                    "expense_account_name": (self.config.travel_expense_account_name if bank_line_kind(transaction) == "travel_allowance" else "Salary" if bank_line_kind(transaction) == "salary" else ""),
+                    "customer_suggestions": customer_finder.suggest(transaction) if bank_line_kind(transaction) not in {"travel_allowance", "electricity", "salary", "cash_deposit", "vendor_advance"} else [],
+                    "expense_account_name": (self.config.travel_expense_account_name if bank_line_kind(transaction) == "travel_allowance" else "Electricity" if bank_line_kind(transaction) == "electricity" else "Salary" if bank_line_kind(transaction) == "salary" else ""),
                     "transfer_account_name": "Cash-SBE" if bank_line_kind(transaction) == "cash_deposit" else "",
                     "vendor_name": "Polycab" if bank_line_kind(transaction) == "vendor_advance" else "",
                     "location_name": "Sri Bharath Electricals" if bank_line_kind(transaction) == "vendor_advance" else "",
@@ -321,7 +321,7 @@ class OnlinePaymentReviewService:
                 (row for row in batch.get("bank_suggestions", []) if _text(row.get("transaction_id")) == transaction_id),
                 None,
             )
-            if not proposal or proposal.get("kind") not in {"travel_allowance", "salary", "cash_deposit", "vendor_advance"} or (expected_kind and proposal.get("kind") != expected_kind):
+            if not proposal or proposal.get("kind") not in {"travel_allowance", "electricity", "salary", "cash_deposit", "vendor_advance"} or (expected_kind and proposal.get("kind") != expected_kind):
                 raise ReconciliationError("No matching categorization proposal exists for this bank line.")
             kind = proposal["kind"]
             if proposal.get("categorization_status") == "categorized":
@@ -339,9 +339,9 @@ class OnlinePaymentReviewService:
                 raise ReconciliationError("The live bank line changed. Refresh before categorizing.")
             if kind == "vendor_advance":
                 return self._categorize_polycab_advance(batch, proposal, current, account_id)
-            configured_id = (self.config.cash_account_id if kind == "cash_deposit" else self.config.salary_expense_account_id if kind == "salary" else self.config.travel_expense_account_id)
-            account_name = ("Cash-SBE" if kind == "cash_deposit" else "Salary" if kind == "salary" else self.config.travel_expense_account_name)
-            if kind != "travel_allowance" and not configured_id:
+            configured_id = ("" if kind == "electricity" else self.config.cash_account_id if kind == "cash_deposit" else self.config.salary_expense_account_id if kind == "salary" else self.config.travel_expense_account_id)
+            account_name = ("Electricity" if kind == "electricity" else "Cash-SBE" if kind == "cash_deposit" else "Salary" if kind == "salary" else self.config.travel_expense_account_name)
+            if kind not in {"travel_allowance", "electricity"} and not configured_id:
                 raise ReconciliationError(f"Configure the {account_name} account ID first.")
             expense_key = (id(self.books), configured_id, account_name)
             expense_account_id = self._expense_cache.get(expense_key)

@@ -16,6 +16,9 @@ from workflows.collection_reconciliation.bank_statement import (
     ("CASH DEPOSIT", "credit", "withdrawal"),
     ("NEFT/Salary/September", "credit", "salary"),
     ("Salary", "debit", "deposit"),
+    ("UPI/TNPDCL/123", "credit", "electricity"),
+    ("upi/tnpdcl123/TA", "credit", "electricity"),
+    ("TNPDCL", "debit", "deposit"),
     ("SALARYADVANCE", "credit", "withdrawal"),
 ])
 def test_cash_salary_direction_and_word_boundaries(description, direction, kind):
@@ -25,6 +28,7 @@ def test_cash_salary_direction_and_word_boundaries(description, direction, kind)
 @pytest.mark.parametrize("kind,direction,description,account_type", [
     ("cash_deposit", "debit", "CASH DEPOSIT/123", "cash"),
     ("salary", "credit", "NEFT/Salary/September", "expense"),
+    ("electricity", "credit", "UPI/TNPDCL/123", "expense"),
 ])
 @pytest.mark.parametrize("failure", ["", "changed", "inactive", "wrong_type", "rejected"])
 def test_cash_salary_reviewed_posting(tmp_path, kind, direction, description, account_type, failure):
@@ -38,10 +42,11 @@ def test_cash_salary_reviewed_posting(tmp_path, kind, direction, description, ac
         cash_account_id="cash", salary_expense_account_id="salary",
         state_path=tmp_path / "state.json"))
     assert service.refresh()["bank_suggestions"][0]["kind"] == kind
-    target = "cash" if kind == "cash_deposit" else "salary"
+    target = "cash" if kind == "cash_deposit" else "electricity" if kind == "electricity" else "salary"
     books.chart_of_accounts.get.return_value = {"chart_of_account": {
         "account_id": target, "account_type": "bank" if failure == "wrong_type" else account_type,
         "is_active": failure != "inactive"}}
+    books.chart_of_accounts.list_all.return_value = [{**books.chart_of_accounts.get.return_value["chart_of_account"], "account_name": "Electricity"}]
     if failure == "changed":
         books.bank_transactions.list_all.return_value = [{**bank, "amount": 999}]
     action = books.bank_transactions.categorize if kind == "cash_deposit" else books.bank_transactions.categorize_as_expense
@@ -61,7 +66,7 @@ def test_cash_salary_reviewed_posting(tmp_path, kind, direction, description, ac
         assert payload["transaction_type"] == "transfer_fund"
         books.bank_transactions.categorize_as_expense.assert_not_called()
     else:
-        assert payload["account_id"] == "salary"
+        assert payload["account_id"] == target
         assert payload["paid_through_account_id"] == "bank"
     service.categorize_bank_line("tx")
     action.assert_called_once()

@@ -42,6 +42,7 @@ okf_version: "0.2"
 * [Polycab Credit Import](polycab-credit-import.md) - Scheme Kitty credits and traceable RSO credit/journal/customer-payment creation.
 * [Polycab Vendor-credit Review](polycab-credit-review.md) - Poppler PDF audits, labeled references and reviewed RMA credit/journal/payment corrections.
 * [Analytics Metadata Snapshots](analytics-metadata.md) - Cached SQLite analysis, manual sync, freshness timestamps, saved query SQL, and workflow impact.
+* [HDFC Statement Completeness](bank-statement-check.md) - Read-only CSV comparison with the Analytics Books bank-statement replica.
 * [Bank–Vendor Ledger Matching](bank-vendor-ledger-matching.md) - Books bank-withdrawal matching and ICICI UPI reference normalization.
 * [Bank Statement Categorization](collection-reconciliation.md) - Creator payment matching, Analytics customer suggestions for other bank lines, TA expense review, and audit safety.
 * [GSTR-1 Verification](gstr1-verification.md) - Previous-month invoice and credit-note checks for drafts, number continuity, chronology, and e-invoice registration.

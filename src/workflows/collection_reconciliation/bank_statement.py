@@ -154,6 +154,8 @@ def bank_line_kind(transaction: Mapping[str, Any]) -> str:
         return "vendor_advance"
     if kind in {"debit", "deposit", "income"} and " cash deposit " in f" {narration} ":
         return "cash_deposit"
+    if kind in {"credit", "withdrawal", "expense"} and "tnpdcl" in to_text(transaction.get("description") or transaction.get("narration")).casefold():
+        return "electricity"
     if kind in {"credit", "withdrawal", "expense"} and " salary " in f" {narration} ":
         return "salary"
     if is_travel_allowance_withdrawal(transaction):

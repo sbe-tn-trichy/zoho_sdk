@@ -143,7 +143,7 @@
 <body>
 <header>
   <h1>Bank Statement Categorization</h1>
-  <p>Review Creator payments, cash deposits, salary, and travel expenses across HDFC, ICICI, and IDFC.</p>
+  <p>Review Creator payments, cash deposits, salary, electricity, and travel expenses across HDFC, ICICI, and IDFC.</p>
 </header>
 <main>
   <section class="summary" id="summary"></section>
@@ -222,7 +222,7 @@
   }
   const hasBankCandidate = e => Boolean(e.bank || (e.ambiguous_candidates || []).length || (e.possible_candidates || []).length);
 
-  const bankLineEligible = row => ['travel_allowance', 'salary', 'vendor_advance', 'cash_deposit'].includes(row.kind) && row.categorization_status !== 'categorized';
+  const bankLineEligible = row => ['travel_allowance', 'electricity', 'salary', 'vendor_advance', 'cash_deposit'].includes(row.kind) && row.categorization_status !== 'categorized';
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = v => {
     const n = Number(String(v ?? '').replaceAll(',', ''));
@@ -367,8 +367,8 @@
       <td>${bankLineEligible(row) ? `<input type="checkbox" aria-label="Select bank line" data-transaction-id="${esc(row.transaction_id)}" ${selectedBankLines.has(String(row.transaction_id)) ? 'checked' : ''} ${bankLinesBusy ? 'disabled' : ''} onchange="toggleBankLine(this.dataset.transactionId,this.checked)">` : ''}</td>
       <td>${esc(row.bank_name)}</td><td>${esc(row.date)}</td><td class="money">${money(row.amount)}</td>
       <td>${esc(row.description)}</td>
-      <td>${bankComparisonHtml(row)}${['travel_allowance', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.kind === 'vendor_advance' ? `Vendor advance: ${esc(row.vendor_name)} · Branch: ${esc(row.location_name)}` : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
-      <td>${bankPaymentAction(row)}${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'salary', 'cash_deposit', 'vendor_advance'].includes(row.kind) ? `<button class="accept" ${bankLinesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : row.kind === 'vendor_advance' ? 'Categorize vendor advance' : 'Categorize expense'}</button>` : '<span class="muted">Review in Books</span>'}</td>
+      <td>${bankComparisonHtml(row)}${['travel_allowance', 'electricity', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.kind === 'vendor_advance' ? `Vendor advance: ${esc(row.vendor_name)} · Branch: ${esc(row.location_name)}` : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
+      <td>${bankPaymentAction(row)}${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'electricity', 'salary', 'cash_deposit', 'vendor_advance'].includes(row.kind) ? `<button class="accept" ${bankLinesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : row.kind === 'vendor_advance' ? 'Categorize vendor advance' : 'Categorize expense'}</button>` : '<span class="muted">Review in Books</span>'}</td>
     </tr>`).join('') || `<tr><td colspan="7" class="muted">No records match these selections.</td></tr>`);
   }
 
@@ -509,7 +509,7 @@
   }
 
   function bankCategory(row) {
-    if (['travel_allowance', 'salary'].includes(row.kind)) return 'expenses';
+    if (['travel_allowance', 'electricity', 'salary'].includes(row.kind)) return 'expenses';
     if (row.kind === 'vendor_advance') return 'vendors';
     if (row.kind === 'cash_deposit') return 'transfers';
     return 'customers';

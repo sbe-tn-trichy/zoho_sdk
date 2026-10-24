@@ -32,6 +32,7 @@ Unearned Revenue candidates: [workflow](src/workflows/unearned_revenue.py), run 
 | Workflow | Module |
 |---|---|
 | **Bank Statement Categorization / Collection Reconciliation** | [collection_reconciliation](src/workflows/collection_reconciliation/) |
+| HDFC statement completeness | [bank_statement_check](src/workflows/bank_statement_check.py); run `apps/check_hdfc_statement.py` ([contract](okf/bank-statement-check.md)) |
 | Bank–vendor ledger matching | [bank_vendor_ledger_matching](src/workflows/bank_vendor_ledger_matching/) |
 | Vendor ledger reconciliation | [vendor_ledger_reconciliation](src/workflows/vendor_ledger_reconciliation/) |
 

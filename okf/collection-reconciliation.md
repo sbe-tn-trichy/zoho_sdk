@@ -117,6 +117,13 @@ matches are never written automatically.
 
 # Online Payments Human Review
 
+Withdrawal narrations containing `TNPDCL` (case-insensitive substring) propose
+an Electricity expense, ahead of salary and TA rules. These lines are excluded
+from customer matching and appear in Expenses with individual or bulk confirmation.
+Posting resolves one active expense account named `Electricity` (case-insensitive);
+missing or ambiguous accounts block posting. Refresh creates proposals only, and
+posting revalidates the live bank line before categorization.
+
 Generic `CHQ DEP - CTS CLG1` narration prefixes, including any clearing-location
 suffix up to the first colon, are excluded from remitter tokens and customer
 suggestions, ignoring case and spacing around separators. Actual customer text

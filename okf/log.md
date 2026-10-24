@@ -2,6 +2,10 @@
 
 ## 2026-10-24
 
+- Added the read-only [HDFC statement completeness helper](bank-statement-check.md), with scoped Analytics reads, duplicate-aware matching, masked cheque review and snapshot replay.
+
+- Added reviewed Electricity expense proposals for TNPDCL withdrawals in [bank categorization](collection-reconciliation.md).
+
 - Moved [request metrics](workflow-helpers.md) into `workflows.core` and the [schedule Sheets writer](statement-schedules.md) into `workflows.statement_schedules`, retaining application compatibility exports.
 
 ## 2026-10-22
