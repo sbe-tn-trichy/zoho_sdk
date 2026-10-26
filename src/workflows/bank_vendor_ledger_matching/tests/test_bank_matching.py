@@ -30,7 +30,17 @@ class TestLedgerMatcherUtils(unittest.TestCase):
             "622494425255",
         )
 
-    def test_icici_non_upi_and_other_banks_keep_zoho_reference(self):
+    def test_icici_neft_rtgs_references_and_invalid_format_fallback(self):
+        for description in ('NEFT-HDFCH01313813505-NAME', 'RTGS/HDFCH01313813505/NAME'):
+            transaction = {'reference_number': 'SHORT', 'description': description}
+            self.assertEqual(get_bank_reference(transaction, self.icici_account_id), 'HDFCH01313813505')
+            for account in ('hdfc', 'idfc'):
+                self.assertEqual(get_bank_reference(transaction, account), 'SHORT')
+        for description in ('NEFT-HDFC0006134-NAME', 'NEFT-HDFCXXXX13813505-NAME', '', 'NEFT--NAME'):
+            self.assertEqual(get_bank_reference({'reference_number': 'SHORT', 'description': description},
+                                                self.icici_account_id), 'SHORT')
+
+    def test_icici_unrecognized_formats_and_other_banks_keep_zoho_reference(self):
         transaction = {
             "reference_number": "S78528277",
             "description": "NEFT/SOME/OTHER/FORMAT",

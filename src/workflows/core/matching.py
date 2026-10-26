@@ -9,6 +9,10 @@ from .config import Config
 logger = logging.getLogger(__name__)
 
 _ICICI_UPI_REFERENCE = re.compile(r"^\s*UPI/(\d{12})(?:/|$)", re.IGNORECASE)
+_ICICI_NEFT_REFERENCE = re.compile(
+    r"^\s*(?:NEFT|RTGS)[/-]([A-Z]{4}[A-Z0-9]{8,18})(?=[/-]|$)",
+    re.IGNORECASE,
+)
 
 
 def to_decimal(value: Any) -> Optional[Decimal]:
@@ -94,12 +98,16 @@ def get_bank_reference(tx: Dict[str, Any], bank_account_id: str) -> Any:
 
     ICICI statement imports expose a short statement reference in
     ``reference_number`` while the actual 12-digit UPI reference is the first
-    component of the transaction description. Other transaction types and
+    component of the transaction description. NEFT/RTGS descriptions similarly
+    carry the full UTR after the transfer type. Unrecognized formats and other
     bank accounts retain the Zoho-provided reference fallback order.
     """
     if str(bank_account_id) == str(Config.BANK_ACCOUNT_ICICI):
         match = _ICICI_UPI_REFERENCE.match(str(tx.get("description") or ""))
         if match:
+            return match.group(1)
+        match = _ICICI_NEFT_REFERENCE.match(str(tx.get("description") or ""))
+        if match and not re.search(r"x{2,}", match.group(1), re.IGNORECASE):
             return match.group(1)
     return tx.get("reference_number") or tx.get("reference") or tx.get("cheque_number")
 

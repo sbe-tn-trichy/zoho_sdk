@@ -2,6 +2,8 @@
 
 ## 2026-10-26
 
+- Extended the shared [ICICI reference resolver](bank-vendor-ledger-matching.md#bank-reference-normalization) to NEFT/RTGS narration UTRs so internal transfer pairs match despite short imported ICICI references; other banks retain field references.
+
 - Added exact paired [internal bank transfers](collection-reconciliation.md#internal-bank-transfers), reviewed confirmation, native-transfer reuse, verified two-sided matching and durable retry checkpoints.
 
 - Reduced [bank categorization](collection-reconciliation.md) reads with pending Creator criteria, concurrent independent service reads, indexed matching, on-demand invoice previews and shared bank/vendor reads within confirmed category batches.

@@ -43,8 +43,11 @@ Most accounts use the first populated Books field from `reference_number`,
 `reference`, and `cheque_number`. For the configured ICICI bank account, UPI
 imports can place a short statement reference in `reference_number` and the
 actual payment reference in a narration shaped as `UPI/<12 digits>/...`.
-Matching therefore uses those leading 12 digits for ICICI UPI lines.
-Non-UPI ICICI lines and all other bank accounts keep the normal Books field
+Matching therefore uses those leading 12 digits for ICICI UPI lines. ICICI
+NEFT/RTGS narrations beginning with the transfer type followed by `/` or `-`
+use the next full UTR token (four leading letters, 12–22 alphanumeric characters
+overall). Masked UTRs and unrecognized formats retain the Books field fallback.
+HDFC, IDFC and other bank accounts always keep the normal Books field
 fallback. Raw transaction dictionaries remain unchanged in reconciliation
 results.
 

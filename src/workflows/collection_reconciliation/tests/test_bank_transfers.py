@@ -7,6 +7,7 @@ import pytest
 from workflows.collection_reconciliation import OnlinePaymentReviewConfig, OnlinePaymentReviewService
 from workflows.collection_reconciliation.bank_transfers import transfer_proposals
 from workflows.core.exceptions import ReconciliationError
+from workflows.core.config import Config
 
 
 def line(account, transaction, direction, **values):
@@ -41,6 +42,21 @@ def test_ambiguous_pairs_never_claim_unique_match():
         pairs = transfer_proposals(rows)
         assert len(pairs) == 2
         assert all(pair['match_status'] == 'ambiguous' for pair in pairs)
+
+
+def test_icici_neft_description_matches_hdfc_reference(monkeypatch):
+    monkeypatch.setattr(Config, 'BANK_ACCOUNT_ICICI', 'icici')
+    source = {**line('hdfc', 'out', 'credit'),
+              'reference_number': 'HDFCH01313813505',
+              'description': 'NEFT DR-ICIC0006134-SRI BHARATH ELECTRICALS-NETBANK, MUM-HDFCH01313813505-INVESTMENT'}
+    destination = {**line('icici', 'in', 'debit'), 'reference_number': 'S48186536',
+                   'description': 'NEFT-HDFCH01313813505-SRI BHARATH ELECTRICALS A UNIT OF B-0001INVESTMENT-xxxxxxxxxx7297-HDFC0000001'}
+    pairs = transfer_proposals([source, destination])
+    assert len(pairs) == 1
+    assert pairs[0]['match_status'] == 'reviewable'
+    assert pairs[0]['source']['reference'] == pairs[0]['destination']['reference'] == 'HDFCH01313813505'
+    assert destination['reference_number'] == 'S48186536'
+    assert not transfer_proposals([source, {**destination, 'description': 'NEFT-HDFCH01313813506-OTHER'}])
 
 
 def test_explicit_expense_and_cash_rules_keep_priority():

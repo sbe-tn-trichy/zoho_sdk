@@ -167,7 +167,9 @@ line's classification, date, amount, narration, and reference.
 **Bank Transfers** pairs uncategorized withdrawals and deposits across the configured
 bank accounts. A pair requires the same parsed date, exact absolute amount and
 non-empty reference (trimmed and case-insensitive). References reuse the existing
-bank-specific reference resolver. Same-bank lines, unknown directions, missing
+bank-specific [reference resolver](bank-vendor-ledger-matching.md#bank-reference-normalization):
+ICICI UPI and NEFT/RTGS use recognized description references; HDFC and IDFC use
+the imported reference fields. Same-bank lines, unknown directions, missing
 references and invalid/zero amounts do not qualify. Existing explicit cash,
 expense and vendor narration rules retain priority. Multiple possible opposite
 lines are shown as **Ambiguous** and cannot be posted. Both sides of candidate
