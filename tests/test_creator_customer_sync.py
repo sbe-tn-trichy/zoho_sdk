@@ -4,6 +4,7 @@ import pytest
 
 from workflows import CreatorCustomerSyncConfig, sync_creator_customers
 from workflows.core.exceptions import ReconciliationError
+from zoho.creator import ZohoCreatorAPI
 
 
 def clients():
@@ -19,6 +20,15 @@ def clients():
         {"ID": "c", "customer_id": 3, "Customer_Name": "Same"},
         {"ID": "d", "Customer_Id": "4"},
     ]
+    creator.add_records_bulk.side_effect = lambda app, form, records: ZohoCreatorAPI.add_records_bulk(
+        creator, app, form, records)
+    creator.add_records.side_effect = lambda app, form, payload: {
+        "code": 3000,
+        "result": [{"code": 3000, "data": {"ID": "created-" + row["Customer_Id"]}}
+                   for row in payload["data"]],
+    }
+    creator.update_records.return_value = {"code": 3000}
+    creator.delete_records.return_value = {"code": 3000}
     return books, creator
 
 
@@ -40,7 +50,7 @@ def test_full_reconciliation(tmp_path, dry_run):
         creator.update_records.assert_not_called()
         creator.delete_records.assert_not_called()
     else:
-        creator.add_records.assert_called_once_with("app", "form", payload={"data": [
+        creator.add_records.assert_called_once_with("app", "form", {"data": [
             {"Customer_Id": "2", "Customer_Name": "New"}]})
         creator.update_records.assert_called_once_with("app", "report",
             payload={"data": {"Customer_Name": "Changed"}}, record_id="a")

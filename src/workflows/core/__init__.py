@@ -1,6 +1,6 @@
 """Shared workflow conversions and pure utilities."""
 
-from .request_metrics import RequestMetrics
+from .request_metrics import HttpAttemptMetrics, OperationCounts, RequestMetrics
 from .dates import get_fy_date_range
 from .checkpoint import atomic_text_writer, write_atomic_json
 from .matching import parse_currency_amount, parse_date, references_intersect
@@ -13,6 +13,7 @@ from .snapshots import SnapshotPolicy, SnapshotResource, refresh_snapshot
 
 __all__ = [
     "RequestMetrics",
+    "HttpAttemptMetrics", "OperationCounts",
     "get_fy_date_range", "parse_date", "NumberSeries", "analyze_number_series", "parse_doc_number",
     "atomic_text_writer", "write_atomic_json", "parse_currency_amount", "references_intersect",
     "PaymentEvidence", "PaymentState", "build_payment_indexes", "payment_evidence_matches", "payment_state_matches", "payment_number_suffix",

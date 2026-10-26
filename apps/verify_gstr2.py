@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import csv
 import json
 import sys
@@ -21,6 +20,7 @@ except ImportError:  # Direct script execution.
 
 from workflows.core.auth import get_analytics_client, get_books_client
 from workflows.core.config import Config
+from workflows.core import HttpAttemptMetrics
 from workflows.gstr2_verification import (
     AggregatePurchaseMapping,
     GSTR2VerificationConfig,
@@ -274,20 +274,18 @@ def write_reconciliation_outputs(
     return monthly_path, tuple(path for path, _, _ in updates)
 
 
-class RunMetrics:
+class RunMetrics(HttpAttemptMetrics):
     """Payload-free physical HTTP attempt and elapsed-time progress for this run."""
 
     def __init__(self) -> None:
+        super().__init__()
         self.started = time.monotonic()
         self.total_months = 0
-        self.requests: Counter[str] = Counter()
-        self.http_seconds: Counter[str] = Counter()
         self.months_completed = 0
 
     @staticmethod
     def _resource(endpoint: str) -> str:
-        parts = endpoint.split("?", 1)[0].strip("/").split("/")
-        return f"{parts[0] or 'root'} {'detail' if len(parts) > 1 else 'list'}"
+        return HttpAttemptMetrics.resource(endpoint)
 
     def on_start(self, service: str, method: str, endpoint: str) -> None:
         print(f"HTTP start: {method} {service}/{self._resource(endpoint)}; "
@@ -298,8 +296,7 @@ class RunMetrics:
                    elapsed: float, status: int | None) -> None:
         resource = self._resource(endpoint)
         key = f"{service}/{resource}"
-        self.requests[key] += 1
-        self.http_seconds[key] += elapsed
+        super().on_attempt(service, method, endpoint, elapsed, status)
         print(f"HTTP done: {method} {key}; status={status if status is not None else 'error'}; "
               f"duration={elapsed:.1f}s; attempts={sum(self.requests.values())}", flush=True)
 

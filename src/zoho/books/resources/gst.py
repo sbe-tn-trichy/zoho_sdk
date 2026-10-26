@@ -4,7 +4,9 @@ import calendar
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from zoho.downloads import write_response_to_file
+from zoho.exceptions import ZohoBooksError
 from zoho.security import resolve_output_path
 from ..base import BaseResource
 
@@ -183,36 +185,40 @@ class GST(BaseResource):
         self, client_module: Any, docs: List[Dict[str, Any]], id_key: str, doc_key: str
     ) -> List[Dict[str, Any]]:
         """
-        Fetches full document details concurrently using ThreadPoolExecutor with rate pacing.
+        Fetch complete details with bounded concurrency; transport owns retries.
         """
         if not docs:
             return []
             
-        def fetch_one(doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-            doc_id = doc.get(id_key)
-            if not doc_id:
-                return None
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    res = client_module.get(doc_id)
-                    return res.get(doc_key)
-                except Exception as e:
-                    is_rate_limit = "429" in str(e) or "rate" in str(e).lower() or getattr(e, "status_code", None) == 429
-                    if is_rate_limit and attempt < max_retries - 1:
-                        import time
-                        time.sleep(1.0 * (2 ** attempt))
-                        continue
-                    logger.error(f"Failed to fetch full details for {doc_key} {doc_id}: {e}")
-                    return None
-            return None
+        identifiers = [str(doc.get(id_key) or "").strip() for doc in docs]
+        if not all(identifiers) or len(set(identifiers)) != len(identifiers):
+            raise ZohoBooksError(f"GST {doc_key} list has missing or duplicate {id_key}; summary aborted.")
 
-        # Fetch using safe rate-paced thread count
+        def fetch_one(doc_id: str) -> Dict[str, Any]:
+            try:
+                response = client_module.get(doc_id)
+            except Exception as exc:
+                raise ZohoBooksError(
+                    f"GST summary incomplete: failed to fetch {doc_key} {doc_id}.",
+                    status_code=getattr(exc, "status_code", None),
+                    error_code=getattr(exc, "error_code", None),
+                ) from exc
+            detail = response.get(doc_key) if isinstance(response, dict) else None
+            if (not isinstance(detail, dict)
+                    or str(detail.get(id_key)) != doc_id
+                    or not isinstance(detail.get("line_items"), list)):
+                raise ZohoBooksError(
+                    f"GST summary incomplete: invalid {doc_key} detail for {doc_id}."
+                )
+            return detail
+
+        # Bound concurrent reads; retry delays are handled by the shared transport.
         workers = min(5, len(docs))
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            results = list(executor.map(fetch_one, docs))
-            
-        return [r for r in results if r is not None]
+            # Each task needs its own context so operation metrics include worker calls.
+            futures = [executor.submit(copy_context().run, fetch_one, doc_id)
+                       for doc_id in identifiers]
+            return [future.result() for future in futures]
 
 
     def _generate_tax_summary(

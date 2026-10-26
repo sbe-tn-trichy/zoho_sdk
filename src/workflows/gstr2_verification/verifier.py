@@ -105,6 +105,9 @@ class GSTR2Verifier:
         self._cached_bills: Optional[List[Dict[str, Any]]] = (
             [dict(bill) for bill in bill_snapshot] if bill_snapshot is not None else None
         )
+        self._bills_by_posting_month: Optional[
+            Dict[Tuple[int, int], List[Tuple[int, date, Dict[str, Any]]]]
+        ] = None
         self._expense_cache: Dict[str, Mapping[str, Any]] = {}
         self._zero_tax_expense_modified = dict(zero_tax_expense_modified or {})
         self._vendor_credit_cache: Dict[str, Mapping[str, Any]] = {}
@@ -441,11 +444,25 @@ class GSTR2Verifier:
                 errors.append({"source": "bills", "error": str(exc)})
                 return []
 
+        if self._bills_by_posting_month is None:
+            by_month: Dict[Tuple[int, int], List[Tuple[int, date, Dict[str, Any]]]] = {}
+            for position, bill in enumerate(raw_bills):
+                posting_date = parse_date(bill.get("txn_value_date") or bill.get("date"))
+                if posting_date:
+                    by_month.setdefault(
+                        (posting_date.year, posting_date.month), []
+                    ).append((position, posting_date, bill))
+            self._bills_by_posting_month = by_month
+        # Keep source order, and use accounting posting month rather than bill date.
+        selected = sorted(
+            (entry for month, entries in self._bills_by_posting_month.items()
+             if (start_date.year, start_date.month) <= month <= (end_date.year, end_date.month)
+             for entry in entries), key=lambda entry: entry[0],
+        )
         cleaned_bills: List[Dict[str, Any]] = []
-        for b in raw_bills:
+        for _, posting_date, b in selected:
             b_date = parse_date(b.get("date"))
-            posting_date = parse_date(b.get("txn_value_date") or b.get("date"))
-            if not posting_date or posting_date < start_date or posting_date > end_date:
+            if posting_date < start_date or posting_date > end_date:
                 continue
             if (location_gstins is not None and recipient_gstin
                     and not self._belongs_to_recipient(b, location_gstins, recipient_gstin, errors)):

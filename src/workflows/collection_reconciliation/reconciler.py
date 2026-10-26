@@ -9,6 +9,7 @@ from ..core.exceptions import ReconciliationError
 from ..core.matching import get_bank_reference, parse_date, to_decimal as _decimal
 from .identifiers import identifier as _identifier
 from .payments import customer_payment_payload
+from .transaction_index import TransactionIndex
 from .schema import (
     AUDIT_FIELD_REQUIREMENTS,
     COLLECTION_FIELD_REQUIREMENTS,
@@ -59,8 +60,9 @@ class CollectionReconciliationConfig:
             raise ValueError("bank_account_id is required.")
         if self.date_tolerance_days < 0:
             raise ValueError("date_tolerance_days cannot be negative.")
-        if Decimal(str(self.amount_tolerance)) < 0:
-            raise ValueError("amount_tolerance cannot be negative.")
+        tolerance = Decimal(str(self.amount_tolerance))
+        if not tolerance.is_finite() or tolerance < 0:
+            raise ValueError("amount_tolerance must be finite and nonnegative.")
 
 
 def _record_id(record: Mapping[str, Any]) -> Optional[str]:
@@ -162,6 +164,7 @@ class CollectionReconciler:
                 "filter_by": "Status.Uncategorized",
             }
         )
+        transaction_index = TransactionIndex(transactions, self.config.bank_account_id)
         confirmed: List[Dict[str, Any]] = []
         unmatched: List[Dict[str, Any]] = []
         failed: List[Dict[str, Any]] = []
@@ -172,7 +175,7 @@ class CollectionReconciler:
             try:
                 transaction, reason = self._find_transaction(
                     record,
-                    transactions,
+                    transaction_index,
                     used_transaction_ids,
                 )
                 if transaction is None:
@@ -208,38 +211,26 @@ class CollectionReconciler:
     def _find_transaction(
         self,
         record: Mapping[str, Any],
-        transactions: Sequence[Mapping[str, Any]],
+        transactions: Sequence[Mapping[str, Any]] | TransactionIndex,
         used_transaction_ids: set,
     ) -> Tuple[Optional[Mapping[str, Any]], str]:
         payment_date = parse_date(record.get("Payment_Date"))
         amount = _decimal(record.get("Amount"))
         reference = _normalized_reference(record.get("Reference_Number"))
-        if not payment_date or amount is None:
+        if not payment_date or amount is None or not amount.is_finite():
             return None, "Collection record has an invalid Payment_Date or Amount."
         if not reference:
             return None, "Collection record has no reference number; manual review is required."
 
         candidates: List[Mapping[str, Any]] = []
-        for transaction in transactions:
-            transaction_id = _identifier(transaction, ("transaction_id", "id"))
-            if not transaction_id or transaction_id in used_transaction_ids:
+        index = transactions if isinstance(transactions, TransactionIndex) else TransactionIndex(
+            transactions, self.config.bank_account_id)
+        for candidate in index.candidates(payment_date, amount, self.config.date_tolerance_days,
+                                          Decimal(str(self.config.amount_tolerance))):
+            if candidate.transaction_id in used_transaction_ids:
                 continue
-            tx_date = parse_date(transaction.get("date") or transaction.get("transaction_date"))
-            tx_amount = _decimal(transaction.get("amount"))
-            if not tx_date or tx_amount is None:
-                continue
-            if abs((tx_date - payment_date).days) > self.config.date_tolerance_days:
-                continue
-            if abs(abs(tx_amount) - abs(amount)) > Decimal(str(self.config.amount_tolerance)):
-                continue
-            tx_reference = _normalized_reference(
-                get_bank_reference(transaction, self.config.bank_account_id)
-            )
-            narration = _normalized_reference(
-                transaction.get("description") or transaction.get("narration")
-            )
-            if reference == tx_reference or reference in narration:
-                candidates.append(transaction)
+            if reference == candidate.reference or reference in candidate.narration:
+                candidates.append(candidate.row)
 
         if len(candidates) == 1:
             return candidates[0], "exact_reference_amount_date"

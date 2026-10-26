@@ -1,5 +1,5 @@
-import json
 import logging
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Set, Tuple
 from zoho.helpers.custom_fields import get_custom_field_value
 
 from ..core.exceptions import ReconciliationError
+from ..core.checkpoint import write_atomic_json
 from .config import CreatorCustomerSyncConfig
 
 logger = logging.getLogger(__name__)
@@ -179,25 +180,6 @@ class CreatorCustomerSyncer:
         self.verify_safety_thresholds(len(records), counts["DELETE"])
         if counts["CREATE"] and not self.config.form_link_name:
             raise ReconciliationError("form_link_name is required to create missing Creator customers.")
-        for change in changes:
-            operation = change["operation"]
-            if self.config.dry_run:
-                change["action"] = "WOULD_" + operation
-                continue
-            if operation == "CREATE":
-                self.creator_client.add_records(self.config.app_link_name, self.config.form_link_name,
-                                                payload={"data": [change["payload"]]})
-                change["action"] = "CREATED"
-            elif operation == "UPDATE" or self.config.soft_delete_field:
-                payload = change["payload"] if operation == "UPDATE" else {
-                    self.config.soft_delete_field: self.config.soft_delete_value}
-                self.creator_client.update_records(self.config.app_link_name, self.config.report_link_name,
-                                                   payload={"data": payload}, record_id=change["creator_record_id"])
-                change["action"] = "UPDATED" if operation == "UPDATE" else "SOFT_DELETED"
-            else:
-                self.creator_client.delete_records(self.config.app_link_name, self.config.report_link_name,
-                                                   record_id=change["creator_record_id"])
-                change["action"] = "HARD_DELETED"
         timestamp = datetime.now(timezone.utc)
         output_dir = Path(self.config.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -211,9 +193,95 @@ class CreatorCustomerSyncer:
             "excluded_creator_records_count": len((set(indexed) & self.all_books_customer_keys) - set(books)),
             "matched_records_count": len(set(books) & set(indexed)), "unchanged_count": unchanged,
             "records": changes, "report_file": str(report_path),
+            "status": "PREVIEW" if self.config.dry_run else "RUNNING",
         }
         for operation, past in (("CREATE", "created"), ("UPDATE", "updated"), ("DELETE", "deleted")):
             summary[f"candidate_{operation.lower()}_count"] = counts[operation]
-            summary[f"{past}_count"] = 0 if self.config.dry_run else counts[operation]
-        report_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+            summary[f"{past}_count"] = 0
+        for change in changes:
+            change["action"] = "WOULD_" + change["operation"] if self.config.dry_run else "PLANNED"
+        write_atomic_json(report_path, summary)
+        if not self.config.dry_run:
+            try:
+                self._apply_changes(changes, summary, report_path)
+            except Exception:
+                summary["status"] = "FAILED"
+                write_atomic_json(report_path, summary)
+                logger.error("Customer sync stopped; inspect checkpoint %s before retrying.", report_path)
+                raise
+            summary["status"] = "COMPLETE"
+            write_atomic_json(report_path, summary)
         return summary
+
+    def _apply_changes(self, changes: List[Dict[str, Any]], summary: Dict[str, Any],
+                       report_path: Path) -> None:
+        creates = [change for change in changes if change["operation"] == "CREATE"]
+        created_ids: Set[str] = set()
+        for start in range(0, len(creates), 200):
+            batch = creates[start:start + 200]
+            # An interrupted request may have committed; persist that uncertainty first.
+            for change in batch:
+                change["action"] = "UNKNOWN"
+            write_atomic_json(report_path, summary)
+            responses = self.creator_client.add_records_bulk(
+                self.config.app_link_name, self.config.form_link_name,
+                [change["payload"] for change in batch],
+            )
+            response = responses[0] if isinstance(responses, list) and len(responses) == 1 else None
+            results = response.get("result") if isinstance(response, dict) else None
+            if (not isinstance(results, list) or len(results) != len(batch)):
+                raise ReconciliationError(f"Unconfirmed Creator create results; inspect {report_path} before retrying.")
+            returned_ids = [str(result.get("data", {}).get("ID") or "").strip()
+                            if isinstance(result, dict) and isinstance(result.get("data"), dict)
+                            else "" for result in results]
+            id_counts = Counter(returned_ids)
+            for change, result, record_id in zip(batch, results, returned_ids):
+                if not isinstance(result, dict):
+                    continue
+                change["response_code"] = result.get("code")
+                if record_id:
+                    change["creator_record_id"] = record_id
+                if (result.get("code") == 3000 and record_id
+                        and id_counts[record_id] == 1 and record_id not in created_ids):
+                    change["action"] = "CREATED"
+                    created_ids.add(record_id)
+                    summary["created_count"] += 1
+                elif result.get("code") not in (None, 3000):
+                    change["action"] = "FAILED"
+            write_atomic_json(report_path, summary)
+            if response.get("code") != 3000 or any(change["action"] != "CREATED" for change in batch):
+                raise ReconciliationError(f"Creator create batch incomplete; inspect {report_path} before retrying.")
+
+        for change in changes:
+            operation = change["operation"]
+            if operation == "CREATE":
+                continue
+            change["action"] = "UNKNOWN"
+            write_atomic_json(report_path, summary)
+            if operation == "UPDATE" or self.config.soft_delete_field:
+                payload = change["payload"] if operation == "UPDATE" else {
+                    self.config.soft_delete_field: self.config.soft_delete_value}
+                response = self.creator_client.update_records(
+                    self.config.app_link_name, self.config.report_link_name,
+                    payload={"data": payload}, record_id=change["creator_record_id"])
+                self._require_mutation_success(response, change, report_path)
+                change["action"] = "UPDATED" if operation == "UPDATE" else "SOFT_DELETED"
+            else:
+                response = self.creator_client.delete_records(
+                    self.config.app_link_name, self.config.report_link_name,
+                    record_id=change["creator_record_id"])
+                self._require_mutation_success(response, change, report_path)
+                change["action"] = "HARD_DELETED"
+            summary["updated_count" if operation == "UPDATE" else "deleted_count"] += 1
+            write_atomic_json(report_path, summary)
+
+    @staticmethod
+    def _require_mutation_success(response: Any, change: Dict[str, Any], report_path: Path) -> None:
+        results = response.get("result", []) if isinstance(response, dict) else None
+        if (not isinstance(response, dict) or response.get("code") != 3000
+                or not isinstance(results, list)
+                or any(not isinstance(result, dict) or result.get("code") != 3000 for result in results)):
+            raise ReconciliationError(
+                f"Unconfirmed Creator {change['operation']} for {change['customer_key']}; "
+                f"inspect {report_path} before retrying."
+            )

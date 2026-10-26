@@ -29,6 +29,14 @@ field or within the bank narration, in addition to date and amount checks. Date
 and amount tolerances are configurable. Multiple matching bank lines are never
 selected automatically. Each bank line can be consumed at most once per run.
 
+Automatic reconciliation normalizes each bank transaction once per run, indexing
+occupied dates and sorted absolute amounts. Candidate searches use inclusive
+date/amount tolerance bounds before reference and narration checks. Duplicate
+bank rows retain ambiguity and used transaction IDs remain excluded. This index
+is limited to the automatic reconciler; the human review and live posting paths
+retain their independent validation rules. Non-finite tolerances and bank amounts
+are rejected rather than participating in financial matching.
+
 When no safe match exists, the workflow can run a configured Analytics SQL
 query and return customer suggestions without automatically posting them. A
 selected suggestion is applied through `resolve_manual()`, which creates the

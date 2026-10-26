@@ -124,7 +124,9 @@ remain.
 Reports and supporting query tables are organized by business function: Sales &
 Orders, Receivables & Collections, Purchases & Payables, Inventory & Fulfilment,
 GST & Tax, Banking & Cash, Accounting & Finance, Reconciliation, Reference Data,
-and Development. Imported source tables retain their connector folders. Brand
+and Development. Books sales and purchase source tables use the top-level
+`Sales (Zoho Books)` and `Purchases (Zoho Books)` folders. Shared source tables
+retain their connector data folder, also at the top level. Brand
 and vendor names remain in view names and filters.
 
 Folder moves use the Analytics v2 `views/movetofolder` endpoint. This workspace
@@ -134,6 +136,12 @@ folder IDs through live inventory read-back rather than relying on response
 content. Preserve original folder IDs and checkpoint progress before continuing.
 Folder moves do not refresh the canonical metadata cache; cached folder
 placements remain historical until an explicitly requested manual sync.
+
+Folder inventory counts reflect direct views, not views in child folders. A
+folder with zero direct views is not necessarily empty: inspect `parentFolderId`
+relationships before deletion. Promote child folders using the v2 folder
+`move` endpoint with `hierarchy: 0` when a flat layout is required. Verify both
+folder hierarchy and view IDs through targeted live read-back after moves.
 
 ## Detailed General Ledger
 

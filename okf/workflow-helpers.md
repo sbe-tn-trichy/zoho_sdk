@@ -87,9 +87,19 @@ Calendar comparisons reuse `workflows.core.matching.parse_date`; no implicit
 `date`/`datetime` comparisons are supported.
 
 `workflows.core.request_metrics.RequestMetrics` (also exported from
-`workflows.core`) counts completed SDK requests within an operation without
-logging payloads and preserves existing completion callbacks. Payment review
-uses this canonical helper; `apps.request_metrics` remains a compatibility re-export.
+`workflows.core`) preserves completed-call Counter behavior and existing completion
+and attempt callbacks. Its operation yields `OperationCounts`: `http.requests`,
+`http.http_seconds` and `http.statuses` record physical attempts, including retries
+and transport failures; `elapsed_seconds` records wall time and `cache_hits` records
+explicit preview reuse. `cache_hit(name, count)` adds reuse evidence to the current
+operation. Metrics retain resource categories rather than document IDs, query
+strings or payloads. `HttpAttemptMetrics` provides the same attempt aggregation
+for GSTR-2 CLI progress. These types are exported from `workflows.core`.
+Payment review includes preview cache hits for startup and browser refreshes;
+`apps.request_metrics` remains a compatibility re-export. Worker code must copy
+the current context into each executor task to join an operation's counts;
+the Books GST detail reader does this explicitly. HTTP seconds are cumulative
+across attempts and can exceed wall time when requests overlap.
 
 ## Payment applications
 

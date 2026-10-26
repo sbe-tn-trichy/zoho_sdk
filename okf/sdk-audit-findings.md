@@ -42,6 +42,12 @@ A comprehensive code audit across all `zoho_sdk` service clients identified key 
 * **Streaming Generator-Based Pagination**: Added `list_iter()` across Books and Inventory `BaseResource` classes to yield records page-by-page without buffering entire datasets in RAM.
 * **Direct File Streaming**: File download operations stream response chunks directly to disk.
 * **Callback Memory Safety**: Completion callbacks receive `None` for streamed response bodies so binary downloads are not materialized through `response.text`.
+* **GST Detail Retry Ownership**: The Books GST helper keeps at most five
+  concurrent detail reads and leaves rate-limit retries to the transport. Missing
+  or duplicate list IDs, failed reads, mismatched detail IDs, and missing
+  line-item arrays raise `ZohoBooksError` instead of returning a partial tax
+  summary. Worker tasks preserve context for the shared
+  [request measurements](workflow-helpers.md).
 
 ### 3. Usability & Developer Experience
 * **Bills Partial Update**: `Bills.update` invokes `_prepare_payload(data, check_required=False)` to allow partial field updates without requiring all creation fields.

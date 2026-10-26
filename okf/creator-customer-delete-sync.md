@@ -40,8 +40,22 @@ is supported. Deletion limits default to 50 records and 15 percent and are check
 before any writes. Missing Creator IDs/link keys, duplicate keys abort before mutation. Optional `soft_delete_field` and
 `soft_delete_value` preserve the existing soft-delete behavior.
 
-Creates and updates run before deletions. API exceptions propagate and stop the run;
-previous successful writes are not rolled back. Reports are written on successful completion.
+Creates use `ZohoCreatorAPI.add_records_bulk` in batches of at most 200, validating
+the overall and per-record response codes and returned Creator IDs. Each batch is
+checked before the next request. Creates finish before individual updates and
+deletions; updates and deletes also require successful API response codes. A
+partial, malformed or uncertain response stops the run before subsequent writes.
+Associated Creator workflows continue to run normally. The batch size follows
+the [Creator Add Records contract](https://www.zoho.com/creator/help/api/v2.1/add-records.html).
+
+The atomic audit JSON is written before mutation and before/after each batch or
+individual write. It records `PREVIEW`, `RUNNING`, `COMPLETE` or `FAILED`, actual
+confirmed mutation counts, returned IDs and per-row actions. `PLANNED` rows have
+not been attempted; `UNKNOWN` rows may have committed and require live inspection
+before retrying. API exceptions propagate; prior successful writes are not rolled
+back. Interrupted runs can leave a `RUNNING` audit and `UNKNOWN` rows. There is no
+automatic replay of uncertain writes; a later run must refetch Books and Creator
+after resolving the uncertainty. Reports remain under the configured output directory.
 
 ```powershell
 python apps/sync_creator_customers.py --dry-run

@@ -57,6 +57,12 @@ Analytics bill exports must contain bill/vendor IDs, last modified time,
 posting date, location, amount, and GST components. The Bills API's
 `date_start`/`date_end` filters apply to bill date, so they are unsuitable for
 posting-date reconciliation.
+Within one verifier instance, bills are indexed once by posting month. Repeated
+monthly checks select the relevant bucket rather than parsing all historical
+posting dates again. Source order and exact date bounds are preserved, including
+multi-month and partial-month ranges. The index has the lifetime of the loaded
+bill population; it adds no cross-run cache and does not change snapshot freshness
+or live detail verification requirements.
 When an Analytics or Books list bill already supplies taxable subtotal and GST,
 the verifier uses those components to assess a gross-total difference before
 requesting bill detail. It fetches detail only when the components are missing

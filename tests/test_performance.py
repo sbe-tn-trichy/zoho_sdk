@@ -9,6 +9,7 @@ from zoho.books import ZohoBooksAPI
 from zoho.books.resources.sales import SalesOrders
 from zoho.books.resources.gst import GST
 from workflows.duplicate_payment_check import DuplicatePaymentChecker
+from zoho.exceptions import ZohoBooksError
 
 
 class TestBaseClientPerformance(unittest.TestCase):
@@ -158,24 +159,19 @@ items:
 
 
 class TestGSTRatePacing(unittest.TestCase):
-    @patch("time.sleep")
-    def test_gst_fetch_details_retries_on_429(self, mock_sleep):
-        client = MagicMock()
-        gst = GST(client)
-
-        mock_module = MagicMock()
-        # Fail with 429 on first call, succeed on second call
-        mock_module.get.side_effect = [
-            Exception("HTTP 429: Too Many Requests"),
-            {"invoice": {"invoice_id": "inv_1", "total": 1000}}
-        ]
-
+    @patch("zoho.base_client.time.sleep")
+    def test_gst_fetch_details_retries_only_in_transport(self, mock_sleep):
+        client = ZohoBooksAPI("token", "org")
+        limited = MagicMock(status_code=429, text="limited", headers={"Retry-After": "0"})
+        limited.json.return_value = {"code": 429, "message": "limited"}
+        client.session.request = MagicMock(return_value=limited)
         docs = [{"invoice_id": "inv_1"}]
-        details = gst._fetch_details_concurrently(mock_module, docs, "invoice_id", "invoice")
-
-        self.assertEqual(len(details), 1)
-        self.assertEqual(details[0]["invoice_id"], "inv_1")
-        mock_sleep.assert_called_once()
+        with self.assertRaisesRegex(ZohoBooksError, "GST summary incomplete") as caught:
+            client.gst._fetch_details_concurrently(client.invoices, docs, "invoice_id", "invoice")
+        self.assertEqual(caught.exception.status_code, 429)
+        self.assertEqual(client.session.request.call_count, 4)
+        self.assertEqual(mock_sleep.call_count, 3)
+        client.close()
 
 
 class TestStreamingAndPagination(unittest.TestCase):

@@ -98,10 +98,13 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str,
                 path = urlparse(self.path).path
                 if path == "/api/refresh":
                     if body.get("force_refresh"):
-                        self._json(service.refresh(force_refresh=True))
+                        result = service.refresh(force_refresh=True)
                     else:
-                        self._json(service.refresh())
-                    logging.info("Preview cache hits: %s", service.load().get("preview_cache_hits", {}))
+                        result = service.refresh()
+                    if metrics is not None:
+                        for name, count in result.get("preview_cache_hits", {}).items():
+                            metrics.cache_hit(name, count)
+                    self._json(result)
                     return
                 if path.startswith("/api/bank-transfers/") and path.endswith("/categorize"):
                     proposal_id = unquote(path[len("/api/bank-transfers/"):-len("/categorize")])
@@ -266,7 +269,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.force_refresh or not args.no_refresh or not args.state.exists():
         with metrics.operation("refresh"):
             batch = service.refresh(force_refresh=args.force_refresh)
-        logging.info("Preview cache hits: %s", batch.get("preview_cache_hits", {}))
+            for name, count in batch.get("preview_cache_hits", {}).items():
+                metrics.cache_hit(name, count)
         logging.info(
             "Loaded %s Creator payments and %s other bank lines",
             len(batch["entries"]),
