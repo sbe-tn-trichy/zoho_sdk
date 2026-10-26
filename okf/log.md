@@ -1,5 +1,11 @@
 # Knowledge Change Log
 
+## 2026-10-26
+
+- Added exact paired [internal bank transfers](collection-reconciliation.md#internal-bank-transfers), reviewed confirmation, native-transfer reuse, verified two-sided matching and durable retry checkpoints.
+
+- Reduced [bank categorization](collection-reconciliation.md) reads with pending Creator criteria, concurrent independent service reads, indexed matching, on-demand invoice previews and shared bank/vendor reads within confirmed category batches.
+
 ## 2026-10-24
 
 - Added the read-only [HDFC statement completeness helper](bank-statement-check.md), with scoped Analytics reads, duplicate-aware matching, masked cheque review and snapshot replay.

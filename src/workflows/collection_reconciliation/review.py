@@ -6,8 +6,11 @@ import hashlib
 import json
 import re
 import threading
+from bisect import bisect_left, bisect_right
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -21,7 +24,8 @@ from ..core.matching import (
 )
 from .identifiers import identifier as _identifier, identifiers as _identifiers
 from .payments import customer_payment_payload
-from .types import BankStatementRecord
+from .types import BankStatementRecord, BankTransferProposal
+from .bank_transfers import bank_line_identity, transfer_proposals, post_transfer
 from .preview_cache import PreviewCache
 from .allocator import (
     CLOSED_INVOICE_STATUSES as _CLOSED_INVOICE_STATUSES,
@@ -56,6 +60,30 @@ def _cheque_reference_suffixes(value: Any) -> set[str]:
     }
 
 
+class _BankCandidateIndex:
+    """Normalize bank dates and amounts once; preserve original candidate order."""
+
+    def __init__(self, rows: Sequence[Mapping[str, Any]]) -> None:
+        self.by_date: Dict[Any, Dict[Decimal, List[Tuple[int, Mapping[str, Any]]]]] = {}
+        for position, row in enumerate(rows):
+            day = parse_date(row.get("date") or row.get("transaction_date"))
+            amount = _decimal(row.get("amount"))
+            if day and amount is not None:
+                self.by_date.setdefault(day, {}).setdefault(abs(amount), []).append((position, row))
+        self.amounts = {day: sorted(values) for day, values in self.by_date.items()}
+
+    def candidates(self, day: Any, amount: Decimal, days: int, tolerance: Decimal) -> List[Mapping[str, Any]]:
+        matches = []
+        for offset in range(-days, days + 1):
+            candidate_day = day + timedelta(days=offset)
+            amounts = self.amounts.get(candidate_day, [])
+            lower = bisect_left(amounts, abs(amount) - tolerance)
+            upper = bisect_right(amounts, abs(amount) + tolerance)
+            for value in amounts[lower:upper]:
+                matches.extend(self.by_date[candidate_day][value])
+        return [row for _, row in sorted(matches, key=lambda item: item[0])]
+
+
 @dataclass(frozen=True)
 class OnlinePaymentReviewConfig:
     creator_app_link_name: str
@@ -81,6 +109,7 @@ class OnlinePaymentReviewConfig:
     analytics_preview_ttl_seconds: float = 300
     customer_mapping_ttl_seconds: float = 300
     travel_account_ttl_seconds: float = 300
+    lazy_invoice_previews: bool = True
     analytics_batch_tokens: int = 35
     analytics_max_sql_bytes: int = 6000
     state_path: Path = Path(
@@ -151,7 +180,12 @@ class OnlinePaymentReviewService:
             previous_entries = {
                 str(entry.get("id")): entry for entry in previous.get("entries", [])
             }
-            payments = self._all_creator_payments()
+            # Each client stays on one worker; only independent services overlap.
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                payment_read = executor.submit(copy_context().run, self._all_creator_payments)
+                bank_read = executor.submit(copy_context().run, self._all_uncategorized_bank_transactions)
+                payments = payment_read.result()
+                bank_transactions = bank_read.result()
             customer_key = (id(self.creator), self.config.creator_app_link_name,
                             self.config.customer_report_link_name)
             customers = self._customer_cache.get(customer_key)
@@ -169,12 +203,35 @@ class OnlinePaymentReviewService:
                 for row in customers
                 if _text(row.get("ID"))
             }
-            bank_transactions = self._all_uncategorized_bank_transactions()
+
+            old_transfers = {pair["id"]: pair for pair in previous.get("bank_transfers", [])}
+            reserved_transfer_lines = {
+                bank_line_identity(pair[side])
+                for pair in old_transfers.values() if pair.get("status") not in {"pending", "completed"}
+                for side in ("source", "destination")
+            }
+            bank_transfers = [pair for pair in transfer_proposals(bank_transactions)
+                              if pair["id"] in old_transfers and old_transfers[pair["id"]].get("status") != "pending"
+                              or not any(bank_line_identity(pair[side]) in reserved_transfer_lines
+                                         for side in ("source", "destination"))]
+            for index, pair in enumerate(bank_transfers):
+                old = old_transfers.get(pair["id"])
+                if old and old.get("status") != "pending":
+                    bank_transfers[index] = old
+            current_pair_ids = {pair["id"] for pair in bank_transfers}
+            for pair_id, pair in old_transfers.items():
+                if pair_id not in current_pair_ids and pair.get("status") != "pending":
+                    bank_transfers.append(pair)
+            transfer_lines: Dict[Tuple[str, str], List[BankTransferProposal]] = {}
+            for pair in bank_transfers:
+                for side in ("source", "destination"):
+                    transfer_lines.setdefault(bank_line_identity(pair[side]), []).append(pair)
 
             used_transaction_ids = set()
             raw_entries = []
             bank_comparisons = []
-            customer_bank_transactions = [tx for tx in bank_transactions if bank_line_kind(tx) not in {"cash_deposit", "electricity", "salary", "travel_allowance", "vendor_advance"}]
+            customer_bank_transactions = [tx for tx in bank_transactions if bank_line_identity(tx) not in transfer_lines and bank_line_kind(tx) not in {"cash_deposit", "electricity", "salary", "travel_allowance", "vendor_advance"}]
+            customer_bank_transactions = _BankCandidateIndex(customer_bank_transactions)
             for payment in payments:
                 # Bank-source comparisons must retain every competing Creator
                 # record, even when the posting queue has reserved this line.
@@ -194,7 +251,7 @@ class OnlinePaymentReviewService:
                 for cand in entry.get("possible_candidates", []):
                     all_tokens.update(extract_remitter_tokens(cand.get("description")))
             for tx in bank_transactions:
-                if not is_travel_allowance_withdrawal(tx):
+                if bank_line_identity(tx) not in transfer_lines and not is_travel_allowance_withdrawal(tx):
                     all_tokens.update(extract_remitter_tokens(tx.get("description")))
 
             customer_finder_rows = self._preview_customer_finder(sorted(all_tokens))
@@ -217,7 +274,10 @@ class OnlinePaymentReviewService:
                     self._migrate_bank_identity(terminal, previous)
                     entries.append(terminal)
                     continue
-                self._attach_invoice_preview(entry, invoice_cache)
+                if self.config.lazy_invoice_previews and entry.get("reviewable"):
+                    entry.update(allocation_status="pending_preview", invoice_allocations=[], allocation_error="")
+                else:
+                    self._attach_invoice_preview(entry, invoice_cache)
                 if entry.get("customer_name_valid") is False:
                     entry["reason"] += " " + entry["customer_name_reason"]
                 if old and old.get("fingerprint") == entry["fingerprint"]:
@@ -261,6 +321,15 @@ class OnlinePaymentReviewService:
                 _text(row.get("transaction_id")): row
                 for row in previous.get("bank_suggestions", [])
             }
+            creator_claims: Dict[Tuple[str, str], List[str]] = {}
+            for comparison in bank_comparisons:
+                candidates = ([{**comparison["bank"], "bank_account_id": comparison["bank_account_id"]}]
+                              if comparison.get("bank") else [])
+                candidates += comparison["ambiguous_candidates"] + comparison["possible_candidates"]
+                keys = {(candidate.get("bank_account_id", ""), candidate["transaction_id"])
+                        for candidate in candidates}
+                for key in keys:
+                    creator_claims.setdefault(key, []).append(comparison["id"])
             bank_suggestions = []
             bank_records: List[BankStatementRecord] = []
             for transaction in bank_transactions:
@@ -279,16 +348,27 @@ class OnlinePaymentReviewService:
                     "location_name": "Sri Bharath Electricals" if bank_line_kind(transaction) == "vendor_advance" else "",
                     "categorization_status": "pending",
                 })
+                if bank_line_identity(transaction) in transfer_lines:
+                    pairs = transfer_lines[bank_line_identity(transaction)]
+                    if all(pair["status"] == "completed" for pair in pairs):
+                        continue
+                    displayed.update(kind="bank_transfer", customer_suggestions=[],
+                                     transfer_ids=[pair["id"] for pair in pairs])
                 if previous_bank.get(transaction_id, {}).get("categorization_status") == "categorized":
                     continue
-                creator_candidates = []
-                for comparison in bank_comparisons:
-                    candidates = ([{**comparison["bank"], "bank_account_id": comparison["bank_account_id"]}] if comparison.get("bank") else []) + comparison["ambiguous_candidates"] + comparison["possible_candidates"]
-                    if any(candidate["transaction_id"] == transaction_id and candidate.get("bank_account_id") == displayed["bank_account_id"] for candidate in candidates):
-                        creator_candidates.append(comparison["id"])
+                creator_candidates = creator_claims.get((displayed["bank_account_id"], transaction_id), [])
                 bank_records.append({**displayed, "creator_entry_ids": creator_candidates})
                 if transaction_id not in used_transaction_ids:
                     bank_suggestions.append(displayed)
+
+            # Keep interrupted operations accessible even after one feed line is matched.
+            visible_ids = {bank_line_identity(row) for row in bank_records}
+            for pair in bank_transfers:
+                if pair["status"] not in {"pending", "completed"} and bank_line_identity(pair["source"]) not in visible_ids:
+                    bank_records.append({**pair["source"], "kind": "bank_transfer",
+                                         "transfer_ids": [pair["id"]], "creator_entry_ids": [],
+                                         "categorization_status": "pending", "recovery_checkpoint": True})
+                    visible_ids.add(bank_line_identity(pair["source"]))
 
             batch = {
                 "version": 2,
@@ -305,15 +385,72 @@ class OnlinePaymentReviewService:
                 "entries": entries,
                 "bank_suggestions": bank_suggestions,
                 "bank_records": bank_records,
+                "bank_transfers": bank_transfers,
             }
             self._save(batch)
             return batch
+
+    def categorize_bank_transfer(self, transfer_proposal_id: str) -> BankTransferProposal:
+        """Apply an explicitly confirmed pair as one Books transfer."""
+        with self._lock:
+            batch = self.load()
+            proposal = next((pair for pair in batch.get("bank_transfers", [])
+                             if pair["id"] == transfer_proposal_id), None)
+            if proposal is None:
+                raise ReconciliationError("No bank transfer proposal exists. Refresh the queue.")
+            if proposal["status"] == "completed":
+                return proposal
+            rows = self._all_uncategorized_bank_transactions()
+
+            def checkpoint() -> None:
+                for group in ("bank_records", "bank_suggestions"):
+                    for row in batch.get(group, []):
+                        if proposal["id"] in row.get("transfer_ids", []):
+                            row["categorization_status"] = "categorized" if proposal["status"] == "completed" else "pending"
+                self._save(batch)
+
+            try:
+                post_transfer(self.books, proposal, rows, checkpoint)
+            except Exception as exc:
+                proposal["error"] = str(exc)
+                checkpoint()
+                raise
+            return proposal
+
+    def preview_invoices(self, entry_id: str) -> Dict[str, Any]:
+        """Load an invoice preview without authorizing a payment mutation."""
+        with self._lock:
+            batch, entry = self._entry(entry_id)
+            if entry.get("push_status") != "pushed":
+                self._attach_invoice_preview(entry, {})
+                self._save(batch)
+            return entry
+
+    def categorize_many(self, transaction_ids: Sequence[str]) -> Dict[str, Any]:
+        """Validate a fresh batch snapshot, then checkpoint sequential writes."""
+        if isinstance(transaction_ids, (str, bytes)) or any(not isinstance(x, str) or not x for x in transaction_ids):
+            raise ReconciliationError("transaction_ids must contain non-empty strings.")
+        with self._lock:
+            rows = self._all_uncategorized_bank_transactions()
+            current = {(row["_review_bank_account_id"], _text(row.get("transaction_id") or row.get("id"))): row for row in rows}
+            metadata: Dict[str, Any] = {}
+            succeeded, failed = [], []
+            for transaction_id in dict.fromkeys(transaction_ids):
+                try:
+                    self.categorize_bank_line(transaction_id, _current_rows=current, _vendor_metadata=metadata)
+                    succeeded.append(transaction_id)
+                except Exception as exc:
+                    metadata.clear()
+                    failed.append({"transaction_id": transaction_id, "error": str(exc)})
+            return {"succeeded": succeeded, "failed": failed}
 
     def categorize_travel_expense(self, transaction_id: str) -> Dict[str, Any]:
         """Categorize one reviewed TA withdrawal after validating live Books state."""
         return self.categorize_bank_line(transaction_id, expected_kind="travel_allowance")
 
-    def categorize_bank_line(self, transaction_id: str, *, expected_kind: str = "") -> Dict[str, Any]:
+    def categorize_bank_line(self, transaction_id: str, *, expected_kind: str = "",
+                             _current_rows: Optional[Mapping[Tuple[str, str], Mapping[str, Any]]] = None,
+                             _vendor_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Apply a reviewed expense, cash transfer, or vendor advance classification."""
         with self._lock:
             batch = self.load()
@@ -327,7 +464,10 @@ class OnlinePaymentReviewService:
             if proposal.get("categorization_status") == "categorized":
                 return proposal
             account_id = _text(proposal.get("bank_account_id"))
-            current = self._current_bank_transaction(transaction_id, account_id)
+            current = (self._current_bank_transaction(transaction_id, account_id)
+                       if _current_rows is None else _current_rows.get((account_id, transaction_id)))
+            if current is None:
+                raise ReconciliationError("The proposed bank transaction is no longer uncategorized. Refresh the queue.")
             if bank_line_kind(current) != kind:
                 raise ReconciliationError("The live bank line classification changed. Refresh before categorizing.")
             if (
@@ -338,7 +478,7 @@ class OnlinePaymentReviewService:
             ):
                 raise ReconciliationError("The live bank line changed. Refresh before categorizing.")
             if kind == "vendor_advance":
-                return self._categorize_polycab_advance(batch, proposal, current, account_id)
+                return self._categorize_polycab_advance(batch, proposal, current, account_id, _vendor_metadata)
             configured_id = ("" if kind == "electricity" else self.config.cash_account_id if kind == "cash_deposit" else self.config.salary_expense_account_id if kind == "salary" else self.config.travel_expense_account_id)
             account_name = ("Electricity" if kind == "electricity" else "Cash-SBE" if kind == "cash_deposit" else "Salary" if kind == "salary" else self.config.travel_expense_account_name)
             if kind not in {"travel_allowance", "electricity"} and not configured_id:
@@ -401,29 +541,34 @@ class OnlinePaymentReviewService:
     def _categorize_polycab_advance(
         self, batch: Dict[str, Any], proposal: Dict[str, Any],
         current: Mapping[str, Any], bank_account_id: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        vendors = self.books.contacts.list_all(params={"contact_type": "vendor", "search_text": "Polycab"})
-        matches = [row for row in vendors
-                   if _text(row.get("contact_name")).casefold() in {"polycab", "polycab india limited"}
-                   and _text(row.get("contact_type")).casefold() == "vendor"
-                   and _text(row.get("status")).casefold() == "active"
-                   and _text(row.get("contact_id"))]
-        if len(matches) != 1:
-            raise ReconciliationError("A unique active Polycab vendor was not found in Books.")
-        locations = self.books.locations.list_all()
-        matches_locations = [row for row in locations
-                             if _text(row.get("location_name")).casefold() == "sri bharath electricals"
-                             and row.get("is_active") is not False
-                             and _text(row.get("status")).casefold() != "inactive"
-                             and _text(row.get("location_id"))]
-        if len(matches_locations) != 1:
-            raise ReconciliationError("A unique active Sri Bharath Electricals branch was not found in Books.")
+        metadata = metadata if metadata is not None else {}
+        if not metadata:
+            vendors = self.books.contacts.list_all(params={"contact_type": "vendor", "search_text": "Polycab"})
+            matches = [row for row in vendors
+                       if _text(row.get("contact_name")).casefold() in {"polycab", "polycab india limited"}
+                       and _text(row.get("contact_type")).casefold() == "vendor"
+                       and _text(row.get("status")).casefold() == "active"
+                       and _text(row.get("contact_id"))]
+            if len(matches) != 1:
+                raise ReconciliationError("A unique active Polycab vendor was not found in Books.")
+            locations = self.books.locations.list_all()
+            matches_locations = [row for row in locations
+                                 if _text(row.get("location_name")).casefold() == "sri bharath electricals"
+                                 and row.get("is_active") is not False
+                                 and _text(row.get("status")).casefold() != "inactive"
+                                 and _text(row.get("location_id"))]
+            if len(matches_locations) != 1:
+                raise ReconciliationError("A unique active Sri Bharath Electricals branch was not found in Books.")
+            metadata.update(vendor_id=_text(matches[0]["contact_id"]),
+                            location_id=_text(matches_locations[0]["location_id"]))
         amount = _decimal(current.get("amount"))
         if amount is None or amount == 0:
             raise ReconciliationError("The bank withdrawal has no valid amount.")
         payload = {
-            "vendor_id": _text(matches[0]["contact_id"]),
-            "location_id": _text(matches_locations[0]["location_id"]),
+            "vendor_id": metadata["vendor_id"],
+            "location_id": metadata["location_id"],
             "paid_through_account_id": bank_account_id,
             "payment_mode": "Bank Transfer", "bills": [],
             "date": _text(current.get("date") or current.get("transaction_date")),
@@ -1195,6 +1340,10 @@ class OnlinePaymentReviewService:
 
         candidates = []
         date_amount_candidates = []
+        if isinstance(transactions, _BankCandidateIndex):
+            transactions = transactions.candidates(payment_date, amount,
+                int(payment.get("date_tolerance_days", self.config.date_tolerance_days)),
+                Decimal(str(self.config.amount_tolerance)))
         for transaction in transactions:
             transaction_id = _text(
                 transaction.get("transaction_id") or transaction.get("id")
@@ -1470,6 +1619,7 @@ class OnlinePaymentReviewService:
             payments = self.creator.get_all_records(
                 self.config.creator_app_link_name,
                 report_name,
+                criteria=f'({self.config.creator_books_id_field} == null || {self.config.creator_books_id_field} == "")',
             )
             for payment in payments:
                 if _text(payment.get(self.config.creator_books_id_field)):
@@ -1478,7 +1628,8 @@ class OnlinePaymentReviewService:
                 annotated["_review_payment_type"] = payment_type
                 annotated["_review_report_link_name"] = report_name
                 rows.append(annotated)
-            has_cheques = has_cheques or payment_type.casefold() == "cheque"
+            has_cheques = has_cheques or (payment_type.casefold() == "cheque" and any(
+                not _text(payment.get(self.config.creator_books_id_field)) for payment in payments))
         if has_cheques:
             cheque_details = self.creator.get_all_records(
                 self.config.creator_app_link_name,

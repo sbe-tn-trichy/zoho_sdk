@@ -44,7 +44,7 @@ okf_version: "0.2"
 * [Analytics Metadata Snapshots](analytics-metadata.md) - Cached SQLite analysis, manual sync, freshness timestamps, saved query SQL, and workflow impact.
 * [HDFC Statement Completeness](bank-statement-check.md) - Read-only CSV comparison with the Analytics Books bank-statement replica.
 * [Bank–Vendor Ledger Matching](bank-vendor-ledger-matching.md) - Books bank-withdrawal matching and ICICI UPI reference normalization.
-* [Bank Statement Categorization](collection-reconciliation.md) - Creator payment matching, Analytics customer suggestions for other bank lines, TA expense review, and audit safety.
+* [Bank Statement Categorization](collection-reconciliation.md) - Creator payment matching, Analytics customer suggestions, expenses, internal bank transfers, and audit safety.
 * [GSTR-1 Verification](gstr1-verification.md) - Previous-month invoice and credit-note checks for drafts, number continuity, chronology, and e-invoice registration.
 * [GSTR-2 Verification](gstr2-verification.md) - Read-only purchase reconciliation cross-checking GSTR-2 / GSTR-2B JSON against Books bills and credits.
 * [GSTR-3B and Books P&L Comparison](gstr3b-pnl-comparison.md) - Monthly and FY Sales account comparison with filed GSTR-3B turnover.

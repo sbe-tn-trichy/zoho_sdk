@@ -21,6 +21,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
         self.creator = MagicMock()
         self.books = MagicMock()
         self.config = OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
             creator_app_link_name="app",
             bank_account_id="bank-1",
             analytics_preview_ttl_seconds=0,
@@ -717,6 +718,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             self.creator,
             self.books,
             OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
                 creator_app_link_name="app",
                 bank_account_id="bank-1",
                 amount_tolerance=Decimal("0.50"),
@@ -769,6 +771,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             self.creator,
             self.books,
             OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
                 creator_app_link_name="app",
                 bank_accounts=(
                     ("HDFC", "hdfc-1"),
@@ -808,6 +811,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             self.creator,
             self.books,
             OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
                 creator_app_link_name="app",
                 bank_account_id="bank-1",
                 payment_reports=(
@@ -886,6 +890,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             self.creator,
             self.books,
             OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
                 creator_app_link_name="app",
                 bank_accounts=(("IDFC", "idfc-1"),),
                 payment_reports=(("Cheque", "Cheques"),),
@@ -923,6 +928,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             self.creator,
             self.books,
             OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
                 creator_app_link_name="app",
                 bank_accounts=(("HDFC", "hdfc-1"),),
                 payment_reports=(("Cheque", "Cheques"),),
@@ -947,6 +953,7 @@ class TestOnlinePaymentReviewService(unittest.TestCase):
             self.creator,
             self.books,
             OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
                 creator_app_link_name="app",
                 bank_account_id="bank-1",
                 payment_reports=(("Cheque", "Cheques"),),

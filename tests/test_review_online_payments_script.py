@@ -36,6 +36,21 @@ assert.equal(dateSortKey('bad'), Infinity);
 assert.equal(compareDates('', ''), 0);
 assert.equal(compareDates('03-Oct-2026', '2026-10-03'), 0);
 assert.equal(compareDates('03/10/2026', '2026-10-03'), 0);
+assert.match(allocationHtml({id: 'preview', allocation_status: 'pending_preview'}), /Load invoice preview/);
+const transferSavedBatch = batch;
+batch = {bank_transfers: [{id: 'pair', source: {bank_name: 'HDFC', date: '2026-10-26', amount: 1000, reference: 'UTR123', transaction_id: 'out'}, destination: {bank_name: 'ICICI', transaction_id: 'in'}, match_status: 'reviewable', status: 'pending'}]};
+const transferRow = {kind: 'bank_transfer', transfer_ids: ['pair']};
+assert.equal(bankCategory(transferRow), 'bank_transfers');
+assert.equal(bankMatchStatus(transferRow), 'reviewable');
+assert.match(bankTransferHtml(transferRow), /HDFC → ICICI/);
+assert.match(bankTransferAction(transferRow), /Confirm bank transfer/);
+batch.bank_transfers[0].match_status = 'ambiguous';
+assert.equal(bankMatchStatus(transferRow), 'ambiguous');
+assert.equal(bankTransferAction(transferRow), '');
+batch.bank_transfers[0].match_status = 'reviewable';
+batch.bank_transfers[0].status = 'source_matched';
+assert.match(bankTransferAction(transferRow), /Resume bank transfer/);
+batch = transferSavedBatch;
 const savedBatch = batch;
 batch = {entries: [
   {id: 'later', creator: {date: '05-Oct-2026'}},
@@ -136,10 +151,10 @@ api = async path => {
   if (path.includes('/bad/')) throw new Error('Changed bank line');
   if (path === '/api/batch') return batch;
   batch.bank_suggestions[0].categorization_status = 'categorized';
-  return {};
+  return {succeeded: ['ok'], failed: [{transaction_id: 'bad', error: 'Changed bank line'}]};
 };
 categorizeSelectedBankLines().then(async () => {
-  assert.deepEqual(calls, ['/api/bank-lines/ok/categorize', '/api/bank-lines/bad/categorize', '/api/batch']);
+  assert.deepEqual(calls, ['/api/categorize-selected', '/api/batch']);
   assert.deepEqual([...selectedBankLines], ['bad']);
   assert.equal(bankLinesBusy, false);
   assert.match(document.getElementById('notice').textContent, /1 records categorized; 1 failed/);
@@ -150,7 +165,7 @@ categorizeSelectedBankLines().then(async () => {
     toggleVisibleBankLines(true);
     assert.deepEqual([...selectedBankLines], ['ok', 'bad']);
     await categorizeSelectedBankLines();
-    assert.deepEqual(calls, ['/api/bank-lines/ok/categorize', '/api/bank-lines/bad/categorize', '/api/batch']);
+    assert.deepEqual(calls, ['/api/categorize-selected', '/api/batch']);
     assert.deepEqual([...selectedBankLines], ['bad']);
   }
 }).catch(error => { console.error(error); process.exitCode = 1; });
@@ -270,6 +285,26 @@ categorizeSelectedBankLines().then(async () => {
         handler.send_response.assert_called_once_with(200)
         response = json.loads(handler.wfile.getvalue().decode("utf-8"))
         self.assertEqual(response["categorization_status"], "categorized")
+
+    def test_handler_requires_confirmation_for_bank_transfer(self):
+        from apps.payment_review import make_handler
+        for confirmed in (False, True):
+            service = MagicMock()
+            service.categorize_bank_transfer.return_value = {"id": "pair", "status": "completed"}
+            handler_cls = make_handler(service, "test-token")
+            handler = handler_cls.__new__(handler_cls)
+            body = json.dumps({"confirm": confirmed}).encode()
+            handler.headers = {"X-Review-Token": "test-token", "Content-Length": str(len(body))}
+            handler.rfile, handler.wfile = io.BytesIO(body), io.BytesIO()
+            handler.path = "/api/bank-transfers/pair/categorize"
+            handler.send_response, handler.send_header, handler.end_headers = MagicMock(), MagicMock(), MagicMock()
+            handler.do_POST()
+            if confirmed:
+                service.categorize_bank_transfer.assert_called_once_with("pair")
+                handler.send_response.assert_called_once_with(200)
+            else:
+                service.categorize_bank_transfer.assert_not_called()
+                handler.send_response.assert_called_once_with(400)
 
 
 if __name__ == "__main__":

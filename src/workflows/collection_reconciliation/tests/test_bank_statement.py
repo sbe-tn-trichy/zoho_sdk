@@ -38,6 +38,7 @@ def test_cash_salary_reviewed_posting(tmp_path, kind, direction, description, ac
             "description": description, "date": "2026-10-01", "amount": 1000}
     books.bank_transactions.list_all.return_value = [bank]
     service = OnlinePaymentReviewService(creator, books, OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
         creator_app_link_name="app", bank_account_id="bank",
         cash_account_id="cash", salary_expense_account_id="salary",
         state_path=tmp_path / "state.json"))
@@ -153,6 +154,7 @@ def test_travel_expense_requires_live_match_and_explicit_account(tmp_path, confi
     }
     books.bank_transactions.list_all.return_value = [bank]
     config = OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
         creator_app_link_name="app", bank_account_id="bank-1",
         state_path=tmp_path / "state.json",
         travel_expense_account_id=configured_id,
@@ -206,6 +208,7 @@ def test_other_bank_line_gets_analytics_narration_suggestion(tmp_path, direction
     service = OnlinePaymentReviewService(
         creator, books,
         OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
             creator_app_link_name="app", bank_account_id="bank-1",
             analytics_workspace_id="workspace", customer_finder_view_id="view",
             state_path=tmp_path / "state.json",
@@ -238,6 +241,7 @@ def test_polycab_advance_reviewed_posting(tmp_path, failure):
             "description": "NEFT/POLY2300277498", "date": "2026-10-01", "amount": 1000}
     books.bank_transactions.list_all.return_value = [bank]
     service = OnlinePaymentReviewService(creator, books, OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
         creator_app_link_name="app", bank_account_id="bank", state_path=tmp_path / "state.json"))
     proposal = service.refresh()["bank_suggestions"][0]
     assert proposal["kind"] == "vendor_advance"
@@ -303,6 +307,7 @@ def test_bank_source_retains_all_lines_and_competing_creator_records(tmp_path):
         {"transaction_id": "expense", "date": "2026-10-01", "amount": "1000", "description": "Alice/TA", "debit_or_credit": "credit"}]
     books.invoices.list_all.return_value = []
     service = OnlinePaymentReviewService(creator, books, OnlinePaymentReviewConfig(
+            lazy_invoice_previews=False,
         creator_app_link_name="app", bank_account_id="bank", state_path=tmp_path / "queue.json"))
     batch = service.refresh()
     rows = {row["transaction_id"]: row for row in batch["bank_records"]}

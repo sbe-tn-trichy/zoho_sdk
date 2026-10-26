@@ -154,6 +154,39 @@ their own dropdown view and individual confirmation. These rules propose
 categories only; they do not post during refresh. Posting revalidates the live
 line's classification, date, amount, narration, and reference.
 
+## Internal bank transfers
+
+**Bank Transfers** pairs uncategorized withdrawals and deposits across the configured
+bank accounts. A pair requires the same parsed date, exact absolute amount and
+non-empty reference (trimmed and case-insensitive). References reuse the existing
+bank-specific reference resolver. Same-bank lines, unknown directions, missing
+references and invalid/zero amounts do not qualify. Existing explicit cash,
+expense and vendor narration rules retain priority. Multiple possible opposite
+lines are shown as **Ambiguous** and cannot be posted. Both sides of candidate
+pairs are excluded from Creator customer matching and Analytics customer hints.
+
+The Bank source retains one row per statement line and shows source → destination,
+date, amount, reference and both statement IDs. Either row's **Confirm bank transfer**
+action confirms the same operation. There is no automatic posting during refresh.
+The server rechecks both live lines, their reviewed values, mutual uniqueness,
+active bank accounts and equal known currencies before posting.
+
+The operation reuses one existing Books transfer offered for both lines when its
+saved banks, date, amount and reference agree. Multiple existing matching transfers
+block posting. Otherwise it creates one `transfer_fund` transaction, checkpoints
+its ID and matches both statement lines to it. Each match is verified through the
+transfer's `imported_transactions` detail before success. Both lines must be verified
+before the operation is complete. No Creator record or customer payment is created.
+
+`bank_transfers` in the existing atomic queue stores each operation's stage, native
+transfer ID and error. Refresh preserves interrupted operations and reserves their
+lines; a recovery row keeps **Resume bank transfer** available after the first line
+has been matched. Retries reuse the saved native transfer. An interrupted create
+uses a stable description marker to recover the transfer; an uncertain response
+without unique evidence blocks another creation and requires Books review.
+Cross-currency transfers are unsupported. Live bank transfer posting remains a
+reviewer-confirmed action; implementation checks use mocked Books writes.
+
 The production UI is named **Bank Statement Categorization**. It retains the
 Creator online and cheque payment matching flow and adds other uncategorized
 Books bank lines to a separate review table. Bank narrations are compared
@@ -173,7 +206,7 @@ In the production bank feed and Finder view, `debit` means deposit and
 lines.
 
 The review interface uses three independent dropdowns: **Bank / Creator**,
-**Expenses / Vendor Payments / Customer Payments / Cash Transfers**, and
+**Expenses / Vendor Payments / Customer Payments / Cash Transfers / Bank Transfers**, and
 **Ready for review / Ambiguous / No Match**. Defaults are Bank, Customer
 Payments, and Ready for review. Creator supplies customer payments only;
 other Creator categories show an explicit empty state. **Bank** uses the full
@@ -197,7 +230,10 @@ payment/cheque date for Creator, across all matching states. Missing or invalid
 dates appear last; equal dates retain source order.
 Search and select-all apply to the visible source, category, and match status.
 Changing a dropdown clears bulk selections. Expenses, vendor advances, and cash transfers provide row checkboxes,
-select-all-visible, and sequential confirmed bulk categorization. The confirmation
+select-all-visible, and sequential confirmed bulk categorization through one server batch. The batch
+reads the uncategorized banks once, validates each row against that fresh snapshot,
+and saves successful rows individually. Polycab vendor and branch metadata are
+resolved once per batch and discarded on failure. The confirmation
 lists each amount, bank, date, and proposed expense/vendor/transfer action; failed rows remain selected for retry. Individual confirmation and
 fresh posting validation remain required.
 
@@ -241,13 +277,14 @@ is still uncategorized and refreshes the customer's open Books invoices. The
 payment is allocated oldest-due-first before Books creation, then its ID is
 checkpointed, the bank line is matched, and the ID is written into Creator's
 `Books_Transaction_Id`. Repeated acceptance of a fully pushed entry is
-idempotent. Entries without a unique match or any open customer invoice cannot
-be accepted, preventing the entire amount from becoming unused credit.
+idempotent. Entries without a unique match cannot be accepted. Payment creation requires
+a fresh open-invoice allocation, preventing the entire amount from becoming unused credit.
 
 The review row shows the proposed invoice numbers, due dates, balances, and
-amounts applied. The preview reuses one invoice query per customer during a
-refresh, but acceptance always queries invoices again so it uses current Books
-balances. Allocation may span multiple invoices. When their total balance is
+amounts applied. Invoice previews load through the row’s **Load invoice preview** action rather than
+during refresh. Acceptance always queries invoices again so it uses current Books
+balances. `lazy_invoice_previews=False` retains eager previews for SDK callers,
+with one invoice query per customer per refresh. Allocation may span multiple invoices. When their total balance is
 less than the payment, Books receives all possible allocations and only the
 displayed excess remains unused credit.
 
@@ -290,6 +327,8 @@ payment is created and matched through that specific account. A transaction is
 never consumed by more than one Creator payment in the same refresh.
 
 The same queue combines Creator's `Online_Payments` and `Cheques` reports.
+Creator report requests apply server-side null/empty criteria; the local blank
+check remains defensive. Cheque details are skipped when no pending cheques exist.
 Only source records whose configured Books transaction ID field (normally
 `Books_Transaction_Id`) is missing, null or blank are proposed. The default
 **Pending Creator payments** view retains every pending record, including records
@@ -364,12 +403,19 @@ Books update aborts the run without recording a successful repair.
 
 # Request Efficiency
 
+Refresh overlaps Creator payment reads with Books bank reads using two workers.
+Each client is used sequentially, and request-metric context is propagated into
+the workers. Bank candidates are indexed once by parsed date and absolute amount;
+lookup retains source order, date/amount tolerances, competing claims and cheque
+clearing rules. A reverse candidate map also avoids rescanning all Creator
+comparisons for each displayed bank row.
+
 The review server retains session-local Analytics token results and Creator
 customer mappings for 300 seconds by default. Empty historical matches are
 cached too. Caches are scoped to their injected client and configured
 workspace/view or app/report; they are never written to the state file.
-Banks and invoice balances are read on every preview refresh. A customer
-conflict retains its invoice preview for review, and repeat acceptance of an already pushed
+Bank statements are read on every refresh; invoice balances load on demand by default. A customer
+conflict can load its invoice preview for review, and repeat acceptance of an already pushed
 entry returns before making network calls.
 
 `refresh(force_refresh=True)`, the UI **Force refresh** button, and CLI

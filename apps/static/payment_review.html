@@ -155,6 +155,7 @@
       <option value="vendors">Vendor Payments</option>
       <option value="customers" selected>Customer Payments</option>
       <option value="transfers">Cash Transfers</option>
+      <option value="bank_transfers">Bank Transfers</option>
     </select></label>
     <label>Match status <select id="filter">
       <option value="reviewable">Ready for review</option>
@@ -263,6 +264,7 @@
   }
 
   function allocationHtml(e) {
+    if (e.allocation_status === "pending_preview") return `<button onclick="previewInvoices('${esc(e.id)}')">Load invoice preview</button>`;
     const rows = e.invoice_allocations || [];
     if (!rows.length) return `<span class="muted">${esc(e.allocation_error || 'No allocation recorded')}</span>`;
     const detail = rows.map(a => `<div><strong>${esc(a.invoice_number || a.invoice_id)}</strong> · ${money(a.amount_applied)}<div class="muted">Due ${esc(a.due_date || 'not set')} · balance ${money(a.balance)}</div></div>`).join('');
@@ -310,7 +312,7 @@
       document.getElementById(id).hidden = bankPrimary || !customersOnly;
     }
     for (const id of ['selectBankLines', 'categorizeSelectedBankLines', 'bankSelectedCount', 'selectVisibleBankLines']) {
-      document.getElementById(id).hidden = customersOnly;
+      document.getElementById(id).hidden = customersOnly || category === "bank_transfers";
     }
     document.getElementById('bankLinesTitle').textContent = document.getElementById('category').selectedOptions?.[0]?.textContent || category;
     document.querySelector('#otherBankLines p').textContent = 'Review proposals before categorizing. Every posting requires confirmation.';
@@ -367,8 +369,8 @@
       <td>${bankLineEligible(row) ? `<input type="checkbox" aria-label="Select bank line" data-transaction-id="${esc(row.transaction_id)}" ${selectedBankLines.has(String(row.transaction_id)) ? 'checked' : ''} ${bankLinesBusy ? 'disabled' : ''} onchange="toggleBankLine(this.dataset.transactionId,this.checked)">` : ''}</td>
       <td>${esc(row.bank_name)}</td><td>${esc(row.date)}</td><td class="money">${money(row.amount)}</td>
       <td>${esc(row.description)}</td>
-      <td>${bankComparisonHtml(row)}${['travel_allowance', 'electricity', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.kind === 'vendor_advance' ? `Vendor advance: ${esc(row.vendor_name)} · Branch: ${esc(row.location_name)}` : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
-      <td>${bankPaymentAction(row)}${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'electricity', 'salary', 'cash_deposit', 'vendor_advance'].includes(row.kind) ? `<button class="accept" ${bankLinesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : row.kind === 'vendor_advance' ? 'Categorize vendor advance' : 'Categorize expense'}</button>` : '<span class="muted">Review in Books</span>'}</td>
+      <td>${bankTransferHtml(row)}${bankComparisonHtml(row)}${['travel_allowance', 'electricity', 'salary'].includes(row.kind) ? `Expense: ${esc(row.expense_account_name)}` : row.kind === 'cash_deposit' ? 'Transfer: Cash-SBE → Bank' : row.kind === 'vendor_advance' ? `Vendor advance: ${esc(row.vendor_name)} · Branch: ${esc(row.location_name)}` : row.kind === 'bank_transfer' ? '' : row.customer_suggestions?.length ? row.customer_suggestions.map(esc).join(', ') : '<span class="muted">No customer suggestion</span>'}</td>
+      <td>${bankTransferAction(row)}${bankPaymentAction(row)}${row.categorization_status === 'categorized' ? '<span class="muted">Categorized</span>' : ['travel_allowance', 'electricity', 'salary', 'cash_deposit', 'vendor_advance'].includes(row.kind) ? `<button class="accept" ${bankLinesBusy ? 'disabled' : ''} onclick="categorizeBankLine('${esc(row.transaction_id)}')">${row.kind === 'cash_deposit' ? 'Categorize transfer' : row.kind === 'vendor_advance' ? 'Categorize vendor advance' : 'Categorize expense'}</button>` : row.kind === 'bank_transfer' ? '' : '<span class="muted">Review in Books</span>'}</td>
     </tr>`).join('') || `<tr><td colspan="7" class="muted">No records match these selections.</td></tr>`);
   }
 
@@ -403,15 +405,10 @@
     let succeeded = 0;
     const failures = [];
     try {
-      for (const id of ids) {
-        try {
-          await api('/api/bank-lines/' + encodeURIComponent(id) + '/categorize', 'POST');
-          selectedBankLines.delete(id);
-          succeeded++;
-        } catch (error) {
-          failures.push(`${id}: ${error.message}`);
-        }
-      }
+      const result = await api('/api/categorize-selected', 'POST', { transaction_ids: ids });
+      for (const id of result.succeeded) selectedBankLines.delete(id);
+      succeeded = result.succeeded.length;
+      failures.push(...result.failed.map(row => `${row.transaction_id}: ${row.error}`));
       await load();
       notify(`${succeeded} records categorized${failures.length ? `; ${failures.length} failed. ${failures.join('; ')}` : '.'}`, failures.length > 0);
     } catch (error) {
@@ -508,10 +505,44 @@
     return (batch.entries || []).filter(e => !e.archived && state(e) !== 'pushed' && matchesSelection(e, paymentMatchStatus(e))).sort((a, b) => compareDates(a.creator?.date, b.creator?.date));
   }
 
+  function bankTransferPairs(row) {
+    return (row.transfer_ids || []).map(id => (batch.bank_transfers || []).find(pair => pair.id === id)).filter(Boolean);
+  }
+
+  function bankTransferHtml(row) {
+    if (row.kind !== 'bank_transfer') return '';
+    const pairs = bankTransferPairs(row);
+    return pairs.map(pair => `<div><strong>${esc(pair.source.bank_name)} → ${esc(pair.destination.bank_name)}</strong><div class="ref">${esc(pair.source.date)} · ${money(pair.source.amount)} · Reference ${esc(pair.source.reference)}</div><div class="muted">Withdrawal ${esc(pair.source.transaction_id)} · Deposit ${esc(pair.destination.transaction_id)}</div><div>${pair.match_status === 'ambiguous' ? 'Multiple matching bank lines; posting blocked.' : esc(pair.status === 'pending' ? 'Exact date, amount and reference match' : pair.status.replaceAll('_', ' '))}</div>${pair.error ? `<div class="warning">${esc(pair.error)}</div>` : ''}</div>`).join('');
+  }
+
+  function bankTransferAction(row) {
+    const pairs = bankTransferPairs(row);
+    if (row.kind !== 'bank_transfer' || pairs.length !== 1 || pairs[0].match_status !== 'reviewable') return '';
+    const pair = pairs[0];
+    if (pair.status === 'completed') return '';
+    return `<button class="accept" onclick="categorizeBankTransfer('${esc(pair.id)}')">${pair.status === 'pending' ? 'Confirm bank transfer' : 'Resume bank transfer'}</button>`;
+  }
+
+  async function categorizeBankTransfer(id) {
+    const pair = (batch.bank_transfers || []).find(pair => pair.id === id);
+    if (!pair) return;
+    if (!confirm(`Confirm one bank transfer in Books?\n\n${pair.source.bank_name} → ${pair.destination.bank_name}\nDate: ${pair.source.date}\nAmount: ${money(pair.source.amount)}\nReference: ${pair.source.reference}\n\nBoth statement lines will be matched to the same transfer. An interrupted operation resumes its saved transfer.`)) return;
+    try {
+      notify('Validating both bank lines and matching one transfer…');
+      await api('/api/bank-transfers/' + encodeURIComponent(id) + '/categorize', 'POST');
+      await load();
+      notify('Bank transfer verified against both statement lines.');
+    } catch (error) {
+      notify(error.message, true);
+      try { await load(); } catch (_) {}
+    }
+  }
+
   function bankCategory(row) {
     if (['travel_allowance', 'electricity', 'salary'].includes(row.kind)) return 'expenses';
     if (row.kind === 'vendor_advance') return 'vendors';
     if (row.kind === 'cash_deposit') return 'transfers';
+    if (row.kind === 'bank_transfer') return 'bank_transfers';
     return 'customers';
   }
 
@@ -531,6 +562,7 @@
   }
 
   function bankMatchStatus(row) {
+    if (row.kind === 'bank_transfer') return bankTransferPairs(row).length === 1 && bankTransferPairs(row)[0].match_status === 'reviewable' ? 'reviewable' : 'ambiguous';
     if (bankCategory(row) !== 'customers') return 'reviewable';
     const entries = bankCreatorEntries(row);
     return bankReadyEntry(row) ? 'reviewable' : entries.length ? 'ambiguous' : 'unmatched';
@@ -566,6 +598,13 @@
       else selected.delete(e.id);
     }
     render();
+  }
+
+  async function previewInvoices(id) {
+    try {
+      await api('/api/entries/' + encodeURIComponent(id) + '/preview-invoices', 'POST');
+      await load();
+    } catch (error) { notify(error.message, true); }
   }
 
   async function rejectEntry(id) {

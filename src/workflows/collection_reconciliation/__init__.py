@@ -23,6 +23,7 @@ from .repair import repair_payment_allocations
 from .types import (
     BankMatchCandidate,
     BankStatementRecord,
+    BankTransferProposal,
     ChequeDetail,
     InvoiceAllocation,
     PaymentProposal,
@@ -50,6 +51,7 @@ __all__ = [
     "InvoiceAllocation",
     "BankMatchCandidate",
     "BankStatementRecord",
+    "BankTransferProposal",
     "ChequeDetail",
     "PaymentProposal",
 ]

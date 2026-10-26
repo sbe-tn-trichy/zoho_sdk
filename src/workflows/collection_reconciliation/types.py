@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, NotRequired
 
 
 class InvoiceAllocation(TypedDict, total=False):
@@ -75,3 +75,18 @@ class BankStatementRecord(BankMatchCandidate, total=False):
     location_name: str
     categorization_status: str
     creator_entry_ids: List[str]
+    transfer_ids: List[str]
+    recovery_checkpoint: bool
+
+
+class BankTransferProposal(TypedDict):
+    """One withdrawal/deposit pair and its durable Books posting checkpoint."""
+
+    id: str
+    source: Dict[str, str]
+    destination: Dict[str, str]
+    match_status: str
+    status: str
+    transfer_id: str
+    error: str
+    completed_at: NotRequired[str]

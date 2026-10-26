@@ -103,6 +103,16 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str,
                         self._json(service.refresh())
                     logging.info("Preview cache hits: %s", service.load().get("preview_cache_hits", {}))
                     return
+                if path.startswith("/api/bank-transfers/") and path.endswith("/categorize"):
+                    proposal_id = unquote(path[len("/api/bank-transfers/"):-len("/categorize")])
+                    self._json(service.categorize_bank_transfer(proposal_id))
+                    return
+                if path == "/api/categorize-selected":
+                    ids = body.get("transaction_ids")
+                    if not isinstance(ids, list):
+                        raise ValueError("transaction_ids must be a list.")
+                    self._json(service.categorize_many(ids))
+                    return
                 if path == "/api/accept-selected":
                     entry_ids = body.get("entry_ids")
                     if not isinstance(entry_ids, list):
@@ -138,7 +148,9 @@ def make_handler(service: OnlinePaymentReviewService, review_token: str,
                 remainder = path[len(prefix):]
                 entry_id, action = remainder.rsplit("/", 1)
                 entry_id = unquote(entry_id)
-                if action == "reject":
+                if action == "preview-invoices":
+                    self._json(service.preview_invoices(entry_id))
+                elif action == "reject":
                     self._json(service.reject(entry_id))
                 elif action == "accept":
                     self._json(
