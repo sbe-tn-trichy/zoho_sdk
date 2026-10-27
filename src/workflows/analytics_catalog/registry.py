@@ -19,6 +19,12 @@ def _references(key: str, source: str, names: tuple[str, ...]) -> tuple[Workflow
 
 
 DEFAULT_REFERENCES = (
+    *_references("customer_analytics_sync", "src/workflows/customer_analytics_sync.py",
+                 ("Customers (Zoho Books)", "Customer Addresses (Zoho Books)",
+                  "Customer Contact Persons (Zoho Books)")),
+    *_references("customer_normalization", "src/workflows/customer_normalization.py",
+                 ("Customers (Zoho Books)", "Customer Addresses (Zoho Books)",
+                  "Customer Contact Persons (Zoho Books)")),
     WorkflowViewReference("bank_statement_check", "Bank Statements (Zoho Books)",
                           "src/workflows/bank_statement_check.py", view_id="264324000005829009",
                           notes="Read-only HDFC CSV completeness comparison; configurable view ID requires an explicit runtime reference."),

@@ -63,6 +63,7 @@ def test_registry_catalogues_every_domain_workflow():
     assert represented == {
         "collection_reconciliation",
         "creator_customer_sync",
+        "customer_analytics_sync",
         "duplicate_payment_check",
         "gstr1_verification",
         "gstr2_verification",

@@ -78,6 +78,7 @@ Bank Statement Categorization includes Creator collection matching, Analytics-as
 | Workflow | Module |
 |---|---|
 | Customer contact validation | [customer_validation](src/workflows/customer_validation/) |
+| Analytics customer sync and local cleanup (primary CLI: `apps/sync_analytics_customers.py`) | [customer_analytics_sync](src/workflows/customer_analytics_sync.py) |
 | Sales-order import from invoice YAML | [sales_order_import](src/workflows/sales_order_import/) |
 | Polycab return-sales-order PDF import | [polycab_rso](src/workflows/polycab_rso/) |
 

@@ -2,6 +2,10 @@
 
 ## 2026-10-27
 
+- Added [repeatable Analytics customer sync](customer-local-store.md#four-table-normalization-workspace), a dedicated CLI/dashboard entry, complete-export checks, atomic four-table reconciliation, recovery backups and persistent local-edit conflicts.
+
+- Added the [four-table customer normalization workspace](customer-local-store.md#four-table-normalization-workspace), preserving all three Analytics exports, contact persons, original values and local correction reports with strict identity/link checks.
+
 - Documented the [local Metabase installation](metabase-local.md), loopback-only UI, persistent application settings and existing SQLite mounts.
 
 - Added [shared customer constants](customer-local-store.md#shared-customer-constants), keeping identical fields in a singleton table with lossless reconstruction and a full SQL view.

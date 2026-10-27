@@ -10,6 +10,94 @@ description: Local Books customer SQLite mirror, modification-time reconciliatio
 writes to Books. The default database is `output/customer_cleanup/customers.sqlite3`.
 Organization identity is pinned in database metadata; another organization is rejected.
 
+## Four-table normalization workspace
+
+Use `apps/sync_analytics_customers.py` for repeatable local uniformity cleanup from the
+three Analytics Books tables: Customers, Customer Addresses and Customer Contact
+Persons. `workflows.customer_analytics_sync` owns synchronization and
+`workflows.customer_normalization` owns source export/normalization. Both use
+`AnalyticsCatalog` cached metadata, and never refreshes metadata or writes to Zoho.
+It creates `output/customer_cleanup/normalized_customers.sqlite3` separately from
+the older Books reconciliation store described below. Exactly four tables are used:
+
+| Table | Ownership |
+|---|---|
+| Customers | Customer identity, names, communication, type, audit fields and remaining attributes; all contact persons in a structured JSON array. |
+| Customer Addresses | Every source address record, including distinct billing and shipping fields and address audit fields. |
+| Customer Financials | Limits, terms, currency, opening/outstanding amounts, price list, payment settings and tax registration. |
+| Customer Beat | Beat, branch, district, jurisdiction, transporter, optical division and customer owner. |
+
+The tables link by exact string Customer ID; addresses additionally have an exact
+string Address ID. Do not flatten secondary contact persons into the customer's
+top-level phone/email. `Status` and `Status_1`, names/display names, and billing/
+shipping fields retain distinct meanings. Original source rows are retained in
+`_source_json` columns; original contact persons in `_source_contact_persons_json`.
+Unknown future customer fields remain in Customers. Financial values retain their
+source representation without floating-point coercion.
+
+```sh
+.venv/Scripts/python.exe apps/sync_analytics_customers.py
+.venv/Scripts/python.exe apps/sync_analytics_customers.py --source output/customer_normalization/source
+```
+
+Without `--source`, all three sources are exported to a timestamped directory.
+Separate Analytics COUNT queries verify export completeness. The command also appears
+as **Analytics customer sync** in the project dashboard (workflow ID
+`customer_analytics_sync`). `--db`, `--workspace-id` and `--catalog-dir` select the
+target database and cached Analytics workspace. Metadata is never refreshed implicitly.
+Offline replay requires a completed manifest pinning organization, view schemas,
+row counts, capture time and last successful metadata sync. Partial exports, duplicate
+IDs, invalid IDs, schema mismatches and orphan records fail rather than dropping data.
+Every run stages and validates a fresh normalized snapshot before changing the target.
+The existing database is backed up with SQLite's backup API while other writers are
+blocked; all four tables are then reconciled in one transaction. Unchanged fields
+refresh from Analytics. Local edits are compared with the previous normalized baseline
+and preserved; when both local and Analytics values change differently, local values
+remain and the conflict retains its original baseline until resolved or converged.
+Contact-person records merge by Contact Person ID and field, so editing one phone
+does not hide new contacts or independent source changes. Source deletions are retained
+and marked for review instead of being deleted from SQLite.
+
+`_baseline_json`, `_sync_conflicts_json` and `_present_in_analytics` track each row;
+Customers additionally stores `_sync_info_json` with pinned organization/workspace,
+the last successful data/metadata sync times, source/report paths and row counts.
+These technical columns keep the database at exactly four tables. Do not edit sync
+metadata, IDs, ownership, or insert/delete rows directly. Row/identity changes, ownership
+changes and source schema removals fail with an actionable error rather than overwriting
+work. Ordinary cleanup values may be edited directly, including the `Contact Persons`
+array's field values (its identities must remain intact).
+
+The first sync upgrades the original one-off normalization database using its
+`.report.json` and preserved source directory to verify ownership and derive baselines.
+Subsequent syncs use metadata inside SQLite. `apps/customer_local_store.py normalize`
+remains a create-only snapshot command for compatibility and offline inspection;
+it continues to refuse existing targets. Use the dedicated sync command for refreshes.
+The legacy `sync`, `export` and `compact` commands operate on the older store and
+must not be pointed at the four-table database.
+
+Safe local corrections trim outer whitespace (excluding notes, dates, identifiers
+and financial amounts), collapse categorical whitespace, uppercase tax/currency codes,
+lowercase email domains, and remove separators from single conventional phone numbers
+while retaining country prefixes and leading zeros. Billing and shipping city values use
+uppercase with collapsed whitespace, retaining distinct spellings. Payment terms map `Due On Receipt`
+to `Due on Receipt` and `30 days` to `Net 30`. No country codes, missing values or fuzzy
+place/beat spelling matches are guessed. Invalid phone/email/tax formats, broken default
+address links, registration gaps, PAN/GSTIN disagreement and similar beat names are
+reported for review. Format checks do not verify tax registration or GSTIN checksums.
+
+Companion `.report.json` and `.report.md` files contain changes/review findings and
+metadata freshness; `.schema.sql` contains the actual four-table schema. Integrity,
+foreign keys, row counts and exact reconstruction of all three original exports are
+checked before normalization success. Sync runs retain their source snapshot,
+`incoming.report.json`/`.md`, `before_sync.sqlite3` (when updating) and
+`sync_report.json`/`.md` under `sync_runs/<UTC timestamp>/`; the database's `.sync.json`
+points to the latest successful run. Conflicts are reported separately from format
+review issues; successful sync does not mean all discrepancies have been resolved.
+SQLite changes are local cleanup work; cloud application
+requires a separate reviewed mutation workflow with fresh Books baselines.
+
+## Legacy Books reconciliation store
+
 ```sh
 .venv/bin/python apps/customer_local_store.py migrate
 .venv/bin/python apps/customer_local_store.py compact

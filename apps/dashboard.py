@@ -184,6 +184,15 @@ WORKFLOWS = (
         workflow="gstr2_verification",
         file_accept=".json,application/json",
     ),
+    WorkflowSpec(
+        18,
+        "Analytics customer sync",
+        "Refresh four local customer tables from Analytics and preserve cleanup edits with conflict reports.",
+        (sys.executable, "apps/sync_analytics_customers.py"),
+        "Customers",
+        safety="Updates local SQLite",
+        workflow="customer_analytics_sync",
+    ),
 )
 
 

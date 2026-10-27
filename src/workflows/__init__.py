@@ -23,6 +23,11 @@ from .core.models import DotDict
 
 
 _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "sync_analytics_customers": (".customer_analytics_sync", "sync_analytics_customers"),
+    "CustomerAnalyticsSyncResult": (".customer_analytics_sync", "CustomerAnalyticsSyncResult"),
+    "build_normalized_customers": (".customer_normalization", "build_normalized_customers"),
+    "download_customer_normalization_sources": (".customer_normalization", "download_customer_normalization_sources"),
+    "CustomerNormalizationResult": (".customer_normalization", "CustomerNormalizationResult"),
     "compact_customer_columns": (".customer_table", "compact_customer_columns"),
     "stage_creator_beats_locally": (".customer_local_store", "stage_creator_beats_locally"),
     "stage_new_beat": (".books_custom_module_store", "stage_new_beat"),
