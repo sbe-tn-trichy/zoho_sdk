@@ -23,6 +23,15 @@ from .core.models import DotDict
 
 
 _LAZY_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "compact_customer_columns": (".customer_table", "compact_customer_columns"),
+    "stage_creator_beats_locally": (".customer_local_store", "stage_creator_beats_locally"),
+    "stage_new_beat": (".books_custom_module_store", "stage_new_beat"),
+    "download_books_custom_modules": (".books_custom_module_store", "download_books_custom_modules"),
+    "module_record_json": (".books_custom_module_store", "module_record_json"),
+    "ModuleDownloadResult": (".books_custom_module_store", "ModuleDownloadResult"),
+    "open_customer_store": (".customer_local_store", "open_store"),
+    "sync_local_customers": (".customer_local_store", "sync_customers"),
+    "export_customer_json": (".customer_table", "customer_json"),
     "review_unearned_revenue_analytics": (".unearned_revenue", "review_unearned_revenue_analytics"),
     "find_unused_customer_payments": (".unearned_revenue", "find_unused_customer_payments"),
     "UnusedPayment": (".unearned_revenue", "UnusedPayment"),

@@ -1,5 +1,21 @@
 # Knowledge Change Log
 
+## 2026-10-27
+
+- Documented the [local Metabase installation](metabase-local.md), loopback-only UI, persistent application settings and existing SQLite mounts.
+
+- Added [shared customer constants](customer-local-store.md#shared-customer-constants), keeping identical fields in a singleton table with lossless reconstruction and a full SQL view.
+
+- Added [Creator beat assignment staging into SQLite](customer-local-store.md#creator-beat-assignments-into-sqlite), preserving manual beat overrides and reporting missing customer links.
+
+- Added local [beat creation staging](customer-local-store.md#related-custom-modules) with temporary IDs, pending creation records and refresh protection.
+
+- Added read-only [Sales Person and Beat downloads](customer-local-store.md#related-custom-modules) into organization-scoped SQLite tables with exact JSON columns and protection against overwriting local edits.
+
+- Converted the [local customer store](customer-local-store.md) to editable columns using exact JSON names, with lossless reconstruction, retained cloud/edit baselines and a backup before migration.
+
+- Added the [local customer store](customer-local-store.md) with 200-row Books downloads, modification-time reconciliation, preserved edit baselines and reviewed local phone/mobile staging; cloud writes remain separate.
+
 ## 2026-10-26
 
 - Extended the shared [ICICI reference resolver](bank-vendor-ledger-matching.md#bank-reference-normalization) to NEFT/RTGS narration UTRs so internal transfer pairs match despite short imported ICICI references; other banks retain field references.
